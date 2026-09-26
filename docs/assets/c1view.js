@@ -111,7 +111,7 @@
           s.matches.forEach(function (m) {
             h.push('<li><div class="row small"><span class="chip on">' + m.table + '</span> <span class="mono">' + m.label + '</span> ' +
                    lineLink(m.pline, esc(m.pat)) + ' <span class="muted">for</span> <code>' + esc(infix(m.tree)) + '</code></div>' +
-                   '<pre class="tmpl">' + (m.tmpl.length ? esc(m.tmpl.join('\n')) : '<span class="muted">(empty template: no code)</span>') + '</pre></li>');
+                   '<pre class="tmpl">' + (m.tmpl.length ? esc(m.tmpl.map(function (x) { return x.replace(/^ {8}/, ''); }).join('\n')) : '<span class="muted">(empty template: no code)</span>') + '</pre></li>');
           });
           h.push('</ol>');
         }
@@ -142,7 +142,7 @@
         var same = e.tline === lastT;
         h.push('<li><div class="row small">' + lineLink(e.line, esc(e.pat)) + ' <span class="muted">' + explainPattern(e.pat) + '</span></div>' +
                (same ? '<p class="small muted" style="margin:.2rem 0 .6rem">same template as above</p>'
-                     : '<pre class="tmpl">' + (e.tmpl.length ? esc(e.tmpl.join('\n')) : '<span class="muted">(empty: no code needed)</span>') + '</pre>') + '</li>');
+                     : '<pre class="tmpl">' + (e.tmpl.length ? esc(e.tmpl.map(function (x) { return x.replace(/^ {8}/, ''); }).join('\n')) : '<span class="muted">(empty: no code needed)</span>') + '</pre>') + '</li>');
         lastT = e.tline;
       });
       h.push('</ol>');

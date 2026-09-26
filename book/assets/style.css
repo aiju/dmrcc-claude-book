@@ -396,3 +396,4 @@ button.chip.on { color: var(--paper); }
 ol.tvmatch { padding-left: 1.4rem; margin: .3rem 0; }
 ol.tvmatch li { margin-bottom: .5rem; }
 pre.tmpl { margin: .3rem 0 .2rem; padding: .35rem .6rem; font-size: 13.5px; background: var(--greenbar); }
+.widget[data-widget="tables"] .tout { max-height: 36rem; overflow: auto; }

@@ -1,0 +1,237 @@
+<!-- title: The Code Tables -->
+<!-- number: 10 -->
+<!-- short: Tables -->
+<!-- scripts: v6.js c1view.js -->
+<!-- blurb: The four tables of code templates in table.s, the little language they are written in, and how match() picks one for each node. -->
+
+<p>Most compilers of the early 1970s generated code with large amounts of hand-written logic: a
+routine for each operator, full of cases for each kind of operand. <code>c1</code> has a routine for
+very few operators. Instead, the knowledge of which instructions implement which operator on
+which operands is written as data, in <a href="source/table.s.html"><code>table.s</code></a>: for each
+operator a list of patterns, each describing a kind of operand pair, and for each pattern a
+template of assembly language with holes in it. Code generation is then a search for the first
+pattern that fits, followed by the expansion of its template. The table is 1255 lines long, and
+is the single largest part of the compiler.</p>
+
+<h2 id="four">Four tables</h2>
+
+<p>An expression can be compiled for different purposes, and there are four tables, one for each:</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Table</th><th>Purpose</th><th>Starts at</th></tr></thead>
+<tbody>
+<tr><td><code>regtab</code></td><td>leave the value in a register</td><td>[[table.s:8]]</td></tr>
+<tr><td><code>efftab</code></td><td>compute it only for its side effects, and set the condition codes</td><td>[[table.s:713]]</td></tr>
+<tr><td><code>cctab</code></td><td>only set the condition codes, for a branch</td><td>[[table.s:1072]]</td></tr>
+<tr><td><code>sptab</code></td><td>push the value onto the stack, for a function argument</td><td>[[table.s:1193]]</td></tr>
+</tbody></table></div>
+
+<p>The same expression gets quite different code from each. <code>a = b</code> for its effect is
+<code>mov _b,_a</code>; for its value in a register it needs another instruction to fetch the result;
+<code>a + 1</code> for the stack can be <code>mov _a,-(sp); inc (sp)</code>. Only <code>regtab</code> has to be
+complete. When a node cannot be compiled with one of the others, the code generator falls back on
+<code>regtab</code> and then adds a <code>tst</code> to set the condition codes, or a <code>mov</code> to push the
+register ([[c10.c:326-345]]). So the other tables need only contain the cases where they can do
+better than that.</p>
+
+<p>A fifth table, <code>lsptab</code>, has no entries of its own. It is <code>sptab</code> with one difference:
+it stores into <code>(sp)</code> instead of pushing onto <code>-(sp)</code>. It is used for the first argument
+of a call, which goes into the free word at the top of the stack
+(<a href="01-overview.html#frames">chapter 1</a>). <code>match</code> quietly substitutes <code>sptab</code> for
+it ([[c10.c:88-89]]), and the difference is made when the template is expanded.</p>
+
+<p>Each table starts with a directory that maps operator numbers to labels
+([[table.s:8-53]]). Operators with the same code share a label: <code>+</code>, <code>-</code>, <code>|</code>,
+<code>&amp;~</code> and <code>&lt;&lt;</code> all use <code>cr40</code> in <code>regtab</code>, since each is a single two-operand
+instruction, and only the instruction's name differs.</p>
+
+<h2 id="patterns">Patterns</h2>
+
+<p>Here is the <code>regtab</code> entry for those operators, in part:</p>
+
+[[src:table.s:230-271]]
+
+<p>Each line beginning with <code>%</code> is a pattern, describing the left and right operands, and
+the lines that follow, up to a blank line, are its template. A pattern describes each operand with
+a letter for how hard it is to compute, then optional letters for its type, then optionally
+<code>*</code>. The difficulty letters are an upper bound:</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Letter</th><th>Matches</th></tr></thead>
+<tbody>
+<tr><td><code>z</code></td><td>the constant 0</td></tr>
+<tr><td><code>1</code></td><td>the constant 1 (or 0)</td></tr>
+<tr><td><code>c</code></td><td>a small positive constant</td></tr>
+<tr><td><code>r</code></td><td>a register variable (or a constant)</td></tr>
+<tr><td><code>a</code></td><td>anything addressable: a name, a constant, an address, or an indirection through a name</td></tr>
+<tr><td><code>e</code></td><td>anything that can be computed in the registers still free</td></tr>
+<tr><td><code>n</code></td><td>anything at all</td></tr>
+</tbody></table></div>
+
+<p>The type letters are <code>w</code> for a word, <code>b</code> for a byte, <code>f</code> for <code>float</code> or
+<code>double</code>, <code>d</code> for <code>double</code>, and <code>l</code> for <code>long</code>; no type letter means a word or a
+byte. A <code>*</code> means the operand must be an indirection, <code>*x</code>, and the template will compute
+the pointer <code>x</code> and address through it. So <code>%n,aw</code> reads: the left operand is anything,
+the right is an addressable word. <code>%nf,nd*</code> reads: the left operand is any floating value, the
+right an indirection through any pointer to a <code>double</code>.</p>
+
+<p>The patterns are tried in order, and the first that fits is used, so the order matters: cheap,
+specific cases come first, and the general case <code>%n,n</code>, which evaluates the right operand onto
+the stack, comes last. For <code>+</code>, the list starts with adding zero, which costs nothing, and
+adding one, which is an <code>inc</code>.</p>
+
+<h2 id="templates">Templates</h2>
+
+<p>The templates are assembly language with embedded macros:</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Macro</th><th>Expands to</th></tr></thead>
+<tbody>
+<tr><td><code>A1</code>, <code>A2</code></td><td>the address of the first or second operand, as an assembler operand</td></tr>
+<tr><td><code>A1+</code></td><td>the address of its second word, for the low half of a <code>long</code></td></tr>
+<tr><td><code>A1'</code></td><td>the address without its side effect: <code>(r2)</code> for <code>(r2)+</code>, when an operand is used twice</td></tr>
+<tr><td><code>I</code>, <code>I'</code></td><td>the instruction for this operator, or its alternative form</td></tr>
+<tr><td><code>B1</code>, <code>B2</code>, <code>BE</code></td><td><code>b</code> if the operand, or either operand, is a <code>char</code>, for the byte form of the instruction</td></tr>
+<tr><td><code>BF</code></td><td><code>f</code> if the operation is floating</td></tr>
+<tr><td><code>R</code>, <code>R1</code>, <code>R-</code>, <code>R+</code></td><td>the result register, the next one, and its neighbours</td></tr>
+<tr><td><code>F</code>, <code>S</code>, <code>H</code></td><td>compile the first operand, the second operand, or the whole tree, into <code>R</code></td></tr>
+<tr><td><code>#1</code>, <code>#2</code></td><td>the constant offset of an indirection, as in <code>#1(R)</code></td></tr>
+<tr><td><code>T</code></td><td>a <code>tst</code>, if the condition codes are not already set</td></tr>
+<tr><td><code>V</code></td><td><code>adc</code> or <code>sbc</code>, to carry into the high word of a <code>long</code></td></tr>
+</tbody></table></div>
+
+<p><code>F</code>, <code>S</code> and <code>H</code> are what make the scheme recursive: each calls the code
+generator on a subtree, and can be modified by following letters. <code>F*</code> compiles, not the
+operand <code>*x</code>, but <code>x</code>, so that the template can then address <code>#1(R)</code>. <code>S1</code>
+compiles into <code>R1</code> instead of <code>R</code>. <code>SS</code> compiles onto the stack, and <code>FC</code> for the
+condition codes.</p>
+
+<p><code>I</code> is looked up in the table <code>instab</code> in <a href="source/c1t.s.html"><code>c1t.s</code></a>
+([[c1t.s:8-60]]), which gives two names for each operator. The alternative, <code>I'</code>, is used for
+special cases: for <code>=</code> the two are <code>mov</code> and <code>clr</code>, for <code>==</code> they are <code>cmp</code> and
+<code>tst</code>, for <code>+</code> they are <code>add</code> and <code>inc</code>. That is how the pattern <code>%n,1</code> above,
+with template <code>F</code> then <code>I' R</code>, produces <code>inc r0</code> for an addition of one, and
+<code>dec r0</code> for a subtraction.</p>
+
+<p>So the template for <code>%n,aw</code>, which is</p>
+
+<pre>F
+IB2	A2,R</pre>
+
+<p>means: compile the left operand into the register; then emit the operator's instruction, with a
+<code>b</code> suffix if the right operand is a <code>char</code>, taking the right operand's address as the
+source and the register as the destination. For <code>x + y</code> this is <code>mov _x,r0</code>, then
+<code>add _y,r0</code>. For <code>x - 1</code> it is not used, because <code>%n,1</code> comes first.</p>
+
+<p>Templates are often shared. <code>%[add1:]</code> names the template that follows, and a later line
+<code>% [add1]</code> uses it again. Multiplication in <code>cr42</code>, for instance, uses the templates of
+<code>cr40</code> unchanged, since <code>mul</code> works like <code>add</code> once its register has been chosen to be
+odd. The relational operators in <code>cctab</code> share the templates of assignment in <code>efftab</code>,
+which is why comparisons come out with their operands in the unexpected order noted in
+<a href="01-overview.html#first">chapter 1</a>: <code>mov A2,A1</code> becomes <code>cmp A2,A1</code>. Chapter 11
+explains how the branch is reversed to suit.</p>
+
+<h2 id="cvopt">Translating the tables</h2>
+
+<p><code>table.s</code> is not assembled as it stands. It is first passed through <code>cvopt</code>
+([[cvopt.c:7-291]]), a small translator whose output is ordinary assembly language
+([[run:4-6]]). <code>cvopt</code> turns each pattern into four bytes, a difficulty and a type for each
+operand, followed by a pointer to the template, and each template into a string. Along the way it
+abbreviates the macros into single characters, as its comment records ([[cvopt.c:10-39]]):
+<code>A1</code> becomes <code>A</code>, <code>A2</code> becomes <code>B</code>, <code>F</code> becomes <code>G</code>, <code>R</code> becomes
+<code>I</code>, and so on. A subtree macro is followed by one more letter that encodes its
+modifiers: <code>A</code> plus 1 for <code>*</code>, 2 for <code>S</code>, 4 for <code>C</code> and 8 for <code>1</code>, so that
+<code>F</code> becomes <code>GA</code> and <code>F*</code> becomes <code>GB</code>. <code>cexpr</code> decodes them by subtracting
+<code>'A'</code> ([[c10.c:545-560]]). A tab at the start of a line becomes the top bit of the
+next character. The difficulty letters become numbers that <code>match</code> can compare with the
+result of <code>dcalc</code>: <code>z</code> is 4, <code>1</code> is 5, <code>c</code> is 8, <code>r</code> is 9, <code>a</code> is 16,
+<code>e</code> is 20 and <code>n</code> is 63, and <code>*</code> adds 0100.</p>
+
+<p>The structures that result are declared in <code>c1h.c</code> ([[c1h.c:51-62]]): a <code>struct table</code>
+entry pairs an operator with a list of <code>struct optab</code>, and each <code>optab</code> holds the four
+bytes and the string.</p>
+
+<h2 id="match">Matching</h2>
+
+<p><code>match</code> ([[c10.c:77-142]]) is given a tree, a table and the number of free registers. It
+finds the operator in the table, and then tries the patterns in order ([[c10.c:125-140]]). For
+each operand it computes a difficulty with <code>dcalc</code> ([[c11.c:148-186]]):</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th><code>dcalc</code></th><th>For</th></tr></thead>
+<tbody>
+<tr><td class="num">4</td><td>the constant 0</td></tr>
+<tr><td class="num">5</td><td>the constant 1</td></tr>
+<tr><td class="num">8</td><td>any other positive constant</td></tr>
+<tr><td class="num">9</td><td>a register variable</td></tr>
+<tr><td class="num">12</td><td>a name, an address, a negative constant, <code>(r)+</code>, <code>-(r)</code>, or <code>*</code> of a name or constant</td></tr>
+<tr><td class="num">20</td><td>anything whose degree is no more than the number of free registers</td></tr>
+<tr><td class="num">24</td><td>anything else</td></tr>
+</tbody></table></div>
+
+<p>An operand fits a pattern if its difficulty is at most the pattern's, if it is an indirection
+when the pattern demands one, and if its type is compatible, which <code>notcompat</code>
+([[c11.c:188-211]]) decides. So a constant 1 fits <code>1</code>, <code>c</code>, <code>a</code>, <code>e</code> and <code>n</code>, and
+the first pattern in the list that allows it wins.</p>
+
+<p>There is one more trick in <code>match</code>. If either operand is a conversion, such as
+<code>int</code> to <code>double</code>, it first tries to match the tree with the conversion removed
+([[c10.c:101-118]]). The tables contain entries for mixed types where the machine can do the
+conversion as part of the operation, and these are found that way. The comment gives the example
+of assigning a <code>double</code> to an <code>int</code>: <code>movf double,fr0; movfi fr0,int</code> converts on the way
+out of the register, so the <code>double</code> never needs to be converted into an <code>int</code> in a
+register first.</p>
+
+<h2 id="example">An example</h2>
+
+<p>Here is how <code>a = b + c*d</code>, from <code>expr.c</code>, is compiled, as the tracing <code>c1</code> recorded
+it. After <code>optim</code> the tree is <code>a = (c*d) + b</code>, the product moved first because it is
+harder.</p>
+
+<ol>
+<li>The statement is compiled for effect, and <code>efftab</code>'s entry for <code>=</code>, <code>ci80</code>, is
+searched. The left operand <code>a</code> is addressable; the right is not. The first pattern that fits
+is <code>%a,n</code> ([[table.s:754]]), whose template is <code>S</code>, then <code>IB1 R,A1</code>: compute the right
+side into a register, then move it into <code>a</code>.</li>
+<li><code>S</code> compiles <code>(c*d) + b</code> into a register using <code>regtab</code>. The entry <code>cr40</code> matches
+<code>%n,aw</code>, since <code>b</code> is an addressable word: <code>F</code>, then <code>add _b,R</code>.</li>
+<li><code>F</code> compiles <code>c*d</code> into the register. <code>cr42</code> matches <code>%n,aw</code> again, reusing the
+<code>add1</code> template: <code>F</code>, then <code>mul _d,R</code>. Because this is a multiplication, the register
+has been made odd: <code>r1</code>.</li>
+<li><code>F</code> compiles <code>c</code>, a leaf, which is done through the operator <code>LOAD</code> and <code>cr106</code>,
+pattern <code>%a,n</code>: <code>mov _c,r1</code>.</li>
+</ol>
+
+<p>Unwinding, the output is</p>
+
+<pre>mov	_c,r1
+mul	_d,r1
+add	_b,r1
+mov	r1,_a</pre>
+
+<p>which is exactly the code in <code>expr.s</code>. The trace viewer in the next chapter shows this
+breakdown for every statement of several programs.</p>
+
+<h2 id="browse">The tables</h2>
+
+<p>Browse the tables below. Choose a table and an operator to see its patterns in the order
+<code>match</code> tries them, with a reading of each pattern and its template. Clicking a pattern
+opens it in the listing.</p>
+
+<div class="widget" data-widget="tables" data-table="regtab" data-op="40">
+<div class="wbar"><span class="wt">table.s</span>
+<span class="row">
+<label for="tbt" class="small" style="color:inherit;margin:0">Table</label>
+<select id="tbt" class="tsel" style="width:auto"><option>regtab</option><option>efftab</option><option>cctab</option><option>sptab</option></select>
+<label for="tbo" class="small" style="color:inherit;margin:0">Operator</label>
+<select id="tbo" class="osel" style="width:auto"></select>
+</span></div>
+<div class="wbody"><div class="tout"></div></div>
+<script type="application/json">[[tables]]</script>
+</div>
+
+<p>A few entries worth finding: <code>efftab</code> for <code>=</code>, whose first patterns clear a variable
+instead of moving zero into it; <code>regtab</code> for <code>/</code>, whose templates show the dance with
+<code>sxt</code> and register pairs needed by <code>div</code>; <code>regtab</code> for <code>++post</code>, with its several
+ways of fetching a value and incrementing it; and <code>cctab</code> for <code>&amp;</code> in tests, which
+reuses the templates of <code>=</code> with <code>bit</code> as the instruction.</p>
