@@ -387,3 +387,12 @@ body.panel-open .prose .widget, body.panel-open .prose figure.wide { width: 100%
 .pfinal pre { margin: .4rem 0 0; }
 button.chip { cursor: pointer; color: var(--ink); font-family: var(--f-display); }
 button.chip.on { color: var(--paper); }
+
+/* c1 trace viewer and table browser */
+.tvgrid { display: grid; grid-template-columns: minmax(0, 17rem) minmax(0, 1fr); gap: 1rem; }
+@media (max-width: 760px) { .tvgrid { grid-template-columns: minmax(0, 1fr); } }
+.tvlist { max-height: 30rem; }
+.tvmain .pair { gap: .8rem; }
+ol.tvmatch { padding-left: 1.4rem; margin: .3rem 0; }
+ol.tvmatch li { margin-bottom: .5rem; }
+pre.tmpl { margin: .3rem 0 .2rem; padding: .35rem .6rem; font-size: 13.5px; background: var(--greenbar); }

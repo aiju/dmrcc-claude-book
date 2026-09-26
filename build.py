@@ -23,6 +23,7 @@ and may use these shorthands in their text:
     [[bytes:examples/out/x.i]]      an od -b dump as a JSON list of bytes
 """
 import html, json, os, re, shutil, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, 'src')
@@ -455,6 +456,31 @@ def expand(text, src, prefix=''):
             out += [int(x, 8) for x in line.split()[1:]]
         return json.dumps(out, separators=(',', ':'))
 
+    def trace(m):
+        # a trace of the instrumented c1, see tools/c1trace
+        import tables, traces
+        name = m.group(1)
+        tabs = tables.parse(os.path.join(SRC, 'table.s'))
+        srcl = open(os.path.join(ROOT, 'examples', name + '.c')).read().split('\n')
+        d = traces.parse(os.path.join(ROOT, 'examples', 'trace', name + '.trace'), tabs,
+                         lambda l: src.g('table.s', l), srcl)
+        d['name'] = name
+        d['source'] = srcl
+        return json.dumps(d, separators=(',', ':')).replace('</', '<\\/')
+
+    def tablesjson(m):
+        import tables
+        dirs, labels = tables.parse(os.path.join(SRC, 'table.s'))
+        for lab in labels.values():
+            for e in lab:
+                e['line'] = src.g('table.s', e['line'])
+                if e['tmpl']:
+                    e['tline'] = src.g('table.s', e['tline'])
+                e['tmpl'] = [x.expandtabs(8) for x in e['tmpl']]
+        return json.dumps({'dirs': dirs, 'labels': labels}, separators=(',', ':'))
+
+    text = re.sub(r'\[\[trace:(\w+)\]\]', trace, text)
+    text = re.sub(r'\[\[tables\]\]', tablesjson, text)
     text = re.sub(r'\[\[bytes:([^\]]+)\]\]', odbytes, text)
     text = re.sub(r'\[\[include:([^\]]+)\]\]', include, text)
     text = re.sub(r'\[\[src:([\w.]+):(\d+)(?:-(\d+))?\]\]', excerpt, text)
