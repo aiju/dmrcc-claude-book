@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>c13.c · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>c13.c</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 146 &middot; lines 7300&ndash;7526</p>
+<h1><code>c13.c</code></h1>
+<p class="desc">Pass 1: operator tables</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L7300" class="s0"><td class="ln"><a href="#L7300">7300</a></td><td class="code"><span class="kw">int</span> opdope[] {</td></tr>
+<tr id="L7301" class="s0"><td class="ln"><a href="#L7301">7301</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* EOF */</span></td></tr>
+<tr id="L7302" class="s0"><td class="ln"><a href="#L7302">7302</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* ; */</span></td></tr>
+<tr id="L7303" class="s0"><td class="ln"><a href="#L7303">7303</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* { */</span></td></tr>
+<tr id="L7304" class="s0"><td class="ln"><a href="#L7304">7304</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* } */</span></td></tr>
+<tr id="L7305" class="s0"><td class="ln"><a href="#L7305">7305</a></td><td class="code">        <span class="nu">036000</span>, <span class="cm">/* [ */</span></td></tr>
+<tr id="L7306" class="s0"><td class="ln"><a href="#L7306">7306</a></td><td class="code">        <span class="nu">002000</span>, <span class="cm">/* ] */</span></td></tr>
+<tr id="L7307" class="s0"><td class="ln"><a href="#L7307">7307</a></td><td class="code">        <span class="nu">036000</span>, <span class="cm">/* ( */</span></td></tr>
+<tr id="L7308" class="s0"><td class="ln"><a href="#L7308">7308</a></td><td class="code">        <span class="nu">002000</span>, <span class="cm">/* ) */</span></td></tr>
+<tr id="L7309" class="s0"><td class="ln"><a href="#L7309">7309</a></td><td class="code">        <span class="nu">014201</span>, <span class="cm">/* : */</span></td></tr>
+<tr id="L7310" class="s0"><td class="ln"><a href="#L7310">7310</a></td><td class="code">        <span class="nu">007001</span>, <span class="cm">/* , */</span></td></tr>
+<tr id="L7311" class="s0"><td class="ln"><a href="#L7311">7311</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* field selection */</span></td></tr>
+<tr id="L7312" class="s0"><td class="ln"><a href="#L7312">7312</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 11 */</span></td></tr>
+<tr id="L7313" class="s0"><td class="ln"><a href="#L7313">7313</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 12 */</span></td></tr>
+<tr id="L7314" class="s0"><td class="ln"><a href="#L7314">7314</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 13 */</span></td></tr>
+<tr id="L7315" class="s0"><td class="ln"><a href="#L7315">7315</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 14 */</span></td></tr>
+<tr id="L7316" class="s0"><td class="ln"><a href="#L7316">7316</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 15 */</span></td></tr>
+<tr id="L7317" class="s0"><td class="ln"><a href="#L7317">7317</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 16 */</span></td></tr>
+<tr id="L7318" class="s0"><td class="ln"><a href="#L7318">7318</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 17 */</span></td></tr>
+<tr id="L7319" class="s0"><td class="ln"><a href="#L7319">7319</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 18 */</span></td></tr>
+<tr id="L7320" class="s0"><td class="ln"><a href="#L7320">7320</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 19 */</span></td></tr>
+<tr id="L7321" class="s0"><td class="ln"><a href="#L7321">7321</a></td><td class="code">        <span class="nu">000400</span>, <span class="cm">/* name */</span></td></tr>
+<tr id="L7322" class="s0"><td class="ln"><a href="#L7322">7322</a></td><td class="code">        <span class="nu">000400</span>, <span class="cm">/* short constant */</span></td></tr>
+<tr id="L7323" class="s0"><td class="ln"><a href="#L7323">7323</a></td><td class="code">        <span class="nu">000400</span>, <span class="cm">/* string */</span></td></tr>
+<tr id="L7324" class="s0"><td class="ln"><a href="#L7324">7324</a></td><td class="code">        <span class="nu">000400</span>, <span class="cm">/* float */</span></td></tr>
+<tr id="L7325" class="s0"><td class="ln"><a href="#L7325">7325</a></td><td class="code">        <span class="nu">000400</span>, <span class="cm">/* double */</span></td></tr>
+<tr id="L7326" class="s0"><td class="ln"><a href="#L7326">7326</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 25 */</span></td></tr>
+<tr id="L7327" class="s0"><td class="ln"><a href="#L7327">7327</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 26 */</span></td></tr>
+<tr id="L7328" class="s0"><td class="ln"><a href="#L7328">7328</a></td><td class="code">        <span class="nu">000400</span>, <span class="cm">/* autoi, *r++ */</span></td></tr>
+<tr id="L7329" class="s0"><td class="ln"><a href="#L7329">7329</a></td><td class="code">        <span class="nu">000400</span>, <span class="cm">/* autod, *--r */</span></td></tr>
+<tr id="L7330" class="s0"><td class="ln"><a href="#L7330">7330</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 29 */</span></td></tr>
+<tr id="L7331" class="s0"><td class="ln"><a href="#L7331">7331</a></td><td class="code">        <span class="nu">034203</span>, <span class="cm">/* ++pre */</span></td></tr>
+<tr id="L7332" class="s0"><td class="ln"><a href="#L7332">7332</a></td><td class="code">        <span class="nu">034203</span>, <span class="cm">/* --pre */</span></td></tr>
+<tr id="L7333" class="s0"><td class="ln"><a href="#L7333">7333</a></td><td class="code">        <span class="nu">034203</span>, <span class="cm">/* ++post */</span></td></tr>
+<tr id="L7334" class="s0"><td class="ln"><a href="#L7334">7334</a></td><td class="code">        <span class="nu">034203</span>, <span class="cm">/* --post */</span></td></tr>
+<tr id="L7335" class="s0"><td class="ln"><a href="#L7335">7335</a></td><td class="code">        <span class="nu">034220</span>, <span class="cm">/* !un */</span></td></tr>
+<tr id="L7336" class="s0"><td class="ln"><a href="#L7336">7336</a></td><td class="code">        <span class="nu">034202</span>, <span class="cm">/* &amp;un */</span></td></tr>
+<tr id="L7337" class="s0"><td class="ln"><a href="#L7337">7337</a></td><td class="code">        <span class="nu">034220</span>, <span class="cm">/* *un */</span></td></tr>
+<tr id="L7338" class="s0"><td class="ln"><a href="#L7338">7338</a></td><td class="code">        <span class="nu">034200</span>, <span class="cm">/* -un */</span></td></tr>
+<tr id="L7339" class="s0"><td class="ln"><a href="#L7339">7339</a></td><td class="code">        <span class="nu">034220</span>, <span class="cm">/* ~un */</span></td></tr>
+<tr id="L7340" class="s0"><td class="ln"><a href="#L7340">7340</a></td><td class="code">        <span class="nu">036001</span>, <span class="cm">/* . (structure reference) */</span></td></tr>
+<tr id="L7341" class="s0"><td class="ln"><a href="#L7341">7341</a></td><td class="code">        <span class="nu">030101</span>, <span class="cm">/* + */</span></td></tr>
+<tr id="L7342" class="s0"><td class="ln"><a href="#L7342">7342</a></td><td class="code">        <span class="nu">030001</span>, <span class="cm">/* - */</span></td></tr>
+<tr id="L7343" class="s0"><td class="ln"><a href="#L7343">7343</a></td><td class="code">        <span class="nu">032101</span>, <span class="cm">/* * */</span></td></tr>
+<tr id="L7344" class="s0"><td class="ln"><a href="#L7344">7344</a></td><td class="code">        <span class="nu">032001</span>, <span class="cm">/* / */</span></td></tr>
+<tr id="L7345" class="s0"><td class="ln"><a href="#L7345">7345</a></td><td class="code">        <span class="nu">032001</span>, <span class="cm">/* % */</span></td></tr>
+<tr id="L7346" class="s0"><td class="ln"><a href="#L7346">7346</a></td><td class="code">        <span class="nu">026061</span>, <span class="cm">/* &gt;&gt; */</span></td></tr>
+<tr id="L7347" class="s0"><td class="ln"><a href="#L7347">7347</a></td><td class="code">        <span class="nu">026061</span>, <span class="cm">/* &lt;&lt; */</span></td></tr>
+<tr id="L7348" class="s0"><td class="ln"><a href="#L7348">7348</a></td><td class="code">        <span class="nu">020161</span>, <span class="cm">/* &amp; */</span></td></tr>
+<tr id="L7349" class="s0"><td class="ln"><a href="#L7349">7349</a></td><td class="code">        <span class="nu">016161</span>, <span class="cm">/* | */</span></td></tr>
+<tr id="L7350" class="s1"><td class="ln"><a href="#L7350">7350</a></td><td class="code">        <span class="nu">016161</span>, <span class="cm">/* ^ */</span></td></tr>
+<tr id="L7351" class="s1"><td class="ln"><a href="#L7351">7351</a></td><td class="code">        <span class="nu">036001</span>, <span class="cm">/* -&gt; */</span></td></tr>
+<tr id="L7352" class="s1"><td class="ln"><a href="#L7352">7352</a></td><td class="code">        <span class="nu">001000</span>, <span class="cm">/* int -&gt; double */</span></td></tr>
+<tr id="L7353" class="s1"><td class="ln"><a href="#L7353">7353</a></td><td class="code">        <span class="nu">001000</span>, <span class="cm">/* double -&gt; int */</span></td></tr>
+<tr id="L7354" class="s1"><td class="ln"><a href="#L7354">7354</a></td><td class="code">        <span class="nu">000001</span>, <span class="cm">/* &amp;&amp; */</span></td></tr>
+<tr id="L7355" class="s1"><td class="ln"><a href="#L7355">7355</a></td><td class="code">        <span class="nu">000001</span>, <span class="cm">/* || */</span></td></tr>
+<tr id="L7356" class="s1"><td class="ln"><a href="#L7356">7356</a></td><td class="code">        <span class="nu">030001</span>, <span class="cm">/* &amp;~ */</span></td></tr>
+<tr id="L7357" class="s1"><td class="ln"><a href="#L7357">7357</a></td><td class="code">        <span class="nu">001000</span>, <span class="cm">/* double -&gt; long */</span></td></tr>
+<tr id="L7358" class="s1"><td class="ln"><a href="#L7358">7358</a></td><td class="code">        <span class="nu">001000</span>, <span class="cm">/* long -&gt; double */</span></td></tr>
+<tr id="L7359" class="s1"><td class="ln"><a href="#L7359">7359</a></td><td class="code">        <span class="nu">001000</span>, <span class="cm">/* integer -&gt; long */</span></td></tr>
+<tr id="L7360" class="s1"><td class="ln"><a href="#L7360">7360</a></td><td class="code">        <span class="nu">001000</span>, <span class="cm">/* long -&gt; integer */</span></td></tr>
+<tr id="L7361" class="s1"><td class="ln"><a href="#L7361">7361</a></td><td class="code">        <span class="nu">022005</span>, <span class="cm">/* == */</span></td></tr>
+<tr id="L7362" class="s1"><td class="ln"><a href="#L7362">7362</a></td><td class="code">        <span class="nu">022005</span>, <span class="cm">/* != */</span></td></tr>
+<tr id="L7363" class="s1"><td class="ln"><a href="#L7363">7363</a></td><td class="code">        <span class="nu">024005</span>, <span class="cm">/* &lt;= */</span></td></tr>
+<tr id="L7364" class="s1"><td class="ln"><a href="#L7364">7364</a></td><td class="code">        <span class="nu">024005</span>, <span class="cm">/* &lt; */</span></td></tr>
+<tr id="L7365" class="s1"><td class="ln"><a href="#L7365">7365</a></td><td class="code">        <span class="nu">024005</span>, <span class="cm">/* &gt;= */</span></td></tr>
+<tr id="L7366" class="s1"><td class="ln"><a href="#L7366">7366</a></td><td class="code">        <span class="nu">024005</span>, <span class="cm">/* &gt; */</span></td></tr>
+<tr id="L7367" class="s1"><td class="ln"><a href="#L7367">7367</a></td><td class="code">        <span class="nu">024005</span>, <span class="cm">/* &lt;p */</span></td></tr>
+<tr id="L7368" class="s1"><td class="ln"><a href="#L7368">7368</a></td><td class="code">        <span class="nu">024005</span>, <span class="cm">/* &lt;=p */</span></td></tr>
+<tr id="L7369" class="s1"><td class="ln"><a href="#L7369">7369</a></td><td class="code">        <span class="nu">024005</span>, <span class="cm">/* &gt;p */</span></td></tr>
+<tr id="L7370" class="s1"><td class="ln"><a href="#L7370">7370</a></td><td class="code">        <span class="nu">024005</span>, <span class="cm">/* &gt;=p */</span></td></tr>
+<tr id="L7371" class="s1"><td class="ln"><a href="#L7371">7371</a></td><td class="code">        <span class="nu">012213</span>, <span class="cm">/* =+ */</span></td></tr>
+<tr id="L7372" class="s1"><td class="ln"><a href="#L7372">7372</a></td><td class="code">        <span class="nu">012213</span>, <span class="cm">/* =- */</span></td></tr>
+<tr id="L7373" class="s1"><td class="ln"><a href="#L7373">7373</a></td><td class="code">        <span class="nu">012213</span>, <span class="cm">/* =* */</span></td></tr>
+<tr id="L7374" class="s1"><td class="ln"><a href="#L7374">7374</a></td><td class="code">        <span class="nu">012213</span>, <span class="cm">/* =/ */</span></td></tr>
+<tr id="L7375" class="s1"><td class="ln"><a href="#L7375">7375</a></td><td class="code">        <span class="nu">012213</span>, <span class="cm">/* =% */</span></td></tr>
+<tr id="L7376" class="s1"><td class="ln"><a href="#L7376">7376</a></td><td class="code">        <span class="nu">012253</span>, <span class="cm">/* =&gt;&gt; */</span></td></tr>
+<tr id="L7377" class="s1"><td class="ln"><a href="#L7377">7377</a></td><td class="code">        <span class="nu">012253</span>, <span class="cm">/* =&lt;&lt; */</span></td></tr>
+<tr id="L7378" class="s1"><td class="ln"><a href="#L7378">7378</a></td><td class="code">        <span class="nu">012253</span>, <span class="cm">/* =&amp; */</span></td></tr>
+<tr id="L7379" class="s1"><td class="ln"><a href="#L7379">7379</a></td><td class="code">        <span class="nu">012253</span>, <span class="cm">/* =| */</span></td></tr>
+<tr id="L7380" class="s1"><td class="ln"><a href="#L7380">7380</a></td><td class="code">        <span class="nu">012253</span>, <span class="cm">/* =^ */</span></td></tr>
+<tr id="L7381" class="s1"><td class="ln"><a href="#L7381">7381</a></td><td class="code">        <span class="nu">012213</span>, <span class="cm">/* = */</span></td></tr>
+<tr id="L7382" class="s1"><td class="ln"><a href="#L7382">7382</a></td><td class="code">        <span class="nu">030001</span>, <span class="cm">/* &amp; for tests */</span></td></tr>
+<tr id="L7383" class="s1"><td class="ln"><a href="#L7383">7383</a></td><td class="code">        <span class="nu">032101</span>, <span class="cm">/*  * (long) */</span></td></tr>
+<tr id="L7384" class="s1"><td class="ln"><a href="#L7384">7384</a></td><td class="code">        <span class="nu">032001</span>, <span class="cm">/*  / (long) */</span></td></tr>
+<tr id="L7385" class="s1"><td class="ln"><a href="#L7385">7385</a></td><td class="code">        <span class="nu">032001</span>, <span class="cm">/* % (long) */</span></td></tr>
+<tr id="L7386" class="s1"><td class="ln"><a href="#L7386">7386</a></td><td class="code">        <span class="nu">012253</span>, <span class="cm">/* =&amp; ~ */</span></td></tr>
+<tr id="L7387" class="s1"><td class="ln"><a href="#L7387">7387</a></td><td class="code">        <span class="nu">012213</span>, <span class="cm">/* =* (long) */</span></td></tr>
+<tr id="L7388" class="s1"><td class="ln"><a href="#L7388">7388</a></td><td class="code">        <span class="nu">012213</span>, <span class="cm">/* / (long) */</span></td></tr>
+<tr id="L7389" class="s1"><td class="ln"><a href="#L7389">7389</a></td><td class="code">        <span class="nu">012213</span>, <span class="cm">/* % (long) */</span></td></tr>
+<tr id="L7390" class="s1"><td class="ln"><a href="#L7390">7390</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 89 */</span></td></tr>
+<tr id="L7391" class="s1"><td class="ln"><a href="#L7391">7391</a></td><td class="code">        <span class="nu">014201</span>, <span class="cm">/* ? */</span></td></tr>
+<tr id="L7392" class="s1"><td class="ln"><a href="#L7392">7392</a></td><td class="code">        <span class="nu">026061</span>, <span class="cm">/* long &lt;&lt; */</span></td></tr>
+<tr id="L7393" class="s1"><td class="ln"><a href="#L7393">7393</a></td><td class="code">        <span class="nu">012253</span>, <span class="cm">/* long =&lt;&lt; */</span></td></tr>
+<tr id="L7394" class="s1"><td class="ln"><a href="#L7394">7394</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 93 */</span></td></tr>
+<tr id="L7395" class="s1"><td class="ln"><a href="#L7395">7395</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 94 */</span></td></tr>
+<tr id="L7396" class="s1"><td class="ln"><a href="#L7396">7396</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 95 */</span></td></tr>
+<tr id="L7397" class="s1"><td class="ln"><a href="#L7397">7397</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 96 */</span></td></tr>
+<tr id="L7398" class="s1"><td class="ln"><a href="#L7398">7398</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 97 */</span></td></tr>
+<tr id="L7399" class="s1"><td class="ln"><a href="#L7399">7399</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 98 */</span></td></tr>
+<tr id="L7400" class="s0"><td class="ln"><a href="#L7400">7400</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 99 */</span></td></tr>
+<tr id="L7401" class="s0"><td class="ln"><a href="#L7401">7401</a></td><td class="code">        <span class="nu">036001</span>, <span class="cm">/* call */</span></td></tr>
+<tr id="L7402" class="s0"><td class="ln"><a href="#L7402">7402</a></td><td class="code">        <span class="nu">036000</span>, <span class="cm">/* mcall */</span></td></tr>
+<tr id="L7403" class="s0"><td class="ln"><a href="#L7403">7403</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* goto */</span></td></tr>
+<tr id="L7404" class="s0"><td class="ln"><a href="#L7404">7404</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* jump cond */</span></td></tr>
+<tr id="L7405" class="s0"><td class="ln"><a href="#L7405">7405</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* branch cond */</span></td></tr>
+<tr id="L7406" class="s0"><td class="ln"><a href="#L7406">7406</a></td><td class="code">        <span class="nu">000400</span>, <span class="cm">/* set nregs */</span></td></tr>
+<tr id="L7407" class="s0"><td class="ln"><a href="#L7407">7407</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 106 */</span></td></tr>
+<tr id="L7408" class="s0"><td class="ln"><a href="#L7408">7408</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 107 */</span></td></tr>
+<tr id="L7409" class="s0"><td class="ln"><a href="#L7409">7409</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 108 */</span></td></tr>
+<tr id="L7410" class="s0"><td class="ln"><a href="#L7410">7410</a></td><td class="code">        <span class="nu">000000</span>, <span class="cm">/* 109 */</span></td></tr>
+<tr id="L7411" class="s0"><td class="ln"><a href="#L7411">7411</a></td><td class="code">        <span class="nu">000000</span>  <span class="cm">/* force r0 */</span></td></tr>
+<tr id="L7412" class="s0"><td class="ln"><a href="#L7412">7412</a></td><td class="code">};</td></tr>
+<tr id="L7413" class="s0"><td class="ln"><a href="#L7413">7413</a></td><td class="code"> </td></tr>
+<tr id="L7414" class="s0"><td class="ln"><a href="#L7414">7414</a></td><td class="code"><span class="kw">char</span>    *opntab[] {</td></tr>
+<tr id="L7415" class="s0"><td class="ln"><a href="#L7415">7415</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7416" class="s0"><td class="ln"><a href="#L7416">7416</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7417" class="s0"><td class="ln"><a href="#L7417">7417</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7418" class="s0"><td class="ln"><a href="#L7418">7418</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7419" class="s0"><td class="ln"><a href="#L7419">7419</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7420" class="s0"><td class="ln"><a href="#L7420">7420</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7421" class="s0"><td class="ln"><a href="#L7421">7421</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7422" class="s0"><td class="ln"><a href="#L7422">7422</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7423" class="s0"><td class="ln"><a href="#L7423">7423</a></td><td class="code">        <span class="st">":"</span>,</td></tr>
+<tr id="L7424" class="s0"><td class="ln"><a href="#L7424">7424</a></td><td class="code">        <span class="st">","</span>,</td></tr>
+<tr id="L7425" class="s0"><td class="ln"><a href="#L7425">7425</a></td><td class="code">        <span class="st">"field select"</span>,</td></tr>
+<tr id="L7426" class="s0"><td class="ln"><a href="#L7426">7426</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7427" class="s0"><td class="ln"><a href="#L7427">7427</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7428" class="s0"><td class="ln"><a href="#L7428">7428</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7429" class="s0"><td class="ln"><a href="#L7429">7429</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7430" class="s0"><td class="ln"><a href="#L7430">7430</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7431" class="s0"><td class="ln"><a href="#L7431">7431</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7432" class="s0"><td class="ln"><a href="#L7432">7432</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7433" class="s0"><td class="ln"><a href="#L7433">7433</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7434" class="s0"><td class="ln"><a href="#L7434">7434</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7435" class="s0"><td class="ln"><a href="#L7435">7435</a></td><td class="code">        <span class="st">"name"</span>,</td></tr>
+<tr id="L7436" class="s0"><td class="ln"><a href="#L7436">7436</a></td><td class="code">        <span class="st">"short constant"</span>,</td></tr>
+<tr id="L7437" class="s0"><td class="ln"><a href="#L7437">7437</a></td><td class="code">        <span class="st">"string"</span>,</td></tr>
+<tr id="L7438" class="s0"><td class="ln"><a href="#L7438">7438</a></td><td class="code">        <span class="st">"float"</span>,</td></tr>
+<tr id="L7439" class="s0"><td class="ln"><a href="#L7439">7439</a></td><td class="code">        <span class="st">"double"</span>,</td></tr>
+<tr id="L7440" class="s0"><td class="ln"><a href="#L7440">7440</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7441" class="s0"><td class="ln"><a href="#L7441">7441</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7442" class="s0"><td class="ln"><a href="#L7442">7442</a></td><td class="code">        <span class="st">"*r++"</span>,</td></tr>
+<tr id="L7443" class="s0"><td class="ln"><a href="#L7443">7443</a></td><td class="code">        <span class="st">"*--r"</span>,</td></tr>
+<tr id="L7444" class="s0"><td class="ln"><a href="#L7444">7444</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7445" class="s0"><td class="ln"><a href="#L7445">7445</a></td><td class="code">        <span class="st">"++pre"</span>,</td></tr>
+<tr id="L7446" class="s0"><td class="ln"><a href="#L7446">7446</a></td><td class="code">        <span class="st">"--pre"</span>,</td></tr>
+<tr id="L7447" class="s0"><td class="ln"><a href="#L7447">7447</a></td><td class="code">        <span class="st">"++post"</span>,</td></tr>
+<tr id="L7448" class="s0"><td class="ln"><a href="#L7448">7448</a></td><td class="code">        <span class="st">"--post"</span>,</td></tr>
+<tr id="L7449" class="s0"><td class="ln"><a href="#L7449">7449</a></td><td class="code">        <span class="st">"!un"</span>,</td></tr>
+<tr id="L7450" class="s1"><td class="ln"><a href="#L7450">7450</a></td><td class="code">        <span class="st">"&amp;"</span>,</td></tr>
+<tr id="L7451" class="s1"><td class="ln"><a href="#L7451">7451</a></td><td class="code">        <span class="st">"*"</span>,</td></tr>
+<tr id="L7452" class="s1"><td class="ln"><a href="#L7452">7452</a></td><td class="code">        <span class="st">"-"</span>,</td></tr>
+<tr id="L7453" class="s1"><td class="ln"><a href="#L7453">7453</a></td><td class="code">        <span class="st">"~"</span>,</td></tr>
+<tr id="L7454" class="s1"><td class="ln"><a href="#L7454">7454</a></td><td class="code">        <span class="st">"."</span>,</td></tr>
+<tr id="L7455" class="s1"><td class="ln"><a href="#L7455">7455</a></td><td class="code">        <span class="st">"+"</span>,</td></tr>
+<tr id="L7456" class="s1"><td class="ln"><a href="#L7456">7456</a></td><td class="code">        <span class="st">"-"</span>,</td></tr>
+<tr id="L7457" class="s1"><td class="ln"><a href="#L7457">7457</a></td><td class="code">        <span class="st">"*"</span>,</td></tr>
+<tr id="L7458" class="s1"><td class="ln"><a href="#L7458">7458</a></td><td class="code">        <span class="st">"/"</span>,</td></tr>
+<tr id="L7459" class="s1"><td class="ln"><a href="#L7459">7459</a></td><td class="code">        <span class="st">"%"</span>,</td></tr>
+<tr id="L7460" class="s1"><td class="ln"><a href="#L7460">7460</a></td><td class="code">        <span class="st">"&gt;&gt;"</span>,</td></tr>
+<tr id="L7461" class="s1"><td class="ln"><a href="#L7461">7461</a></td><td class="code">        <span class="st">"&lt;&lt;"</span>,</td></tr>
+<tr id="L7462" class="s1"><td class="ln"><a href="#L7462">7462</a></td><td class="code">        <span class="st">"&amp;"</span>,</td></tr>
+<tr id="L7463" class="s1"><td class="ln"><a href="#L7463">7463</a></td><td class="code">        <span class="st">"|"</span>,</td></tr>
+<tr id="L7464" class="s1"><td class="ln"><a href="#L7464">7464</a></td><td class="code">        <span class="st">"^"</span>,</td></tr>
+<tr id="L7465" class="s1"><td class="ln"><a href="#L7465">7465</a></td><td class="code">        <span class="st">"-&gt;"</span>,</td></tr>
+<tr id="L7466" class="s1"><td class="ln"><a href="#L7466">7466</a></td><td class="code">        <span class="st">"int-&gt;double"</span>,</td></tr>
+<tr id="L7467" class="s1"><td class="ln"><a href="#L7467">7467</a></td><td class="code">        <span class="st">"double-&gt;int"</span>,</td></tr>
+<tr id="L7468" class="s1"><td class="ln"><a href="#L7468">7468</a></td><td class="code">        <span class="st">"&amp;&amp;"</span>,</td></tr>
+<tr id="L7469" class="s1"><td class="ln"><a href="#L7469">7469</a></td><td class="code">        <span class="st">"||"</span>,</td></tr>
+<tr id="L7470" class="s1"><td class="ln"><a href="#L7470">7470</a></td><td class="code">        <span class="st">"&amp;~"</span>,</td></tr>
+<tr id="L7471" class="s1"><td class="ln"><a href="#L7471">7471</a></td><td class="code">        <span class="st">"double-&gt;long"</span>,</td></tr>
+<tr id="L7472" class="s1"><td class="ln"><a href="#L7472">7472</a></td><td class="code">        <span class="st">"long-&gt;double"</span>,</td></tr>
+<tr id="L7473" class="s1"><td class="ln"><a href="#L7473">7473</a></td><td class="code">        <span class="st">"integer-&gt;long"</span>,</td></tr>
+<tr id="L7474" class="s1"><td class="ln"><a href="#L7474">7474</a></td><td class="code">        <span class="st">"long-&gt;integer"</span>,</td></tr>
+<tr id="L7475" class="s1"><td class="ln"><a href="#L7475">7475</a></td><td class="code">        <span class="st">"=="</span>,</td></tr>
+<tr id="L7476" class="s1"><td class="ln"><a href="#L7476">7476</a></td><td class="code">        <span class="st">"!="</span>,</td></tr>
+<tr id="L7477" class="s1"><td class="ln"><a href="#L7477">7477</a></td><td class="code">        <span class="st">"&lt;="</span>,</td></tr>
+<tr id="L7478" class="s1"><td class="ln"><a href="#L7478">7478</a></td><td class="code">        <span class="st">"&lt;"</span>,</td></tr>
+<tr id="L7479" class="s1"><td class="ln"><a href="#L7479">7479</a></td><td class="code">        <span class="st">"&gt;="</span>,</td></tr>
+<tr id="L7480" class="s1"><td class="ln"><a href="#L7480">7480</a></td><td class="code">        <span class="st">"&gt;"</span>,</td></tr>
+<tr id="L7481" class="s1"><td class="ln"><a href="#L7481">7481</a></td><td class="code">        <span class="st">"&lt;p"</span>,</td></tr>
+<tr id="L7482" class="s1"><td class="ln"><a href="#L7482">7482</a></td><td class="code">        <span class="st">"&lt;=p"</span>,</td></tr>
+<tr id="L7483" class="s1"><td class="ln"><a href="#L7483">7483</a></td><td class="code">        <span class="st">"&gt;p"</span>,</td></tr>
+<tr id="L7484" class="s1"><td class="ln"><a href="#L7484">7484</a></td><td class="code">        <span class="st">"&gt;=p"</span>,</td></tr>
+<tr id="L7485" class="s1"><td class="ln"><a href="#L7485">7485</a></td><td class="code">        <span class="st">"=+"</span>,</td></tr>
+<tr id="L7486" class="s1"><td class="ln"><a href="#L7486">7486</a></td><td class="code">        <span class="st">"=-"</span>,</td></tr>
+<tr id="L7487" class="s1"><td class="ln"><a href="#L7487">7487</a></td><td class="code">        <span class="st">"=*"</span>,</td></tr>
+<tr id="L7488" class="s1"><td class="ln"><a href="#L7488">7488</a></td><td class="code">        <span class="st">"=/"</span>,</td></tr>
+<tr id="L7489" class="s1"><td class="ln"><a href="#L7489">7489</a></td><td class="code">        <span class="st">"=%"</span>,</td></tr>
+<tr id="L7490" class="s1"><td class="ln"><a href="#L7490">7490</a></td><td class="code">        <span class="st">"=&gt;&gt;"</span>,</td></tr>
+<tr id="L7491" class="s1"><td class="ln"><a href="#L7491">7491</a></td><td class="code">        <span class="st">"=&lt;&lt;"</span>,</td></tr>
+<tr id="L7492" class="s1"><td class="ln"><a href="#L7492">7492</a></td><td class="code">        <span class="st">"=&amp;"</span>,</td></tr>
+<tr id="L7493" class="s1"><td class="ln"><a href="#L7493">7493</a></td><td class="code">        <span class="st">"=|"</span>,</td></tr>
+<tr id="L7494" class="s1"><td class="ln"><a href="#L7494">7494</a></td><td class="code">        <span class="st">"=^"</span>,</td></tr>
+<tr id="L7495" class="s1"><td class="ln"><a href="#L7495">7495</a></td><td class="code">        <span class="st">"="</span>,</td></tr>
+<tr id="L7496" class="s1"><td class="ln"><a href="#L7496">7496</a></td><td class="code">        <span class="st">"&amp; for tests"</span>,</td></tr>
+<tr id="L7497" class="s1"><td class="ln"><a href="#L7497">7497</a></td><td class="code">        <span class="st">"*"</span>,</td></tr>
+<tr id="L7498" class="s1"><td class="ln"><a href="#L7498">7498</a></td><td class="code">        <span class="st">"/"</span>,</td></tr>
+<tr id="L7499" class="s1"><td class="ln"><a href="#L7499">7499</a></td><td class="code">        <span class="st">"%"</span>,</td></tr>
+<tr id="L7500" class="s0"><td class="ln"><a href="#L7500">7500</a></td><td class="code">        <span class="st">"=&amp; ~"</span>,</td></tr>
+<tr id="L7501" class="s0"><td class="ln"><a href="#L7501">7501</a></td><td class="code">        <span class="st">"=*"</span>,</td></tr>
+<tr id="L7502" class="s0"><td class="ln"><a href="#L7502">7502</a></td><td class="code">        <span class="st">"=/"</span>,</td></tr>
+<tr id="L7503" class="s0"><td class="ln"><a href="#L7503">7503</a></td><td class="code">        <span class="st">"=%"</span>,</td></tr>
+<tr id="L7504" class="s0"><td class="ln"><a href="#L7504">7504</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7505" class="s0"><td class="ln"><a href="#L7505">7505</a></td><td class="code">        <span class="st">"?"</span>,</td></tr>
+<tr id="L7506" class="s0"><td class="ln"><a href="#L7506">7506</a></td><td class="code">        <span class="st">"&lt;&lt;"</span>,</td></tr>
+<tr id="L7507" class="s0"><td class="ln"><a href="#L7507">7507</a></td><td class="code">        <span class="st">"=&lt;&lt;"</span>,</td></tr>
+<tr id="L7508" class="s0"><td class="ln"><a href="#L7508">7508</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7509" class="s0"><td class="ln"><a href="#L7509">7509</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7510" class="s0"><td class="ln"><a href="#L7510">7510</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7511" class="s0"><td class="ln"><a href="#L7511">7511</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7512" class="s0"><td class="ln"><a href="#L7512">7512</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7513" class="s0"><td class="ln"><a href="#L7513">7513</a></td><td class="code">        <span class="st">"call"</span>,</td></tr>
+<tr id="L7514" class="s0"><td class="ln"><a href="#L7514">7514</a></td><td class="code">        <span class="st">"call"</span>,</td></tr>
+<tr id="L7515" class="s0"><td class="ln"><a href="#L7515">7515</a></td><td class="code">        <span class="st">"call"</span>,</td></tr>
+<tr id="L7516" class="s0"><td class="ln"><a href="#L7516">7516</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7517" class="s0"><td class="ln"><a href="#L7517">7517</a></td><td class="code">        <span class="st">"goto"</span>,</td></tr>
+<tr id="L7518" class="s0"><td class="ln"><a href="#L7518">7518</a></td><td class="code">        <span class="st">"jump cond"</span>,</td></tr>
+<tr id="L7519" class="s0"><td class="ln"><a href="#L7519">7519</a></td><td class="code">        <span class="st">"branch cond"</span>,</td></tr>
+<tr id="L7520" class="s0"><td class="ln"><a href="#L7520">7520</a></td><td class="code">        <span class="st">"set nregs"</span>,</td></tr>
+<tr id="L7521" class="s0"><td class="ln"><a href="#L7521">7521</a></td><td class="code">        <span class="st">"load value"</span>,</td></tr>
+<tr id="L7522" class="s0"><td class="ln"><a href="#L7522">7522</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7523" class="s0"><td class="ln"><a href="#L7523">7523</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7524" class="s0"><td class="ln"><a href="#L7524">7524</a></td><td class="code">        <span class="nu">0</span>,</td></tr>
+<tr id="L7525" class="s0"><td class="ln"><a href="#L7525">7525</a></td><td class="code">        <span class="st">"force register"</span></td></tr>
+<tr id="L7526" class="s0"><td class="ln"><a href="#L7526">7526</a></td><td class="code">};</td></tr></table></div>
+<nav class="pager"><a href="c12.c.html">&larr; c12.c</a><a href="c1t.s.html">c1t.s &rarr;</a></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>

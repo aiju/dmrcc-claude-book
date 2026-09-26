@@ -1,0 +1,40 @@
+<!-- scripts: cover.js -->
+<section class="cover-hero">
+<div class="frontpanel" id="fp" aria-label="PDP-11/40 front panel lamps">
+<p class="fp-caption" id="fpcap"><b>004567</b> &nbsp;jsr r5,csv &mdash; the first instruction of every function this compiler emits</p>
+</div>
+<h1 class="cover-title">The Sixth Edition C&nbsp;Compiler <span>with a commentary on its source</span></h1>
+<p class="cover-lede">In 1975 the C compiler that shipped with Unix was about nine thousand lines of code,
+written by Dennis Ritchie, and it was small enough to read in a week. This book reads it with you.
+It follows the pattern of John Lions&rsquo; famous commentary on the Sixth Edition kernel: the
+complete source, numbered line by line, and alongside it a commentary that explains how
+each part works and why it was written that way.</p>
+<p class="cover-meta">Source: Research Unix V6, <code>/usr/source/c</code>, July 1975 &middot; Commentary written in 2026</p>
+</section>
+
+<div class="cover-grid">
+<section>
+<h2>Commentary</h2>
+<ol>
+<!-- TOC -->
+</ol>
+</section>
+<section>
+<h2>How to read this book</h2>
+<p>Numbers in the commentary such as <a class="lref" data-file="c00.c" data-line="1534" href="source/c00.c.html#L1534">1534</a>
+are line numbers in <a href="source/index.html">the listing</a>. Click one and the listing opens
+beside the text at that line, so you can read the code and the explanation together.
+Hold <kbd>Ctrl</kbd> or <kbd>&#8984;</kbd> to open the full listing page instead.</p>
+<p>All compiler output in the book is real. It was produced by running the original 1975
+binaries of <code>cc</code>, <code>c0</code>, <code>c1</code> and <code>c2</code> on a simulated PDP-11/40.
+The <a href="https://github.com/aiju/dmrcc-claude-book">repository</a> holds the scripts that did it.</p>
+<p>Several chapters contain small working models of parts of the compiler: the lexer, the
+expression parser, the type encoding, the switch generator. They are written in JavaScript and
+follow the original code closely, so you can feed them your own input and watch each step.</p>
+<h2 style="margin-top:2rem">Reference</h2>
+<ol>
+<li><a href="source/index.html"><span class="cnum">I</span> The listing</a></li>
+<li><a href="xref.html"><span class="cnum">II</span> Cross-reference index</a></li>
+</ol>
+</section>
+</div>

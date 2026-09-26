@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Listing · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span>Listing</nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="prose narrow">
+<p class="eyebrow">Part one</p>
+<h1>The Listing</h1>
+<p>The complete source of the Sixth Edition C compiler, as it stood in
+<code>/usr/source/c</code> in 1975, plus the <code>cc</code> command that drives it and
+the two library routines that every compiled function calls. Nothing has been changed.
+As in Lions&rsquo; commentary on the kernel, each file starts on a new sheet of fifty lines and
+the lines are numbered straight through, so a single number such as
+<a href="c00.c.html#L1534">1534</a> identifies a line anywhere in the listing.</p>
+<div class="scroll"><table class="toc-table"><thead><tr><th>First line</th><th>File</th><th>Contents</th><th>Lines</th></tr></thead>
+<tbody><tr><td class="num">100</td><td><a href="cc.c.html"><code>cc.c</code></a></td><td>The cc command and preprocessor</td><td class="num">811</td></tr>
+<tr><td class="num">950</td><td><a href="c0h.c.html"><code>c0h.c</code></a></td><td>Pass 0 header</td><td class="num">351</td></tr>
+<tr><td class="num">1350</td><td><a href="c00.c.html"><code>c00.c</code></a></td><td>Pass 0: main, symbol table, lexer, expression parser</td><td class="num">709</td></tr>
+<tr><td class="num">2100</td><td><a href="c01.c.html"><code>c01.c</code></a></td><td>Pass 0: tree building and conversions</td><td class="num">521</td></tr>
+<tr><td class="num">2650</td><td><a href="c02.c.html"><code>c02.c</code></a></td><td>Pass 0: external definitions and statements</td><td class="num">673</td></tr>
+<tr><td class="num">3350</td><td><a href="c03.c.html"><code>c03.c</code></a></td><td>Pass 0: declarations</td><td class="num">412</td></tr>
+<tr><td class="num">3800</td><td><a href="c04.c.html"><code>c04.c</code></a></td><td>Pass 0: utilities and intermediate-code output</td><td class="num">343</td></tr>
+<tr><td class="num">4150</td><td><a href="c05.c.html"><code>c05.c</code></a></td><td>Pass 0: operator and character tables</td><td class="num">176</td></tr>
+<tr><td class="num">4350</td><td><a href="c0t.s.html"><code>c0t.s</code></a></td><td>Pass 0: number scanner (assembly)</td><td class="num">159</td></tr>
+<tr><td class="num">4550</td><td><a href="c1h.c.html"><code>c1h.c</code></a></td><td>Pass 1 header</td><td class="num">272</td></tr>
+<tr><td class="num">4850</td><td><a href="c10.c.html"><code>c10.c</code></a></td><td>Pass 1: code generation driver</td><td class="num">922</td></tr>
+<tr><td class="num">5800</td><td><a href="c11.c.html"><code>c11.c</code></a></td><td>Pass 1: utilities, switches, branches, tree input</td><td class="num">849</td></tr>
+<tr><td class="num">6650</td><td><a href="c12.c.html"><code>c12.c</code></a></td><td>Pass 1: expression optimizer</td><td class="num">621</td></tr>
+<tr><td class="num">7300</td><td><a href="c13.c.html"><code>c13.c</code></a></td><td>Pass 1: operator tables</td><td class="num">227</td></tr>
+<tr><td class="num">7550</td><td><a href="c1t.s.html"><code>c1t.s</code></a></td><td>Pass 1: instruction and branch tables</td><td class="num">85</td></tr>
+<tr><td class="num">7650</td><td><a href="table.s.html"><code>table.s</code></a></td><td>Pass 1: code tables (source)</td><td class="num">1254</td></tr>
+<tr><td class="num">8950</td><td><a href="cvopt.c.html"><code>cvopt.c</code></a></td><td>Code table converter</td><td class="num">370</td></tr>
+<tr><td class="num">9350</td><td><a href="c2h.c.html"><code>c2h.c</code></a></td><td>Pass 2 header</td><td class="num">125</td></tr>
+<tr><td class="num">9500</td><td><a href="c20.c.html"><code>c20.c</code></a></td><td>Pass 2: the object code improver</td><td class="num">673</td></tr>
+<tr><td class="num">10200</td><td><a href="c21.c.html"><code>c21.c</code></a></td><td>Pass 2: register tracking and utilities</td><td class="num">659</td></tr>
+<tr><td class="num">10900</td><td><a href="csv.s.html"><code>csv.s</code></a></td><td>Library: function entry and exit</td><td class="num">22</td></tr>
+<tr><td class="num">10950</td><td><a href="run.html"><code>run</code></a></td><td>The build script</td><td class="num">39</td></tr></tbody></table></div>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>c04.c · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>c04.c</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 76 &middot; lines 3800&ndash;4142</p>
+<h1><code>c04.c</code></h1>
+<p class="desc">Pass 0: utilities and intermediate-code output</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L3800" class="s0"><td class="ln"><a href="#L3800">3800</a></td><td class="code"><span class="pp">#</span></td></tr>
+<tr id="L3801" class="s0"><td class="ln"><a href="#L3801">3801</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3802" class="s0"><td class="ln"><a href="#L3802">3802</a></td><td class="code"><span class="cm"> * C compiler</span></td></tr>
+<tr id="L3803" class="s0"><td class="ln"><a href="#L3803">3803</a></td><td class="code"><span class="cm"> *</span></td></tr>
+<tr id="L3804" class="s0"><td class="ln"><a href="#L3804">3804</a></td><td class="code"><span class="cm"> *</span></td></tr>
+<tr id="L3805" class="s0"><td class="ln"><a href="#L3805">3805</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3806" class="s0"><td class="ln"><a href="#L3806">3806</a></td><td class="code"> </td></tr>
+<tr id="L3807" class="s0"><td class="ln"><a href="#L3807">3807</a></td><td class="code"><span class="pp">#include "c0h.c"</span></td></tr>
+<tr id="L3808" class="s0"><td class="ln"><a href="#L3808">3808</a></td><td class="code"> </td></tr>
+<tr id="L3809" class="s0"><td class="ln"><a href="#L3809">3809</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3810" class="s0"><td class="ln"><a href="#L3810">3810</a></td><td class="code"><span class="cm"> * Reduce the degree-of-reference by one.</span></td></tr>
+<tr id="L3811" class="s0"><td class="ln"><a href="#L3811">3811</a></td><td class="code"><span class="cm"> * e.g. turn "ptr-to-int" into "int".</span></td></tr>
+<tr id="L3812" class="s0"><td class="ln"><a href="#L3812">3812</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3813" class="s0"><td class="ln"><a href="#L3813">3813</a></td><td class="code"><span class="def">decref</span>(at)</td></tr>
+<tr id="L3814" class="s0"><td class="ln"><a href="#L3814">3814</a></td><td class="code">{</td></tr>
+<tr id="L3815" class="s0"><td class="ln"><a href="#L3815">3815</a></td><td class="code">        <span class="kw">register</span> t;</td></tr>
+<tr id="L3816" class="s0"><td class="ln"><a href="#L3816">3816</a></td><td class="code"> </td></tr>
+<tr id="L3817" class="s0"><td class="ln"><a href="#L3817">3817</a></td><td class="code">        t = at;</td></tr>
+<tr id="L3818" class="s0"><td class="ln"><a href="#L3818">3818</a></td><td class="code">        <span class="kw">if</span> ((t &amp; ~TYPE) == <span class="nu">0</span>) {</td></tr>
+<tr id="L3819" class="s0"><td class="ln"><a href="#L3819">3819</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Illegal indirection"</span>);</td></tr>
+<tr id="L3820" class="s0"><td class="ln"><a href="#L3820">3820</a></td><td class="code">                <span class="kw">return</span>(t);</td></tr>
+<tr id="L3821" class="s0"><td class="ln"><a href="#L3821">3821</a></td><td class="code">        }</td></tr>
+<tr id="L3822" class="s0"><td class="ln"><a href="#L3822">3822</a></td><td class="code">        <span class="kw">return</span>((t&gt;&gt;TYLEN) &amp; ~TYPE | t&amp;TYPE);</td></tr>
+<tr id="L3823" class="s0"><td class="ln"><a href="#L3823">3823</a></td><td class="code">}</td></tr>
+<tr id="L3824" class="s0"><td class="ln"><a href="#L3824">3824</a></td><td class="code"> </td></tr>
+<tr id="L3825" class="s0"><td class="ln"><a href="#L3825">3825</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3826" class="s0"><td class="ln"><a href="#L3826">3826</a></td><td class="code"><span class="cm"> * Increase the degree of reference by</span></td></tr>
+<tr id="L3827" class="s0"><td class="ln"><a href="#L3827">3827</a></td><td class="code"><span class="cm"> * one; e.g. turn "int" to "ptr-to-int".</span></td></tr>
+<tr id="L3828" class="s0"><td class="ln"><a href="#L3828">3828</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3829" class="s0"><td class="ln"><a href="#L3829">3829</a></td><td class="code"><span class="def">incref</span>(t)</td></tr>
+<tr id="L3830" class="s0"><td class="ln"><a href="#L3830">3830</a></td><td class="code">{</td></tr>
+<tr id="L3831" class="s0"><td class="ln"><a href="#L3831">3831</a></td><td class="code">        <span class="kw">return</span>(((t&amp;~TYPE)&lt;&lt;TYLEN) | (t&amp;TYPE) | PTR);</td></tr>
+<tr id="L3832" class="s0"><td class="ln"><a href="#L3832">3832</a></td><td class="code">}</td></tr>
+<tr id="L3833" class="s0"><td class="ln"><a href="#L3833">3833</a></td><td class="code"> </td></tr>
+<tr id="L3834" class="s0"><td class="ln"><a href="#L3834">3834</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3835" class="s0"><td class="ln"><a href="#L3835">3835</a></td><td class="code"><span class="cm"> * Make a tree that causes a branch to lbl</span></td></tr>
+<tr id="L3836" class="s0"><td class="ln"><a href="#L3836">3836</a></td><td class="code"><span class="cm"> * if the tree's value is non-zero together with the cond.</span></td></tr>
+<tr id="L3837" class="s0"><td class="ln"><a href="#L3837">3837</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3838" class="s0"><td class="ln"><a href="#L3838">3838</a></td><td class="code"><span class="def">cbranch</span>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, lbl, cond)</td></tr>
+<tr id="L3839" class="s0"><td class="ln"><a href="#L3839">3839</a></td><td class="code"><span class="kw">struct</span> tnode *<a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L3840" class="s0"><td class="ln"><a href="#L3840">3840</a></td><td class="code">{</td></tr>
+<tr id="L3841" class="s0"><td class="ln"><a href="#L3841">3841</a></td><td class="code">        <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(<a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">1</span>,CBRANCH,<a class="id" href="../source/c00.c.html#L1817">tree</a>,lbl,cond));</td></tr>
+<tr id="L3842" class="s0"><td class="ln"><a href="#L3842">3842</a></td><td class="code">}</td></tr>
+<tr id="L3843" class="s0"><td class="ln"><a href="#L3843">3843</a></td><td class="code"> </td></tr>
+<tr id="L3844" class="s0"><td class="ln"><a href="#L3844">3844</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3845" class="s0"><td class="ln"><a href="#L3845">3845</a></td><td class="code"><span class="cm"> * Write out a tree.</span></td></tr>
+<tr id="L3846" class="s0"><td class="ln"><a href="#L3846">3846</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3847" class="s0"><td class="ln"><a href="#L3847">3847</a></td><td class="code"><span class="def">rcexpr</span>(<a class="id" href="../source/c00.c.html#L1817">tree</a>)</td></tr>
+<tr id="L3848" class="s0"><td class="ln"><a href="#L3848">3848</a></td><td class="code"><span class="kw">struct</span> tnode *<a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L3849" class="s0"><td class="ln"><a href="#L3849">3849</a></td><td class="code">{</td></tr>
+<tr id="L3850" class="s1"><td class="ln"><a href="#L3850">3850</a></td><td class="code"> </td></tr>
+<tr id="L3851" class="s1"><td class="ln"><a href="#L3851">3851</a></td><td class="code">        <a class="id" href="../source/c04.c.html#L3855">treeout</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>);</td></tr>
+<tr id="L3852" class="s1"><td class="ln"><a href="#L3852">3852</a></td><td class="code">        <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"BN"</span>, EXPR, line);</td></tr>
+<tr id="L3853" class="s1"><td class="ln"><a href="#L3853">3853</a></td><td class="code">}</td></tr>
+<tr id="L3854" class="s1"><td class="ln"><a href="#L3854">3854</a></td><td class="code"> </td></tr>
+<tr id="L3855" class="s1"><td class="ln"><a href="#L3855">3855</a></td><td class="code"><span class="def">treeout</span>(atree)</td></tr>
+<tr id="L3856" class="s1"><td class="ln"><a href="#L3856">3856</a></td><td class="code"><span class="kw">struct</span> tnode *atree;</td></tr>
+<tr id="L3857" class="s1"><td class="ln"><a href="#L3857">3857</a></td><td class="code">{</td></tr>
+<tr id="L3858" class="s1"><td class="ln"><a href="#L3858">3858</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *<a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L3859" class="s1"><td class="ln"><a href="#L3859">3859</a></td><td class="code"> </td></tr>
+<tr id="L3860" class="s1"><td class="ln"><a href="#L3860">3860</a></td><td class="code">        <span class="kw">if</span> ((<a class="id" href="../source/c00.c.html#L1817">tree</a> = atree) == <span class="nu">0</span>)</td></tr>
+<tr id="L3861" class="s1"><td class="ln"><a href="#L3861">3861</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L3862" class="s1"><td class="ln"><a href="#L3862">3862</a></td><td class="code">        <span class="kw">switch</span>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op) {</td></tr>
+<tr id="L3863" class="s1"><td class="ln"><a href="#L3863">3863</a></td><td class="code"> </td></tr>
+<tr id="L3864" class="s1"><td class="ln"><a href="#L3864">3864</a></td><td class="code">        <span class="kw">case</span> <span class="nu">0</span>:</td></tr>
+<tr id="L3865" class="s1"><td class="ln"><a href="#L3865">3865</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"B"</span>, NULL);</td></tr>
+<tr id="L3866" class="s1"><td class="ln"><a href="#L3866">3866</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L3867" class="s1"><td class="ln"><a href="#L3867">3867</a></td><td class="code"> </td></tr>
+<tr id="L3868" class="s1"><td class="ln"><a href="#L3868">3868</a></td><td class="code">        <span class="kw">case</span> NAME:</td></tr>
+<tr id="L3869" class="s1"><td class="ln"><a href="#L3869">3869</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"BNN"</span>, NAME, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;class, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;type);</td></tr>
+<tr id="L3870" class="s1"><td class="ln"><a href="#L3870">3870</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;class==EXTERN)</td></tr>
+<tr id="L3871" class="s1"><td class="ln"><a href="#L3871">3871</a></td><td class="code">                        <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"S"</span>, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;nname);</td></tr>
+<tr id="L3872" class="s1"><td class="ln"><a href="#L3872">3872</a></td><td class="code">                <span class="kw">else</span></td></tr>
+<tr id="L3873" class="s1"><td class="ln"><a href="#L3873">3873</a></td><td class="code">                        <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"N"</span>, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;nloc);</td></tr>
+<tr id="L3874" class="s1"><td class="ln"><a href="#L3874">3874</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L3875" class="s1"><td class="ln"><a href="#L3875">3875</a></td><td class="code"> </td></tr>
+<tr id="L3876" class="s1"><td class="ln"><a href="#L3876">3876</a></td><td class="code">        <span class="kw">case</span> CON:</td></tr>
+<tr id="L3877" class="s1"><td class="ln"><a href="#L3877">3877</a></td><td class="code">        <span class="kw">case</span> FCON:</td></tr>
+<tr id="L3878" class="s1"><td class="ln"><a href="#L3878">3878</a></td><td class="code">        <span class="kw">case</span> SFCON:</td></tr>
+<tr id="L3879" class="s1"><td class="ln"><a href="#L3879">3879</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"BNN"</span>, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;type, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;value);</td></tr>
+<tr id="L3880" class="s1"><td class="ln"><a href="#L3880">3880</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L3881" class="s1"><td class="ln"><a href="#L3881">3881</a></td><td class="code"> </td></tr>
+<tr id="L3882" class="s1"><td class="ln"><a href="#L3882">3882</a></td><td class="code">        <span class="kw">case</span> FSEL:</td></tr>
+<tr id="L3883" class="s1"><td class="ln"><a href="#L3883">3883</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3855">treeout</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1);</td></tr>
+<tr id="L3884" class="s1"><td class="ln"><a href="#L3884">3884</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"BNN"</span>, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;type, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2);</td></tr>
+<tr id="L3885" class="s1"><td class="ln"><a href="#L3885">3885</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L3886" class="s1"><td class="ln"><a href="#L3886">3886</a></td><td class="code"> </td></tr>
+<tr id="L3887" class="s1"><td class="ln"><a href="#L3887">3887</a></td><td class="code">        <span class="kw">case</span> CBRANCH:</td></tr>
+<tr id="L3888" class="s1"><td class="ln"><a href="#L3888">3888</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3855">treeout</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;btree);</td></tr>
+<tr id="L3889" class="s1"><td class="ln"><a href="#L3889">3889</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"BNN"</span>, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;lbl, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;cond);</td></tr>
+<tr id="L3890" class="s1"><td class="ln"><a href="#L3890">3890</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L3891" class="s1"><td class="ln"><a href="#L3891">3891</a></td><td class="code"> </td></tr>
+<tr id="L3892" class="s1"><td class="ln"><a href="#L3892">3892</a></td><td class="code">        <span class="kw">default</span>:</td></tr>
+<tr id="L3893" class="s1"><td class="ln"><a href="#L3893">3893</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3855">treeout</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1);</td></tr>
+<tr id="L3894" class="s1"><td class="ln"><a href="#L3894">3894</a></td><td class="code">                <span class="kw">if</span> (opdope[<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op]&amp;BINARY)</td></tr>
+<tr id="L3895" class="s1"><td class="ln"><a href="#L3895">3895</a></td><td class="code">                        <a class="id" href="../source/c04.c.html#L3855">treeout</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2);</td></tr>
+<tr id="L3896" class="s1"><td class="ln"><a href="#L3896">3896</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"BN"</span>, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;type);</td></tr>
+<tr id="L3897" class="s1"><td class="ln"><a href="#L3897">3897</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L3898" class="s1"><td class="ln"><a href="#L3898">3898</a></td><td class="code">        }</td></tr>
+<tr id="L3899" class="s1"><td class="ln"><a href="#L3899">3899</a></td><td class="code">}</td></tr>
+<tr id="L3900" class="s0"><td class="ln"><a href="#L3900">3900</a></td><td class="code"> </td></tr>
+<tr id="L3901" class="s0"><td class="ln"><a href="#L3901">3901</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3902" class="s0"><td class="ln"><a href="#L3902">3902</a></td><td class="code"><span class="cm"> * Generate a branch</span></td></tr>
+<tr id="L3903" class="s0"><td class="ln"><a href="#L3903">3903</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3904" class="s0"><td class="ln"><a href="#L3904">3904</a></td><td class="code"><span class="def">branch</span>(lab) {</td></tr>
+<tr id="L3905" class="s0"><td class="ln"><a href="#L3905">3905</a></td><td class="code">        <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"BN"</span>, BRANCH, lab);</td></tr>
+<tr id="L3906" class="s0"><td class="ln"><a href="#L3906">3906</a></td><td class="code">}</td></tr>
+<tr id="L3907" class="s0"><td class="ln"><a href="#L3907">3907</a></td><td class="code"> </td></tr>
+<tr id="L3908" class="s0"><td class="ln"><a href="#L3908">3908</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3909" class="s0"><td class="ln"><a href="#L3909">3909</a></td><td class="code"><span class="cm"> * Generate a label</span></td></tr>
+<tr id="L3910" class="s0"><td class="ln"><a href="#L3910">3910</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3911" class="s0"><td class="ln"><a href="#L3911">3911</a></td><td class="code"><span class="def">label</span>(l) {</td></tr>
+<tr id="L3912" class="s0"><td class="ln"><a href="#L3912">3912</a></td><td class="code">        <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"BN"</span>, LABEL, l);</td></tr>
+<tr id="L3913" class="s0"><td class="ln"><a href="#L3913">3913</a></td><td class="code">}</td></tr>
+<tr id="L3914" class="s0"><td class="ln"><a href="#L3914">3914</a></td><td class="code"> </td></tr>
+<tr id="L3915" class="s0"><td class="ln"><a href="#L3915">3915</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3916" class="s0"><td class="ln"><a href="#L3916">3916</a></td><td class="code"><span class="cm"> * ap is a tree node whose type</span></td></tr>
+<tr id="L3917" class="s0"><td class="ln"><a href="#L3917">3917</a></td><td class="code"><span class="cm"> * is some kind of pointer; return the size of the object</span></td></tr>
+<tr id="L3918" class="s0"><td class="ln"><a href="#L3918">3918</a></td><td class="code"><span class="cm"> * to which the pointer points.</span></td></tr>
+<tr id="L3919" class="s0"><td class="ln"><a href="#L3919">3919</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3920" class="s0"><td class="ln"><a href="#L3920">3920</a></td><td class="code"><span class="def">plength</span>(ap)</td></tr>
+<tr id="L3921" class="s0"><td class="ln"><a href="#L3921">3921</a></td><td class="code"><span class="kw">struct</span> tname *ap;</td></tr>
+<tr id="L3922" class="s0"><td class="ln"><a href="#L3922">3922</a></td><td class="code">{</td></tr>
+<tr id="L3923" class="s0"><td class="ln"><a href="#L3923">3923</a></td><td class="code">        <span class="kw">register</span> t, l;</td></tr>
+<tr id="L3924" class="s0"><td class="ln"><a href="#L3924">3924</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tname *p;</td></tr>
+<tr id="L3925" class="s0"><td class="ln"><a href="#L3925">3925</a></td><td class="code"> </td></tr>
+<tr id="L3926" class="s0"><td class="ln"><a href="#L3926">3926</a></td><td class="code">        p = ap;</td></tr>
+<tr id="L3927" class="s0"><td class="ln"><a href="#L3927">3927</a></td><td class="code">        <span class="kw">if</span> (p==<span class="nu">0</span> || ((t=p-&gt;type)&amp;~TYPE) == <span class="nu">0</span>)           <span class="cm">/* not a reference */</span></td></tr>
+<tr id="L3928" class="s0"><td class="ln"><a href="#L3928">3928</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L3929" class="s0"><td class="ln"><a href="#L3929">3929</a></td><td class="code">        p-&gt;type = <a class="id" href="../source/c04.c.html#L3813">decref</a>(t);</td></tr>
+<tr id="L3930" class="s0"><td class="ln"><a href="#L3930">3930</a></td><td class="code">        l = <a class="id" href="../source/c04.c.html#L3939">length</a>(p);</td></tr>
+<tr id="L3931" class="s0"><td class="ln"><a href="#L3931">3931</a></td><td class="code">        p-&gt;type = t;</td></tr>
+<tr id="L3932" class="s0"><td class="ln"><a href="#L3932">3932</a></td><td class="code">        <span class="kw">return</span>(l);</td></tr>
+<tr id="L3933" class="s0"><td class="ln"><a href="#L3933">3933</a></td><td class="code">}</td></tr>
+<tr id="L3934" class="s0"><td class="ln"><a href="#L3934">3934</a></td><td class="code"> </td></tr>
+<tr id="L3935" class="s0"><td class="ln"><a href="#L3935">3935</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3936" class="s0"><td class="ln"><a href="#L3936">3936</a></td><td class="code"><span class="cm"> * return the number of bytes in the object</span></td></tr>
+<tr id="L3937" class="s0"><td class="ln"><a href="#L3937">3937</a></td><td class="code"><span class="cm"> * whose tree node is acs.</span></td></tr>
+<tr id="L3938" class="s0"><td class="ln"><a href="#L3938">3938</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3939" class="s0"><td class="ln"><a href="#L3939">3939</a></td><td class="code"><span class="def">length</span>(acs)</td></tr>
+<tr id="L3940" class="s0"><td class="ln"><a href="#L3940">3940</a></td><td class="code"><span class="kw">struct</span> tnode *acs;</td></tr>
+<tr id="L3941" class="s0"><td class="ln"><a href="#L3941">3941</a></td><td class="code">{</td></tr>
+<tr id="L3942" class="s0"><td class="ln"><a href="#L3942">3942</a></td><td class="code">        <span class="kw">register</span> t, n;</td></tr>
+<tr id="L3943" class="s0"><td class="ln"><a href="#L3943">3943</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *cs;</td></tr>
+<tr id="L3944" class="s0"><td class="ln"><a href="#L3944">3944</a></td><td class="code"> </td></tr>
+<tr id="L3945" class="s0"><td class="ln"><a href="#L3945">3945</a></td><td class="code">        cs = acs;</td></tr>
+<tr id="L3946" class="s0"><td class="ln"><a href="#L3946">3946</a></td><td class="code">        t = cs-&gt;type;</td></tr>
+<tr id="L3947" class="s0"><td class="ln"><a href="#L3947">3947</a></td><td class="code">        n = <span class="nu">1</span>;</td></tr>
+<tr id="L3948" class="s0"><td class="ln"><a href="#L3948">3948</a></td><td class="code">        <span class="kw">while</span> ((t&amp;XTYPE) == ARRAY) {</td></tr>
+<tr id="L3949" class="s0"><td class="ln"><a href="#L3949">3949</a></td><td class="code">                t = <a class="id" href="../source/c04.c.html#L3813">decref</a>(t);</td></tr>
+<tr id="L3950" class="s1"><td class="ln"><a href="#L3950">3950</a></td><td class="code">                n = dimtab[cs-&gt;ssp&amp;<span class="nu">0377</span>];</td></tr>
+<tr id="L3951" class="s1"><td class="ln"><a href="#L3951">3951</a></td><td class="code">        }</td></tr>
+<tr id="L3952" class="s1"><td class="ln"><a href="#L3952">3952</a></td><td class="code">        <span class="kw">if</span> ((t&amp;~TYPE)==FUNC)</td></tr>
+<tr id="L3953" class="s1"><td class="ln"><a href="#L3953">3953</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L3954" class="s1"><td class="ln"><a href="#L3954">3954</a></td><td class="code">        <span class="kw">if</span> (t&gt;=PTR)</td></tr>
+<tr id="L3955" class="s1"><td class="ln"><a href="#L3955">3955</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">2</span>*n);</td></tr>
+<tr id="L3956" class="s1"><td class="ln"><a href="#L3956">3956</a></td><td class="code">        <span class="kw">switch</span>(t&amp;TYPE) {</td></tr>
+<tr id="L3957" class="s1"><td class="ln"><a href="#L3957">3957</a></td><td class="code"> </td></tr>
+<tr id="L3958" class="s1"><td class="ln"><a href="#L3958">3958</a></td><td class="code">        <span class="kw">case</span> INT:</td></tr>
+<tr id="L3959" class="s1"><td class="ln"><a href="#L3959">3959</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">2</span>*n);</td></tr>
+<tr id="L3960" class="s1"><td class="ln"><a href="#L3960">3960</a></td><td class="code"> </td></tr>
+<tr id="L3961" class="s1"><td class="ln"><a href="#L3961">3961</a></td><td class="code">        <span class="kw">case</span> CHAR:</td></tr>
+<tr id="L3962" class="s1"><td class="ln"><a href="#L3962">3962</a></td><td class="code">                <span class="kw">return</span>(n);</td></tr>
+<tr id="L3963" class="s1"><td class="ln"><a href="#L3963">3963</a></td><td class="code"> </td></tr>
+<tr id="L3964" class="s1"><td class="ln"><a href="#L3964">3964</a></td><td class="code">        <span class="kw">case</span> FLOAT:</td></tr>
+<tr id="L3965" class="s1"><td class="ln"><a href="#L3965">3965</a></td><td class="code">        <span class="kw">case</span> LONG:</td></tr>
+<tr id="L3966" class="s1"><td class="ln"><a href="#L3966">3966</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">4</span>*n);</td></tr>
+<tr id="L3967" class="s1"><td class="ln"><a href="#L3967">3967</a></td><td class="code"> </td></tr>
+<tr id="L3968" class="s1"><td class="ln"><a href="#L3968">3968</a></td><td class="code">        <span class="kw">case</span> DOUBLE:</td></tr>
+<tr id="L3969" class="s1"><td class="ln"><a href="#L3969">3969</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">8</span>*n);</td></tr>
+<tr id="L3970" class="s1"><td class="ln"><a href="#L3970">3970</a></td><td class="code"> </td></tr>
+<tr id="L3971" class="s1"><td class="ln"><a href="#L3971">3971</a></td><td class="code">        <span class="kw">case</span> STRUCT:</td></tr>
+<tr id="L3972" class="s1"><td class="ln"><a href="#L3972">3972</a></td><td class="code">                <span class="kw">return</span>(n * dimtab[cs-&gt;lenp&amp;<span class="nu">0377</span>]);</td></tr>
+<tr id="L3973" class="s1"><td class="ln"><a href="#L3973">3973</a></td><td class="code"> </td></tr>
+<tr id="L3974" class="s1"><td class="ln"><a href="#L3974">3974</a></td><td class="code">        <span class="kw">case</span> RSTRUCT:</td></tr>
+<tr id="L3975" class="s1"><td class="ln"><a href="#L3975">3975</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Bad structure"</span>);</td></tr>
+<tr id="L3976" class="s1"><td class="ln"><a href="#L3976">3976</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L3977" class="s1"><td class="ln"><a href="#L3977">3977</a></td><td class="code">        }</td></tr>
+<tr id="L3978" class="s1"><td class="ln"><a href="#L3978">3978</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Compiler error (length)"</span>);</td></tr>
+<tr id="L3979" class="s1"><td class="ln"><a href="#L3979">3979</a></td><td class="code">}</td></tr>
+<tr id="L3980" class="s1"><td class="ln"><a href="#L3980">3980</a></td><td class="code"> </td></tr>
+<tr id="L3981" class="s1"><td class="ln"><a href="#L3981">3981</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3982" class="s1"><td class="ln"><a href="#L3982">3982</a></td><td class="code"><span class="cm"> * The number of bytes in an object, rounded up to a word.</span></td></tr>
+<tr id="L3983" class="s1"><td class="ln"><a href="#L3983">3983</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3984" class="s1"><td class="ln"><a href="#L3984">3984</a></td><td class="code"><span class="def">rlength</span>(cs)</td></tr>
+<tr id="L3985" class="s1"><td class="ln"><a href="#L3985">3985</a></td><td class="code"><span class="kw">struct</span> tnode *cs;</td></tr>
+<tr id="L3986" class="s1"><td class="ln"><a href="#L3986">3986</a></td><td class="code">{</td></tr>
+<tr id="L3987" class="s1"><td class="ln"><a href="#L3987">3987</a></td><td class="code">        <span class="kw">return</span>((<a class="id" href="../source/c04.c.html#L3939">length</a>(cs)+ALIGN) &amp; ~ALIGN);</td></tr>
+<tr id="L3988" class="s1"><td class="ln"><a href="#L3988">3988</a></td><td class="code">}</td></tr>
+<tr id="L3989" class="s1"><td class="ln"><a href="#L3989">3989</a></td><td class="code"> </td></tr>
+<tr id="L3990" class="s1"><td class="ln"><a href="#L3990">3990</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3991" class="s1"><td class="ln"><a href="#L3991">3991</a></td><td class="code"><span class="cm"> * After an "if (...) goto", look to see if the transfer</span></td></tr>
+<tr id="L3992" class="s1"><td class="ln"><a href="#L3992">3992</a></td><td class="code"><span class="cm"> * is to a simple label.</span></td></tr>
+<tr id="L3993" class="s1"><td class="ln"><a href="#L3993">3993</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3994" class="s1"><td class="ln"><a href="#L3994">3994</a></td><td class="code"><span class="def">simplegoto</span>()</td></tr>
+<tr id="L3995" class="s1"><td class="ln"><a href="#L3995">3995</a></td><td class="code">{</td></tr>
+<tr id="L3996" class="s1"><td class="ln"><a href="#L3996">3996</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> hshtab *csp;</td></tr>
+<tr id="L3997" class="s1"><td class="ln"><a href="#L3997">3997</a></td><td class="code"> </td></tr>
+<tr id="L3998" class="s1"><td class="ln"><a href="#L3998">3998</a></td><td class="code">        <span class="kw">if</span> ((peeksym=<a class="id" href="../source/c00.c.html#L1534">symbol</a>())==NAME &amp;&amp; <a class="id" href="../source/c04.c.html#L4017">nextchar</a>()==<span class="st">';'</span>) {</td></tr>
+<tr id="L3999" class="s1"><td class="ln"><a href="#L3999">3999</a></td><td class="code">                csp = csym;</td></tr>
+<tr id="L4000" class="s0"><td class="ln"><a href="#L4000">4000</a></td><td class="code">                <span class="kw">if</span> (csp-&gt;hclass==<span class="nu">0</span> &amp;&amp; csp-&gt;htype==<span class="nu">0</span>) {</td></tr>
+<tr id="L4001" class="s0"><td class="ln"><a href="#L4001">4001</a></td><td class="code">                        csp-&gt;htype = ARRAY;</td></tr>
+<tr id="L4002" class="s0"><td class="ln"><a href="#L4002">4002</a></td><td class="code">                        <span class="kw">if</span> (csp-&gt;hoffset==<span class="nu">0</span>)</td></tr>
+<tr id="L4003" class="s0"><td class="ln"><a href="#L4003">4003</a></td><td class="code">                                csp-&gt;hoffset = isn++;</td></tr>
+<tr id="L4004" class="s0"><td class="ln"><a href="#L4004">4004</a></td><td class="code">                }</td></tr>
+<tr id="L4005" class="s0"><td class="ln"><a href="#L4005">4005</a></td><td class="code">                <span class="kw">if</span> ((csp-&gt;hclass==<span class="nu">0</span>||csp-&gt;hclass==STATIC)</td></tr>
+<tr id="L4006" class="s0"><td class="ln"><a href="#L4006">4006</a></td><td class="code">                 &amp;&amp;  csp-&gt;htype==ARRAY) {</td></tr>
+<tr id="L4007" class="s0"><td class="ln"><a href="#L4007">4007</a></td><td class="code">                        peeksym = -<span class="nu">1</span>;</td></tr>
+<tr id="L4008" class="s0"><td class="ln"><a href="#L4008">4008</a></td><td class="code">                        <span class="kw">return</span>(csp-&gt;hoffset);</td></tr>
+<tr id="L4009" class="s0"><td class="ln"><a href="#L4009">4009</a></td><td class="code">                }</td></tr>
+<tr id="L4010" class="s0"><td class="ln"><a href="#L4010">4010</a></td><td class="code">        }</td></tr>
+<tr id="L4011" class="s0"><td class="ln"><a href="#L4011">4011</a></td><td class="code">        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L4012" class="s0"><td class="ln"><a href="#L4012">4012</a></td><td class="code">}</td></tr>
+<tr id="L4013" class="s0"><td class="ln"><a href="#L4013">4013</a></td><td class="code"> </td></tr>
+<tr id="L4014" class="s0"><td class="ln"><a href="#L4014">4014</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L4015" class="s0"><td class="ln"><a href="#L4015">4015</a></td><td class="code"><span class="cm"> * Return the next non-white-space character</span></td></tr>
+<tr id="L4016" class="s0"><td class="ln"><a href="#L4016">4016</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L4017" class="s0"><td class="ln"><a href="#L4017">4017</a></td><td class="code"><span class="def">nextchar</span>()</td></tr>
+<tr id="L4018" class="s0"><td class="ln"><a href="#L4018">4018</a></td><td class="code">{</td></tr>
+<tr id="L4019" class="s0"><td class="ln"><a href="#L4019">4019</a></td><td class="code">        <span class="kw">while</span> (<a class="id" href="../source/c04.c.html#L4028">spnextchar</a>()==<span class="st">' '</span>)</td></tr>
+<tr id="L4020" class="s0"><td class="ln"><a href="#L4020">4020</a></td><td class="code">                peekc = <span class="nu">0</span>;</td></tr>
+<tr id="L4021" class="s0"><td class="ln"><a href="#L4021">4021</a></td><td class="code">        <span class="kw">return</span>(peekc);</td></tr>
+<tr id="L4022" class="s0"><td class="ln"><a href="#L4022">4022</a></td><td class="code">}</td></tr>
+<tr id="L4023" class="s0"><td class="ln"><a href="#L4023">4023</a></td><td class="code"> </td></tr>
+<tr id="L4024" class="s0"><td class="ln"><a href="#L4024">4024</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L4025" class="s0"><td class="ln"><a href="#L4025">4025</a></td><td class="code"><span class="cm"> * Return the next character, translating all white space</span></td></tr>
+<tr id="L4026" class="s0"><td class="ln"><a href="#L4026">4026</a></td><td class="code"><span class="cm"> * to blank and handling line-ends.</span></td></tr>
+<tr id="L4027" class="s0"><td class="ln"><a href="#L4027">4027</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L4028" class="s0"><td class="ln"><a href="#L4028">4028</a></td><td class="code"><span class="def">spnextchar</span>()</td></tr>
+<tr id="L4029" class="s0"><td class="ln"><a href="#L4029">4029</a></td><td class="code">{</td></tr>
+<tr id="L4030" class="s0"><td class="ln"><a href="#L4030">4030</a></td><td class="code">        <span class="kw">register</span> c;</td></tr>
+<tr id="L4031" class="s0"><td class="ln"><a href="#L4031">4031</a></td><td class="code"> </td></tr>
+<tr id="L4032" class="s0"><td class="ln"><a href="#L4032">4032</a></td><td class="code">        <span class="kw">if</span> ((c = peekc)==<span class="nu">0</span>)</td></tr>
+<tr id="L4033" class="s0"><td class="ln"><a href="#L4033">4033</a></td><td class="code">                c = getchar();</td></tr>
+<tr id="L4034" class="s0"><td class="ln"><a href="#L4034">4034</a></td><td class="code">        <span class="kw">if</span> (c==<span class="st">'\t'</span>)</td></tr>
+<tr id="L4035" class="s0"><td class="ln"><a href="#L4035">4035</a></td><td class="code">                c = <span class="st">' '</span>;</td></tr>
+<tr id="L4036" class="s0"><td class="ln"><a href="#L4036">4036</a></td><td class="code">        <span class="kw">else</span> <span class="kw">if</span> (c==<span class="st">'\n'</span>) {</td></tr>
+<tr id="L4037" class="s0"><td class="ln"><a href="#L4037">4037</a></td><td class="code">                c = <span class="st">' '</span>;</td></tr>
+<tr id="L4038" class="s0"><td class="ln"><a href="#L4038">4038</a></td><td class="code">                <span class="kw">if</span> (inhdr==<span class="nu">0</span>)</td></tr>
+<tr id="L4039" class="s0"><td class="ln"><a href="#L4039">4039</a></td><td class="code">                        line++;</td></tr>
+<tr id="L4040" class="s0"><td class="ln"><a href="#L4040">4040</a></td><td class="code">                inhdr = <span class="nu">0</span>;</td></tr>
+<tr id="L4041" class="s0"><td class="ln"><a href="#L4041">4041</a></td><td class="code">        } <span class="kw">else</span> <span class="kw">if</span> (c==<span class="st">'\001'</span>) { <span class="cm">/* SOH, insert marker */</span></td></tr>
+<tr id="L4042" class="s0"><td class="ln"><a href="#L4042">4042</a></td><td class="code">                inhdr++;</td></tr>
+<tr id="L4043" class="s0"><td class="ln"><a href="#L4043">4043</a></td><td class="code">                c = <span class="st">' '</span>;</td></tr>
+<tr id="L4044" class="s0"><td class="ln"><a href="#L4044">4044</a></td><td class="code">        }</td></tr>
+<tr id="L4045" class="s0"><td class="ln"><a href="#L4045">4045</a></td><td class="code">        peekc = c;</td></tr>
+<tr id="L4046" class="s0"><td class="ln"><a href="#L4046">4046</a></td><td class="code">        <span class="kw">return</span>(c);</td></tr>
+<tr id="L4047" class="s0"><td class="ln"><a href="#L4047">4047</a></td><td class="code">}</td></tr>
+<tr id="L4048" class="s0"><td class="ln"><a href="#L4048">4048</a></td><td class="code"> </td></tr>
+<tr id="L4049" class="s0"><td class="ln"><a href="#L4049">4049</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L4050" class="s1"><td class="ln"><a href="#L4050">4050</a></td><td class="code"><span class="cm"> * is a break or continue legal?</span></td></tr>
+<tr id="L4051" class="s1"><td class="ln"><a href="#L4051">4051</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L4052" class="s1"><td class="ln"><a href="#L4052">4052</a></td><td class="code"><span class="def">chconbrk</span>(l)</td></tr>
+<tr id="L4053" class="s1"><td class="ln"><a href="#L4053">4053</a></td><td class="code">{</td></tr>
+<tr id="L4054" class="s1"><td class="ln"><a href="#L4054">4054</a></td><td class="code">        <span class="kw">if</span> (l==<span class="nu">0</span>)</td></tr>
+<tr id="L4055" class="s1"><td class="ln"><a href="#L4055">4055</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Break/continue error"</span>);</td></tr>
+<tr id="L4056" class="s1"><td class="ln"><a href="#L4056">4056</a></td><td class="code">}</td></tr>
+<tr id="L4057" class="s1"><td class="ln"><a href="#L4057">4057</a></td><td class="code"> </td></tr>
+<tr id="L4058" class="s1"><td class="ln"><a href="#L4058">4058</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L4059" class="s1"><td class="ln"><a href="#L4059">4059</a></td><td class="code"><span class="cm"> * The goto statement.</span></td></tr>
+<tr id="L4060" class="s1"><td class="ln"><a href="#L4060">4060</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L4061" class="s1"><td class="ln"><a href="#L4061">4061</a></td><td class="code"><span class="def">dogoto</span>()</td></tr>
+<tr id="L4062" class="s1"><td class="ln"><a href="#L4062">4062</a></td><td class="code">{</td></tr>
+<tr id="L4063" class="s1"><td class="ln"><a href="#L4063">4063</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *np;</td></tr>
+<tr id="L4064" class="s1"><td class="ln"><a href="#L4064">4064</a></td><td class="code"> </td></tr>
+<tr id="L4065" class="s1"><td class="ln"><a href="#L4065">4065</a></td><td class="code">        *cp++ = <a class="id" href="../source/c00.c.html#L1817">tree</a>();</td></tr>
+<tr id="L4066" class="s1"><td class="ln"><a href="#L4066">4066</a></td><td class="code">        <a class="id" href="../source/c01.c.html#L2116">build</a>(STAR);</td></tr>
+<tr id="L4067" class="s1"><td class="ln"><a href="#L4067">4067</a></td><td class="code">        <a class="id" href="../source/c01.c.html#L2436">chkw</a>(np = *--cp, -<span class="nu">1</span>);</td></tr>
+<tr id="L4068" class="s1"><td class="ln"><a href="#L4068">4068</a></td><td class="code">        <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(<a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">1</span>,JUMP,<span class="nu">0</span>,<span class="nu">0</span>,np));</td></tr>
+<tr id="L4069" class="s1"><td class="ln"><a href="#L4069">4069</a></td><td class="code">}</td></tr>
+<tr id="L4070" class="s1"><td class="ln"><a href="#L4070">4070</a></td><td class="code"> </td></tr>
+<tr id="L4071" class="s1"><td class="ln"><a href="#L4071">4071</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L4072" class="s1"><td class="ln"><a href="#L4072">4072</a></td><td class="code"><span class="cm"> * The return statement, which has to convert</span></td></tr>
+<tr id="L4073" class="s1"><td class="ln"><a href="#L4073">4073</a></td><td class="code"><span class="cm"> * the returned object to the function's type.</span></td></tr>
+<tr id="L4074" class="s1"><td class="ln"><a href="#L4074">4074</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L4075" class="s1"><td class="ln"><a href="#L4075">4075</a></td><td class="code"><span class="def">doret</span>()</td></tr>
+<tr id="L4076" class="s1"><td class="ln"><a href="#L4076">4076</a></td><td class="code">{</td></tr>
+<tr id="L4077" class="s1"><td class="ln"><a href="#L4077">4077</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *t;</td></tr>
+<tr id="L4078" class="s1"><td class="ln"><a href="#L4078">4078</a></td><td class="code"> </td></tr>
+<tr id="L4079" class="s1"><td class="ln"><a href="#L4079">4079</a></td><td class="code">        <span class="kw">if</span> (<a class="id" href="../source/c04.c.html#L4017">nextchar</a>() != <span class="st">';'</span>) {</td></tr>
+<tr id="L4080" class="s1"><td class="ln"><a href="#L4080">4080</a></td><td class="code">                t = <a class="id" href="../source/c00.c.html#L1817">tree</a>();</td></tr>
+<tr id="L4081" class="s1"><td class="ln"><a href="#L4081">4081</a></td><td class="code">                *cp++ = &amp;funcblk;</td></tr>
+<tr id="L4082" class="s1"><td class="ln"><a href="#L4082">4082</a></td><td class="code">                *cp++ = t;</td></tr>
+<tr id="L4083" class="s1"><td class="ln"><a href="#L4083">4083</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2116">build</a>(ASSIGN);</td></tr>
+<tr id="L4084" class="s1"><td class="ln"><a href="#L4084">4084</a></td><td class="code">                cp[-<span class="nu">1</span>] = cp[-<span class="nu">1</span>]-&gt;tr2;</td></tr>
+<tr id="L4085" class="s1"><td class="ln"><a href="#L4085">4085</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2116">build</a>(RFORCE);</td></tr>
+<tr id="L4086" class="s1"><td class="ln"><a href="#L4086">4086</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(*--cp);</td></tr>
+<tr id="L4087" class="s1"><td class="ln"><a href="#L4087">4087</a></td><td class="code">        }</td></tr>
+<tr id="L4088" class="s1"><td class="ln"><a href="#L4088">4088</a></td><td class="code">        <a class="id" href="../source/c04.c.html#L3904">branch</a>(retlab);</td></tr>
+<tr id="L4089" class="s1"><td class="ln"><a href="#L4089">4089</a></td><td class="code">}</td></tr>
+<tr id="L4090" class="s1"><td class="ln"><a href="#L4090">4090</a></td><td class="code"> </td></tr>
+<tr id="L4091" class="s1"><td class="ln"><a href="#L4091">4091</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L4092" class="s1"><td class="ln"><a href="#L4092">4092</a></td><td class="code"><span class="cm"> * write out a character to the usual output</span></td></tr>
+<tr id="L4093" class="s1"><td class="ln"><a href="#L4093">4093</a></td><td class="code"><span class="cm"> * or to the string file</span></td></tr>
+<tr id="L4094" class="s1"><td class="ln"><a href="#L4094">4094</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L4095" class="s1"><td class="ln"><a href="#L4095">4095</a></td><td class="code"><span class="def">putchar</span>(c)</td></tr>
+<tr id="L4096" class="s1"><td class="ln"><a href="#L4096">4096</a></td><td class="code">{</td></tr>
+<tr id="L4097" class="s1"><td class="ln"><a href="#L4097">4097</a></td><td class="code">        write(<span class="nu">1</span>, &amp;c, <span class="nu">1</span>);</td></tr>
+<tr id="L4098" class="s1"><td class="ln"><a href="#L4098">4098</a></td><td class="code">}</td></tr>
+<tr id="L4099" class="s1"><td class="ln"><a href="#L4099">4099</a></td><td class="code"> </td></tr>
+<tr id="L4100" class="s0"><td class="ln"><a href="#L4100">4100</a></td><td class="code"><span class="def">outcode</span>(s, a)</td></tr>
+<tr id="L4101" class="s0"><td class="ln"><a href="#L4101">4101</a></td><td class="code"><span class="kw">char</span> *s;</td></tr>
+<tr id="L4102" class="s0"><td class="ln"><a href="#L4102">4102</a></td><td class="code">{</td></tr>
+<tr id="L4103" class="s0"><td class="ln"><a href="#L4103">4103</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *sp;</td></tr>
+<tr id="L4104" class="s0"><td class="ln"><a href="#L4104">4104</a></td><td class="code">        <span class="kw">register</span> *ap, *bufp;</td></tr>
+<tr id="L4105" class="s0"><td class="ln"><a href="#L4105">4105</a></td><td class="code">        <span class="kw">int</span> n;</td></tr>
+<tr id="L4106" class="s0"><td class="ln"><a href="#L4106">4106</a></td><td class="code">        <span class="kw">char</span> *np;</td></tr>
+<tr id="L4107" class="s0"><td class="ln"><a href="#L4107">4107</a></td><td class="code"> </td></tr>
+<tr id="L4108" class="s0"><td class="ln"><a href="#L4108">4108</a></td><td class="code">        bufp = obuf;</td></tr>
+<tr id="L4109" class="s0"><td class="ln"><a href="#L4109">4109</a></td><td class="code">        <span class="kw">if</span> (strflg)</td></tr>
+<tr id="L4110" class="s0"><td class="ln"><a href="#L4110">4110</a></td><td class="code">                bufp = sbuf;</td></tr>
+<tr id="L4111" class="s0"><td class="ln"><a href="#L4111">4111</a></td><td class="code">        ap = &amp;a;</td></tr>
+<tr id="L4112" class="s0"><td class="ln"><a href="#L4112">4112</a></td><td class="code">        <span class="kw">for</span> (;;) <span class="kw">switch</span>(*s++) {</td></tr>
+<tr id="L4113" class="s0"><td class="ln"><a href="#L4113">4113</a></td><td class="code">        <span class="kw">case</span> <span class="st">'B'</span>:</td></tr>
+<tr id="L4114" class="s0"><td class="ln"><a href="#L4114">4114</a></td><td class="code">                putw(*ap++ | (<span class="nu">0376</span>&lt;&lt;<span class="nu">8</span>), bufp);</td></tr>
+<tr id="L4115" class="s0"><td class="ln"><a href="#L4115">4115</a></td><td class="code">                <span class="kw">continue</span>;</td></tr>
+<tr id="L4116" class="s0"><td class="ln"><a href="#L4116">4116</a></td><td class="code"> </td></tr>
+<tr id="L4117" class="s0"><td class="ln"><a href="#L4117">4117</a></td><td class="code">        <span class="kw">case</span> <span class="st">'N'</span>:</td></tr>
+<tr id="L4118" class="s0"><td class="ln"><a href="#L4118">4118</a></td><td class="code">                putw(*ap++, bufp);</td></tr>
+<tr id="L4119" class="s0"><td class="ln"><a href="#L4119">4119</a></td><td class="code">                <span class="kw">continue</span>;</td></tr>
+<tr id="L4120" class="s0"><td class="ln"><a href="#L4120">4120</a></td><td class="code"> </td></tr>
+<tr id="L4121" class="s0"><td class="ln"><a href="#L4121">4121</a></td><td class="code">        <span class="kw">case</span> <span class="st">'S'</span>:</td></tr>
+<tr id="L4122" class="s0"><td class="ln"><a href="#L4122">4122</a></td><td class="code">                np = *ap++;</td></tr>
+<tr id="L4123" class="s0"><td class="ln"><a href="#L4123">4123</a></td><td class="code">                n = ncps;</td></tr>
+<tr id="L4124" class="s0"><td class="ln"><a href="#L4124">4124</a></td><td class="code">                <span class="kw">while</span> (n-- &amp;&amp; *np) {</td></tr>
+<tr id="L4125" class="s0"><td class="ln"><a href="#L4125">4125</a></td><td class="code">                        putc(*np++, bufp);</td></tr>
+<tr id="L4126" class="s0"><td class="ln"><a href="#L4126">4126</a></td><td class="code">                }</td></tr>
+<tr id="L4127" class="s0"><td class="ln"><a href="#L4127">4127</a></td><td class="code">                putc(<span class="nu">0</span>, bufp);</td></tr>
+<tr id="L4128" class="s0"><td class="ln"><a href="#L4128">4128</a></td><td class="code">                <span class="kw">continue</span>;</td></tr>
+<tr id="L4129" class="s0"><td class="ln"><a href="#L4129">4129</a></td><td class="code"> </td></tr>
+<tr id="L4130" class="s0"><td class="ln"><a href="#L4130">4130</a></td><td class="code">        <span class="kw">case</span> <span class="st">'1'</span>:</td></tr>
+<tr id="L4131" class="s0"><td class="ln"><a href="#L4131">4131</a></td><td class="code">                putw(<span class="nu">1</span>, bufp);</td></tr>
+<tr id="L4132" class="s0"><td class="ln"><a href="#L4132">4132</a></td><td class="code">                <span class="kw">continue</span>;</td></tr>
+<tr id="L4133" class="s0"><td class="ln"><a href="#L4133">4133</a></td><td class="code"> </td></tr>
+<tr id="L4134" class="s0"><td class="ln"><a href="#L4134">4134</a></td><td class="code">        <span class="kw">case</span> <span class="st">'0'</span>:</td></tr>
+<tr id="L4135" class="s0"><td class="ln"><a href="#L4135">4135</a></td><td class="code">                putw(<span class="nu">0</span>, bufp);</td></tr>
+<tr id="L4136" class="s0"><td class="ln"><a href="#L4136">4136</a></td><td class="code">                <span class="kw">continue</span>;</td></tr>
+<tr id="L4137" class="s0"><td class="ln"><a href="#L4137">4137</a></td><td class="code"> </td></tr>
+<tr id="L4138" class="s0"><td class="ln"><a href="#L4138">4138</a></td><td class="code">        <span class="kw">case</span> <span class="st">'\0'</span>:</td></tr>
+<tr id="L4139" class="s0"><td class="ln"><a href="#L4139">4139</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L4140" class="s0"><td class="ln"><a href="#L4140">4140</a></td><td class="code">        }</td></tr>
+<tr id="L4141" class="s0"><td class="ln"><a href="#L4141">4141</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Botch in outcode"</span>);</td></tr>
+<tr id="L4142" class="s0"><td class="ln"><a href="#L4142">4142</a></td><td class="code">}</td></tr></table></div>
+<nav class="pager"><a href="c03.c.html">&larr; c03.c</a><a href="c05.c.html">c05.c &rarr;</a></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>

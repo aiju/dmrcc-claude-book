@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>cc.c · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>cc.c</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 2 &middot; lines 100&ndash;910</p>
+<h1><code>cc.c</code></h1>
+<p class="desc">The cc command and preprocessor</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L100" class="s0"><td class="ln"><a href="#L100">100</a></td><td class="code"><span class="pp">#define SBSIZE  2000</span></td></tr>
+<tr id="L101" class="s0"><td class="ln"><a href="#L101">101</a></td><td class="code"><span class="kw">char</span>    sbf[SBSIZE];</td></tr>
+<tr id="L102" class="s0"><td class="ln"><a href="#L102">102</a></td><td class="code"><span class="cm">/* C command */</span></td></tr>
+<tr id="L103" class="s0"><td class="ln"><a href="#L103">103</a></td><td class="code"> </td></tr>
+<tr id="L104" class="s0"><td class="ln"><a href="#L104">104</a></td><td class="code"><span class="kw">char</span> *tmp0;</td></tr>
+<tr id="L105" class="s0"><td class="ln"><a href="#L105">105</a></td><td class="code"><span class="kw">char</span> *tmp1;</td></tr>
+<tr id="L106" class="s0"><td class="ln"><a href="#L106">106</a></td><td class="code"><span class="kw">char</span> *tmp2;</td></tr>
+<tr id="L107" class="s0"><td class="ln"><a href="#L107">107</a></td><td class="code"><span class="kw">char</span> *tmp3;</td></tr>
+<tr id="L108" class="s0"><td class="ln"><a href="#L108">108</a></td><td class="code"><span class="kw">char</span> *tmp4;</td></tr>
+<tr id="L109" class="s0"><td class="ln"><a href="#L109">109</a></td><td class="code"><span class="kw">char</span> *tmp5;</td></tr>
+<tr id="L110" class="s0"><td class="ln"><a href="#L110">110</a></td><td class="code"><span class="kw">char</span> ts[<span class="nu">1000</span>];</td></tr>
+<tr id="L111" class="s0"><td class="ln"><a href="#L111">111</a></td><td class="code"><span class="kw">char</span> *tsp ts;</td></tr>
+<tr id="L112" class="s0"><td class="ln"><a href="#L112">112</a></td><td class="code"><span class="kw">char</span> *av[<span class="nu">50</span>];</td></tr>
+<tr id="L113" class="s0"><td class="ln"><a href="#L113">113</a></td><td class="code"><span class="kw">char</span> *clist[<span class="nu">50</span>];</td></tr>
+<tr id="L114" class="s0"><td class="ln"><a href="#L114">114</a></td><td class="code"><span class="kw">char</span> *llist[<span class="nu">50</span>];</td></tr>
+<tr id="L115" class="s0"><td class="ln"><a href="#L115">115</a></td><td class="code"><span class="kw">int</span> instring;</td></tr>
+<tr id="L116" class="s0"><td class="ln"><a href="#L116">116</a></td><td class="code"><span class="kw">int</span> pflag;</td></tr>
+<tr id="L117" class="s0"><td class="ln"><a href="#L117">117</a></td><td class="code"><span class="kw">int</span> sflag;</td></tr>
+<tr id="L118" class="s0"><td class="ln"><a href="#L118">118</a></td><td class="code"><span class="kw">int</span> cflag;</td></tr>
+<tr id="L119" class="s0"><td class="ln"><a href="#L119">119</a></td><td class="code"><span class="kw">int</span> oflag;</td></tr>
+<tr id="L120" class="s0"><td class="ln"><a href="#L120">120</a></td><td class="code"><span class="kw">int</span> proflag;</td></tr>
+<tr id="L121" class="s0"><td class="ln"><a href="#L121">121</a></td><td class="code"><span class="kw">int</span> depth;</td></tr>
+<tr id="L122" class="s0"><td class="ln"><a href="#L122">122</a></td><td class="code"><span class="kw">int</span> *ibuf;</td></tr>
+<tr id="L123" class="s0"><td class="ln"><a href="#L123">123</a></td><td class="code"><span class="kw">int</span> *ibuf1;</td></tr>
+<tr id="L124" class="s0"><td class="ln"><a href="#L124">124</a></td><td class="code"><span class="kw">int</span> *ibuf2;</td></tr>
+<tr id="L125" class="s0"><td class="ln"><a href="#L125">125</a></td><td class="code"><span class="kw">int</span> *obuf;</td></tr>
+<tr id="L126" class="s0"><td class="ln"><a href="#L126">126</a></td><td class="code"><span class="kw">char</span> *lp;</td></tr>
+<tr id="L127" class="s0"><td class="ln"><a href="#L127">127</a></td><td class="code"><span class="kw">char</span> *line;</td></tr>
+<tr id="L128" class="s0"><td class="ln"><a href="#L128">128</a></td><td class="code"><span class="kw">int</span> lineno;</td></tr>
+<tr id="L129" class="s0"><td class="ln"><a href="#L129">129</a></td><td class="code"><span class="kw">int</span> exfail;</td></tr>
+<tr id="L130" class="s0"><td class="ln"><a href="#L130">130</a></td><td class="code"><span class="kw">struct</span> symtab {</td></tr>
+<tr id="L131" class="s0"><td class="ln"><a href="#L131">131</a></td><td class="code">        <span class="kw">char</span> name[<span class="nu">8</span>];</td></tr>
+<tr id="L132" class="s0"><td class="ln"><a href="#L132">132</a></td><td class="code">        <span class="kw">char</span> *value;</td></tr>
+<tr id="L133" class="s0"><td class="ln"><a href="#L133">133</a></td><td class="code">} *symtab;</td></tr>
+<tr id="L134" class="s0"><td class="ln"><a href="#L134">134</a></td><td class="code"><span class="kw">int</span> symsiz <span class="nu">200</span>;</td></tr>
+<tr id="L135" class="s0"><td class="ln"><a href="#L135">135</a></td><td class="code"><span class="kw">struct</span> symtab *defloc;</td></tr>
+<tr id="L136" class="s0"><td class="ln"><a href="#L136">136</a></td><td class="code"><span class="kw">struct</span> symtab *incloc;</td></tr>
+<tr id="L137" class="s0"><td class="ln"><a href="#L137">137</a></td><td class="code"><span class="kw">struct</span> symtab *eifloc;</td></tr>
+<tr id="L138" class="s0"><td class="ln"><a href="#L138">138</a></td><td class="code"><span class="kw">struct</span> symtab *ifdloc;</td></tr>
+<tr id="L139" class="s0"><td class="ln"><a href="#L139">139</a></td><td class="code"><span class="kw">struct</span> symtab *ifnloc;</td></tr>
+<tr id="L140" class="s0"><td class="ln"><a href="#L140">140</a></td><td class="code"><span class="kw">struct</span> symtab *unxloc;</td></tr>
+<tr id="L141" class="s0"><td class="ln"><a href="#L141">141</a></td><td class="code"><span class="kw">int</span>     trulvl;</td></tr>
+<tr id="L142" class="s0"><td class="ln"><a href="#L142">142</a></td><td class="code"><span class="kw">int</span>     flslvl;</td></tr>
+<tr id="L143" class="s0"><td class="ln"><a href="#L143">143</a></td><td class="code"><span class="kw">char</span> *stringbuf;</td></tr>
+<tr id="L144" class="s0"><td class="ln"><a href="#L144">144</a></td><td class="code"><span class="kw">char</span> *pass0 <span class="st">"/lib/c0"</span>;</td></tr>
+<tr id="L145" class="s0"><td class="ln"><a href="#L145">145</a></td><td class="code"><span class="kw">char</span> *pass1 <span class="st">"/lib/c1"</span>;</td></tr>
+<tr id="L146" class="s0"><td class="ln"><a href="#L146">146</a></td><td class="code"><span class="kw">char</span> *pass2 <span class="st">"/lib/c2"</span>;</td></tr>
+<tr id="L147" class="s0"><td class="ln"><a href="#L147">147</a></td><td class="code"><span class="kw">char</span> *pref <span class="st">"/lib/crt0.o"</span>;</td></tr>
+<tr id="L148" class="s0"><td class="ln"><a href="#L148">148</a></td><td class="code"> </td></tr>
+<tr id="L149" class="s0"><td class="ln"><a href="#L149">149</a></td><td class="code"><span class="def">main</span>(argc, argv)</td></tr>
+<tr id="L150" class="s1"><td class="ln"><a href="#L150">150</a></td><td class="code"><span class="kw">char</span> *argv[]; {</td></tr>
+<tr id="L151" class="s1"><td class="ln"><a href="#L151">151</a></td><td class="code">        <span class="kw">char</span> *t;</td></tr>
+<tr id="L152" class="s1"><td class="ln"><a href="#L152">152</a></td><td class="code">        <span class="kw">int</span> nc, nl, i, j, c, f20, nxo;</td></tr>
+<tr id="L153" class="s1"><td class="ln"><a href="#L153">153</a></td><td class="code">        <span class="kw">int</span> <a class="id" href="../source/cc.c.html#L320">dexit</a>();</td></tr>
+<tr id="L154" class="s1"><td class="ln"><a href="#L154">154</a></td><td class="code"> </td></tr>
+<tr id="L155" class="s1"><td class="ln"><a href="#L155">155</a></td><td class="code">        i = nc = nl = f20 = nxo = <span class="nu">0</span>;</td></tr>
+<tr id="L156" class="s1"><td class="ln"><a href="#L156">156</a></td><td class="code">        <span class="kw">while</span>(++i &lt; argc) {</td></tr>
+<tr id="L157" class="s1"><td class="ln"><a href="#L157">157</a></td><td class="code">                <span class="kw">if</span>(*argv[i] == <span class="st">'-'</span>)</td></tr>
+<tr id="L158" class="s1"><td class="ln"><a href="#L158">158</a></td><td class="code">                        <span class="kw">switch</span> (argv[i][<span class="nu">1</span>]) {</td></tr>
+<tr id="L159" class="s1"><td class="ln"><a href="#L159">159</a></td><td class="code">                                <span class="kw">default</span>:</td></tr>
+<tr id="L160" class="s1"><td class="ln"><a href="#L160">160</a></td><td class="code">                                        <span class="kw">goto</span> passa;</td></tr>
+<tr id="L161" class="s1"><td class="ln"><a href="#L161">161</a></td><td class="code">                                <span class="kw">case</span> <span class="st">'S'</span>:</td></tr>
+<tr id="L162" class="s1"><td class="ln"><a href="#L162">162</a></td><td class="code">                                        sflag++;</td></tr>
+<tr id="L163" class="s1"><td class="ln"><a href="#L163">163</a></td><td class="code">                                        cflag++;</td></tr>
+<tr id="L164" class="s1"><td class="ln"><a href="#L164">164</a></td><td class="code">                                        <span class="kw">break</span>;</td></tr>
+<tr id="L165" class="s1"><td class="ln"><a href="#L165">165</a></td><td class="code">                                <span class="kw">case</span> <span class="st">'O'</span>:</td></tr>
+<tr id="L166" class="s1"><td class="ln"><a href="#L166">166</a></td><td class="code">                                        oflag++;</td></tr>
+<tr id="L167" class="s1"><td class="ln"><a href="#L167">167</a></td><td class="code">                                        <span class="kw">break</span>;</td></tr>
+<tr id="L168" class="s1"><td class="ln"><a href="#L168">168</a></td><td class="code">                                <span class="kw">case</span> <span class="st">'p'</span>:</td></tr>
+<tr id="L169" class="s1"><td class="ln"><a href="#L169">169</a></td><td class="code">                                        proflag++;</td></tr>
+<tr id="L170" class="s1"><td class="ln"><a href="#L170">170</a></td><td class="code">                                        pref = <span class="st">"/lib/mcrt0.o"</span>;</td></tr>
+<tr id="L171" class="s1"><td class="ln"><a href="#L171">171</a></td><td class="code">                                        <span class="kw">break</span>;</td></tr>
+<tr id="L172" class="s1"><td class="ln"><a href="#L172">172</a></td><td class="code">                                <span class="kw">case</span> <span class="st">'P'</span>:</td></tr>
+<tr id="L173" class="s1"><td class="ln"><a href="#L173">173</a></td><td class="code">                                        pflag++;</td></tr>
+<tr id="L174" class="s1"><td class="ln"><a href="#L174">174</a></td><td class="code">                                <span class="kw">case</span> <span class="st">'c'</span>:</td></tr>
+<tr id="L175" class="s1"><td class="ln"><a href="#L175">175</a></td><td class="code">                                        cflag++;</td></tr>
+<tr id="L176" class="s1"><td class="ln"><a href="#L176">176</a></td><td class="code">                                        <span class="kw">break</span>;</td></tr>
+<tr id="L177" class="s1"><td class="ln"><a href="#L177">177</a></td><td class="code"> </td></tr>
+<tr id="L178" class="s1"><td class="ln"><a href="#L178">178</a></td><td class="code">                                <span class="kw">case</span> <span class="st">'f'</span>:</td></tr>
+<tr id="L179" class="s1"><td class="ln"><a href="#L179">179</a></td><td class="code">                                        pref = <span class="st">"/lib/fcrt0.o"</span>;</td></tr>
+<tr id="L180" class="s1"><td class="ln"><a href="#L180">180</a></td><td class="code">                                        pass0 = <span class="st">"/lib/fc0"</span>;</td></tr>
+<tr id="L181" class="s1"><td class="ln"><a href="#L181">181</a></td><td class="code">                                        pass1 = <span class="st">"/lib/fc1"</span>;</td></tr>
+<tr id="L182" class="s1"><td class="ln"><a href="#L182">182</a></td><td class="code">                                        <span class="kw">break</span>;</td></tr>
+<tr id="L183" class="s1"><td class="ln"><a href="#L183">183</a></td><td class="code"> </td></tr>
+<tr id="L184" class="s1"><td class="ln"><a href="#L184">184</a></td><td class="code">                                <span class="kw">case</span> <span class="st">'2'</span>:</td></tr>
+<tr id="L185" class="s1"><td class="ln"><a href="#L185">185</a></td><td class="code">                                        <span class="kw">if</span>(argv[i][<span class="nu">2</span>] == <span class="st">'\0'</span>)</td></tr>
+<tr id="L186" class="s1"><td class="ln"><a href="#L186">186</a></td><td class="code">                                                pref = <span class="st">"/lib/crt2.o"</span>;</td></tr>
+<tr id="L187" class="s1"><td class="ln"><a href="#L187">187</a></td><td class="code">                                        <span class="kw">else</span> {</td></tr>
+<tr id="L188" class="s1"><td class="ln"><a href="#L188">188</a></td><td class="code">                                                pref = <span class="st">"/lib/crt20.o"</span>;</td></tr>
+<tr id="L189" class="s1"><td class="ln"><a href="#L189">189</a></td><td class="code">                                                f20 = <span class="nu">1</span>;</td></tr>
+<tr id="L190" class="s1"><td class="ln"><a href="#L190">190</a></td><td class="code">                                        }</td></tr>
+<tr id="L191" class="s1"><td class="ln"><a href="#L191">191</a></td><td class="code">                                        <span class="kw">break</span>;</td></tr>
+<tr id="L192" class="s1"><td class="ln"><a href="#L192">192</a></td><td class="code">                                <span class="kw">case</span> <span class="st">'t'</span>:</td></tr>
+<tr id="L193" class="s1"><td class="ln"><a href="#L193">193</a></td><td class="code">                                        <span class="kw">if</span> (argv[i][<span class="nu">2</span>]==<span class="st">'0'</span>)</td></tr>
+<tr id="L194" class="s1"><td class="ln"><a href="#L194">194</a></td><td class="code">                                                pass0 = <span class="st">"/usr/c/c0"</span>;</td></tr>
+<tr id="L195" class="s1"><td class="ln"><a href="#L195">195</a></td><td class="code">                                        <span class="kw">if</span> (argv[i][<span class="nu">2</span>]==<span class="st">'1'</span>)</td></tr>
+<tr id="L196" class="s1"><td class="ln"><a href="#L196">196</a></td><td class="code">                                                pass1 = <span class="st">"/usr/c/c1"</span>;</td></tr>
+<tr id="L197" class="s1"><td class="ln"><a href="#L197">197</a></td><td class="code">                                        <span class="kw">if</span> (argv[i][<span class="nu">2</span>]==<span class="st">'2'</span>)</td></tr>
+<tr id="L198" class="s1"><td class="ln"><a href="#L198">198</a></td><td class="code">                                                pass2 = <span class="st">"/usr/c/c2"</span>;</td></tr>
+<tr id="L199" class="s1"><td class="ln"><a href="#L199">199</a></td><td class="code">                                        <span class="kw">break</span>;</td></tr>
+<tr id="L200" class="s0"><td class="ln"><a href="#L200">200</a></td><td class="code">                        }</td></tr>
+<tr id="L201" class="s0"><td class="ln"><a href="#L201">201</a></td><td class="code">                <span class="kw">else</span> {</td></tr>
+<tr id="L202" class="s0"><td class="ln"><a href="#L202">202</a></td><td class="code">                passa:</td></tr>
+<tr id="L203" class="s0"><td class="ln"><a href="#L203">203</a></td><td class="code">                        t = argv[i];</td></tr>
+<tr id="L204" class="s0"><td class="ln"><a href="#L204">204</a></td><td class="code">                        <span class="kw">if</span>(<a class="id" href="../source/cc.c.html#L683">getsuf</a>(t)==<span class="st">'c'</span>) {</td></tr>
+<tr id="L205" class="s0"><td class="ln"><a href="#L205">205</a></td><td class="code">                                clist[nc++] = t;</td></tr>
+<tr id="L206" class="s0"><td class="ln"><a href="#L206">206</a></td><td class="code">                                t = <a class="id" href="../source/cc.c.html#L703">setsuf</a>(t, <span class="st">'o'</span>);</td></tr>
+<tr id="L207" class="s0"><td class="ln"><a href="#L207">207</a></td><td class="code">                        }</td></tr>
+<tr id="L208" class="s0"><td class="ln"><a href="#L208">208</a></td><td class="code">                        <span class="kw">if</span> (<a class="id" href="../source/cc.c.html#L749">nodup</a>(llist, t)) {</td></tr>
+<tr id="L209" class="s0"><td class="ln"><a href="#L209">209</a></td><td class="code">                                llist[nl++] = t;</td></tr>
+<tr id="L210" class="s0"><td class="ln"><a href="#L210">210</a></td><td class="code">                                <span class="kw">if</span> (<a class="id" href="../source/cc.c.html#L683">getsuf</a>(t)==<span class="st">'o'</span>)</td></tr>
+<tr id="L211" class="s0"><td class="ln"><a href="#L211">211</a></td><td class="code">                                        nxo++;</td></tr>
+<tr id="L212" class="s0"><td class="ln"><a href="#L212">212</a></td><td class="code">                        }</td></tr>
+<tr id="L213" class="s0"><td class="ln"><a href="#L213">213</a></td><td class="code">                }</td></tr>
+<tr id="L214" class="s0"><td class="ln"><a href="#L214">214</a></td><td class="code">        }</td></tr>
+<tr id="L215" class="s0"><td class="ln"><a href="#L215">215</a></td><td class="code">        <span class="kw">if</span>(nc==<span class="nu">0</span>)</td></tr>
+<tr id="L216" class="s0"><td class="ln"><a href="#L216">216</a></td><td class="code">                <span class="kw">goto</span> nocom;</td></tr>
+<tr id="L217" class="s0"><td class="ln"><a href="#L217">217</a></td><td class="code">        <span class="kw">if</span> (pflag==<span class="nu">0</span>) {</td></tr>
+<tr id="L218" class="s0"><td class="ln"><a href="#L218">218</a></td><td class="code">                tmp0 = <a class="id" href="../source/cc.c.html#L738">copy</a>(<span class="st">"/tmp/ctm0a"</span>);</td></tr>
+<tr id="L219" class="s0"><td class="ln"><a href="#L219">219</a></td><td class="code">                <span class="kw">while</span>((c=open(tmp0, <span class="nu">0</span>))&gt;=<span class="nu">0</span>) {</td></tr>
+<tr id="L220" class="s0"><td class="ln"><a href="#L220">220</a></td><td class="code">                        close(c);</td></tr>
+<tr id="L221" class="s0"><td class="ln"><a href="#L221">221</a></td><td class="code">                        tmp0[<span class="nu">9</span>]++;</td></tr>
+<tr id="L222" class="s0"><td class="ln"><a href="#L222">222</a></td><td class="code">                }</td></tr>
+<tr id="L223" class="s0"><td class="ln"><a href="#L223">223</a></td><td class="code">                <span class="kw">while</span>((creat(tmp0, <span class="nu">0400</span>))&lt;<span class="nu">0</span>)</td></tr>
+<tr id="L224" class="s0"><td class="ln"><a href="#L224">224</a></td><td class="code">                        tmp0[<span class="nu">9</span>]++;</td></tr>
+<tr id="L225" class="s0"><td class="ln"><a href="#L225">225</a></td><td class="code">        }</td></tr>
+<tr id="L226" class="s0"><td class="ln"><a href="#L226">226</a></td><td class="code">        <span class="kw">if</span> ((signal(<span class="nu">2</span>, <span class="nu">1</span>) &amp; <span class="nu">01</span>) == <span class="nu">0</span>)</td></tr>
+<tr id="L227" class="s0"><td class="ln"><a href="#L227">227</a></td><td class="code">                signal(<span class="nu">2</span>, &amp;<a class="id" href="../source/cc.c.html#L320">dexit</a>);</td></tr>
+<tr id="L228" class="s0"><td class="ln"><a href="#L228">228</a></td><td class="code">        (tmp1 = <a class="id" href="../source/cc.c.html#L738">copy</a>(tmp0))[<span class="nu">8</span>] = <span class="st">'1'</span>;</td></tr>
+<tr id="L229" class="s0"><td class="ln"><a href="#L229">229</a></td><td class="code">        (tmp2 = <a class="id" href="../source/cc.c.html#L738">copy</a>(tmp0))[<span class="nu">8</span>] = <span class="st">'2'</span>;</td></tr>
+<tr id="L230" class="s0"><td class="ln"><a href="#L230">230</a></td><td class="code">        (tmp3 = <a class="id" href="../source/cc.c.html#L738">copy</a>(tmp0))[<span class="nu">8</span>] = <span class="st">'3'</span>;</td></tr>
+<tr id="L231" class="s0"><td class="ln"><a href="#L231">231</a></td><td class="code">        <span class="kw">if</span> (oflag)</td></tr>
+<tr id="L232" class="s0"><td class="ln"><a href="#L232">232</a></td><td class="code">                (tmp5 = <a class="id" href="../source/cc.c.html#L738">copy</a>(tmp0))[<span class="nu">8</span>] = <span class="st">'5'</span>;</td></tr>
+<tr id="L233" class="s0"><td class="ln"><a href="#L233">233</a></td><td class="code">        <span class="kw">if</span> (pflag==<span class="nu">0</span>)</td></tr>
+<tr id="L234" class="s0"><td class="ln"><a href="#L234">234</a></td><td class="code">                (tmp4 = <a class="id" href="../source/cc.c.html#L738">copy</a>(tmp0))[<span class="nu">8</span>] = <span class="st">'4'</span>;</td></tr>
+<tr id="L235" class="s0"><td class="ln"><a href="#L235">235</a></td><td class="code">        <span class="kw">for</span> (i=<span class="nu">0</span>; i&lt;nc; i++) {</td></tr>
+<tr id="L236" class="s0"><td class="ln"><a href="#L236">236</a></td><td class="code">                <span class="kw">if</span> (nc&gt;<span class="nu">1</span>)</td></tr>
+<tr id="L237" class="s0"><td class="ln"><a href="#L237">237</a></td><td class="code">                        printf(<span class="st">"%s:\n"</span>, clist[i]);</td></tr>
+<tr id="L238" class="s0"><td class="ln"><a href="#L238">238</a></td><td class="code">                av[<span class="nu">0</span>] = <span class="st">"c0"</span>;</td></tr>
+<tr id="L239" class="s0"><td class="ln"><a href="#L239">239</a></td><td class="code">                <span class="kw">if</span> (pflag)</td></tr>
+<tr id="L240" class="s0"><td class="ln"><a href="#L240">240</a></td><td class="code">                        tmp4 = <a class="id" href="../source/cc.c.html#L703">setsuf</a>(clist[i], <span class="st">'i'</span>);</td></tr>
+<tr id="L241" class="s0"><td class="ln"><a href="#L241">241</a></td><td class="code">                av[<span class="nu">1</span>] = <a class="id" href="../source/cc.c.html#L334">expand</a>(clist[i]);</td></tr>
+<tr id="L242" class="s0"><td class="ln"><a href="#L242">242</a></td><td class="code">                <span class="kw">if</span> (pflag || exfail)</td></tr>
+<tr id="L243" class="s0"><td class="ln"><a href="#L243">243</a></td><td class="code">                        <span class="kw">continue</span>;</td></tr>
+<tr id="L244" class="s0"><td class="ln"><a href="#L244">244</a></td><td class="code">                <span class="kw">if</span> (av[<span class="nu">1</span>] == <span class="nu">0</span>) {</td></tr>
+<tr id="L245" class="s0"><td class="ln"><a href="#L245">245</a></td><td class="code">                        cflag++;</td></tr>
+<tr id="L246" class="s0"><td class="ln"><a href="#L246">246</a></td><td class="code">                        <span class="kw">continue</span>;</td></tr>
+<tr id="L247" class="s0"><td class="ln"><a href="#L247">247</a></td><td class="code">                }</td></tr>
+<tr id="L248" class="s0"><td class="ln"><a href="#L248">248</a></td><td class="code">                av[<span class="nu">2</span>] = tmp1;</td></tr>
+<tr id="L249" class="s0"><td class="ln"><a href="#L249">249</a></td><td class="code">                av[<span class="nu">3</span>] = tmp2;</td></tr>
+<tr id="L250" class="s1"><td class="ln"><a href="#L250">250</a></td><td class="code">                <span class="kw">if</span> (proflag) {</td></tr>
+<tr id="L251" class="s1"><td class="ln"><a href="#L251">251</a></td><td class="code">                        av[<span class="nu">4</span>] = <span class="st">"-P"</span>;</td></tr>
+<tr id="L252" class="s1"><td class="ln"><a href="#L252">252</a></td><td class="code">                        av[<span class="nu">5</span>] = <span class="nu">0</span>;</td></tr>
+<tr id="L253" class="s1"><td class="ln"><a href="#L253">253</a></td><td class="code">                } <span class="kw">else</span></td></tr>
+<tr id="L254" class="s1"><td class="ln"><a href="#L254">254</a></td><td class="code">                        av[<span class="nu">4</span>] = <span class="nu">0</span>;</td></tr>
+<tr id="L255" class="s1"><td class="ln"><a href="#L255">255</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/cc.c.html#L716">callsys</a>(pass0, av)) {</td></tr>
+<tr id="L256" class="s1"><td class="ln"><a href="#L256">256</a></td><td class="code">                        cflag++;</td></tr>
+<tr id="L257" class="s1"><td class="ln"><a href="#L257">257</a></td><td class="code">                        <span class="kw">continue</span>;</td></tr>
+<tr id="L258" class="s1"><td class="ln"><a href="#L258">258</a></td><td class="code">                }</td></tr>
+<tr id="L259" class="s1"><td class="ln"><a href="#L259">259</a></td><td class="code">                av[<span class="nu">0</span>] = <span class="st">"c1"</span>;</td></tr>
+<tr id="L260" class="s1"><td class="ln"><a href="#L260">260</a></td><td class="code">                av[<span class="nu">1</span>] = tmp1;</td></tr>
+<tr id="L261" class="s1"><td class="ln"><a href="#L261">261</a></td><td class="code">                av[<span class="nu">2</span>] = tmp2;</td></tr>
+<tr id="L262" class="s1"><td class="ln"><a href="#L262">262</a></td><td class="code">                <span class="kw">if</span> (sflag)</td></tr>
+<tr id="L263" class="s1"><td class="ln"><a href="#L263">263</a></td><td class="code">                        tmp3 = <a class="id" href="../source/cc.c.html#L703">setsuf</a>(clist[i], <span class="st">'s'</span>);</td></tr>
+<tr id="L264" class="s1"><td class="ln"><a href="#L264">264</a></td><td class="code">                av[<span class="nu">3</span>] = tmp3;</td></tr>
+<tr id="L265" class="s1"><td class="ln"><a href="#L265">265</a></td><td class="code">                <span class="kw">if</span> (oflag)</td></tr>
+<tr id="L266" class="s1"><td class="ln"><a href="#L266">266</a></td><td class="code">                        av[<span class="nu">3</span>] = tmp5;</td></tr>
+<tr id="L267" class="s1"><td class="ln"><a href="#L267">267</a></td><td class="code">                av[<span class="nu">4</span>] = <span class="nu">0</span>;</td></tr>
+<tr id="L268" class="s1"><td class="ln"><a href="#L268">268</a></td><td class="code">                <span class="kw">if</span>(<a class="id" href="../source/cc.c.html#L716">callsys</a>(pass1, av)) {</td></tr>
+<tr id="L269" class="s1"><td class="ln"><a href="#L269">269</a></td><td class="code">                        cflag++;</td></tr>
+<tr id="L270" class="s1"><td class="ln"><a href="#L270">270</a></td><td class="code">                        <span class="kw">continue</span>;</td></tr>
+<tr id="L271" class="s1"><td class="ln"><a href="#L271">271</a></td><td class="code">                }</td></tr>
+<tr id="L272" class="s1"><td class="ln"><a href="#L272">272</a></td><td class="code">                <span class="kw">if</span> (oflag) {</td></tr>
+<tr id="L273" class="s1"><td class="ln"><a href="#L273">273</a></td><td class="code">                        av[<span class="nu">0</span>] = <span class="st">"c2"</span>;</td></tr>
+<tr id="L274" class="s1"><td class="ln"><a href="#L274">274</a></td><td class="code">                        av[<span class="nu">1</span>] = tmp5;</td></tr>
+<tr id="L275" class="s1"><td class="ln"><a href="#L275">275</a></td><td class="code">                        av[<span class="nu">2</span>] = tmp3;</td></tr>
+<tr id="L276" class="s1"><td class="ln"><a href="#L276">276</a></td><td class="code">                        av[<span class="nu">3</span>] = <span class="nu">0</span>;</td></tr>
+<tr id="L277" class="s1"><td class="ln"><a href="#L277">277</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L716">callsys</a>(pass2, av);</td></tr>
+<tr id="L278" class="s1"><td class="ln"><a href="#L278">278</a></td><td class="code">                        unlink(tmp5);</td></tr>
+<tr id="L279" class="s1"><td class="ln"><a href="#L279">279</a></td><td class="code">                }</td></tr>
+<tr id="L280" class="s1"><td class="ln"><a href="#L280">280</a></td><td class="code">                <span class="kw">if</span> (sflag)</td></tr>
+<tr id="L281" class="s1"><td class="ln"><a href="#L281">281</a></td><td class="code">                        <span class="kw">continue</span>;</td></tr>
+<tr id="L282" class="s1"><td class="ln"><a href="#L282">282</a></td><td class="code">                av[<span class="nu">0</span>] = <span class="st">"as"</span>;</td></tr>
+<tr id="L283" class="s1"><td class="ln"><a href="#L283">283</a></td><td class="code">                av[<span class="nu">1</span>] = <span class="st">"-"</span>;</td></tr>
+<tr id="L284" class="s1"><td class="ln"><a href="#L284">284</a></td><td class="code">                av[<span class="nu">2</span>] = tmp3;</td></tr>
+<tr id="L285" class="s1"><td class="ln"><a href="#L285">285</a></td><td class="code">                av[<span class="nu">3</span>] = <span class="nu">0</span>;</td></tr>
+<tr id="L286" class="s1"><td class="ln"><a href="#L286">286</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L769">cunlink</a>(tmp1);</td></tr>
+<tr id="L287" class="s1"><td class="ln"><a href="#L287">287</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L769">cunlink</a>(tmp2);</td></tr>
+<tr id="L288" class="s1"><td class="ln"><a href="#L288">288</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L769">cunlink</a>(tmp4);</td></tr>
+<tr id="L289" class="s1"><td class="ln"><a href="#L289">289</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L716">callsys</a>(<span class="st">"/bin/as"</span>, av);</td></tr>
+<tr id="L290" class="s1"><td class="ln"><a href="#L290">290</a></td><td class="code">                t = <a class="id" href="../source/cc.c.html#L703">setsuf</a>(clist[i], <span class="st">'o'</span>);</td></tr>
+<tr id="L291" class="s1"><td class="ln"><a href="#L291">291</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L769">cunlink</a>(t);</td></tr>
+<tr id="L292" class="s1"><td class="ln"><a href="#L292">292</a></td><td class="code">                <span class="kw">if</span>(link(<span class="st">"a.out"</span>, t) || <a class="id" href="../source/cc.c.html#L769">cunlink</a>(<span class="st">"a.out"</span>)) {</td></tr>
+<tr id="L293" class="s1"><td class="ln"><a href="#L293">293</a></td><td class="code">                        printf(<span class="st">"move failed: %s\n"</span>, t);</td></tr>
+<tr id="L294" class="s1"><td class="ln"><a href="#L294">294</a></td><td class="code">                        cflag++;</td></tr>
+<tr id="L295" class="s1"><td class="ln"><a href="#L295">295</a></td><td class="code">                }</td></tr>
+<tr id="L296" class="s1"><td class="ln"><a href="#L296">296</a></td><td class="code">        }</td></tr>
+<tr id="L297" class="s1"><td class="ln"><a href="#L297">297</a></td><td class="code">nocom:</td></tr>
+<tr id="L298" class="s1"><td class="ln"><a href="#L298">298</a></td><td class="code">        <span class="kw">if</span> (cflag==<span class="nu">0</span> &amp;&amp; nl!=<span class="nu">0</span>) {</td></tr>
+<tr id="L299" class="s1"><td class="ln"><a href="#L299">299</a></td><td class="code">                i = <span class="nu">0</span>;</td></tr>
+<tr id="L300" class="s0"><td class="ln"><a href="#L300">300</a></td><td class="code">                av[<span class="nu">0</span>] = <span class="st">"ld"</span>;</td></tr>
+<tr id="L301" class="s0"><td class="ln"><a href="#L301">301</a></td><td class="code">                av[<span class="nu">1</span>] = <span class="st">"-X"</span>;</td></tr>
+<tr id="L302" class="s0"><td class="ln"><a href="#L302">302</a></td><td class="code">                av[<span class="nu">2</span>] = pref;</td></tr>
+<tr id="L303" class="s0"><td class="ln"><a href="#L303">303</a></td><td class="code">                j = <span class="nu">3</span>;</td></tr>
+<tr id="L304" class="s0"><td class="ln"><a href="#L304">304</a></td><td class="code">                <span class="kw">while</span>(i&lt;nl)</td></tr>
+<tr id="L305" class="s0"><td class="ln"><a href="#L305">305</a></td><td class="code">                        av[j++] = llist[i++];</td></tr>
+<tr id="L306" class="s0"><td class="ln"><a href="#L306">306</a></td><td class="code">                <span class="kw">if</span>(f20)</td></tr>
+<tr id="L307" class="s0"><td class="ln"><a href="#L307">307</a></td><td class="code">                        av[j++] = <span class="st">"-l2"</span>;</td></tr>
+<tr id="L308" class="s0"><td class="ln"><a href="#L308">308</a></td><td class="code">                <span class="kw">else</span> {</td></tr>
+<tr id="L309" class="s0"><td class="ln"><a href="#L309">309</a></td><td class="code">                        av[j++] = <span class="st">"-lc"</span>;</td></tr>
+<tr id="L310" class="s0"><td class="ln"><a href="#L310">310</a></td><td class="code">                        av[j++] = <span class="st">"-l"</span>;</td></tr>
+<tr id="L311" class="s0"><td class="ln"><a href="#L311">311</a></td><td class="code">                }</td></tr>
+<tr id="L312" class="s0"><td class="ln"><a href="#L312">312</a></td><td class="code">                av[j++] = <span class="nu">0</span>;</td></tr>
+<tr id="L313" class="s0"><td class="ln"><a href="#L313">313</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L716">callsys</a>(<span class="st">"/bin/ld"</span>, av);</td></tr>
+<tr id="L314" class="s0"><td class="ln"><a href="#L314">314</a></td><td class="code">                <span class="kw">if</span> (nc==<span class="nu">1</span> &amp;&amp; nxo==<span class="nu">1</span>)</td></tr>
+<tr id="L315" class="s0"><td class="ln"><a href="#L315">315</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L769">cunlink</a>(<a class="id" href="../source/cc.c.html#L703">setsuf</a>(clist[<span class="nu">0</span>], <span class="st">'o'</span>));</td></tr>
+<tr id="L316" class="s0"><td class="ln"><a href="#L316">316</a></td><td class="code">        }</td></tr>
+<tr id="L317" class="s0"><td class="ln"><a href="#L317">317</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L320">dexit</a>();</td></tr>
+<tr id="L318" class="s0"><td class="ln"><a href="#L318">318</a></td><td class="code">}</td></tr>
+<tr id="L319" class="s0"><td class="ln"><a href="#L319">319</a></td><td class="code"> </td></tr>
+<tr id="L320" class="s0"><td class="ln"><a href="#L320">320</a></td><td class="code"><span class="def">dexit</span>()</td></tr>
+<tr id="L321" class="s0"><td class="ln"><a href="#L321">321</a></td><td class="code">{</td></tr>
+<tr id="L322" class="s0"><td class="ln"><a href="#L322">322</a></td><td class="code">        <span class="kw">if</span> (!pflag) {</td></tr>
+<tr id="L323" class="s0"><td class="ln"><a href="#L323">323</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L769">cunlink</a>(tmp1);</td></tr>
+<tr id="L324" class="s0"><td class="ln"><a href="#L324">324</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L769">cunlink</a>(tmp2);</td></tr>
+<tr id="L325" class="s0"><td class="ln"><a href="#L325">325</a></td><td class="code">                <span class="kw">if</span> (sflag==<span class="nu">0</span>)</td></tr>
+<tr id="L326" class="s0"><td class="ln"><a href="#L326">326</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L769">cunlink</a>(tmp3);</td></tr>
+<tr id="L327" class="s0"><td class="ln"><a href="#L327">327</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L769">cunlink</a>(tmp4);</td></tr>
+<tr id="L328" class="s0"><td class="ln"><a href="#L328">328</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L769">cunlink</a>(tmp5);</td></tr>
+<tr id="L329" class="s0"><td class="ln"><a href="#L329">329</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L769">cunlink</a>(tmp0);</td></tr>
+<tr id="L330" class="s0"><td class="ln"><a href="#L330">330</a></td><td class="code">        }</td></tr>
+<tr id="L331" class="s0"><td class="ln"><a href="#L331">331</a></td><td class="code">        exit();</td></tr>
+<tr id="L332" class="s0"><td class="ln"><a href="#L332">332</a></td><td class="code">}</td></tr>
+<tr id="L333" class="s0"><td class="ln"><a href="#L333">333</a></td><td class="code"> </td></tr>
+<tr id="L334" class="s0"><td class="ln"><a href="#L334">334</a></td><td class="code"><span class="def">expand</span>(file)</td></tr>
+<tr id="L335" class="s0"><td class="ln"><a href="#L335">335</a></td><td class="code"><span class="kw">char</span> *file;</td></tr>
+<tr id="L336" class="s0"><td class="ln"><a href="#L336">336</a></td><td class="code">{</td></tr>
+<tr id="L337" class="s0"><td class="ln"><a href="#L337">337</a></td><td class="code">        <span class="kw">int</span> ib1[<span class="nu">259</span>], ib2[<span class="nu">259</span>], ob[<span class="nu">259</span>];</td></tr>
+<tr id="L338" class="s0"><td class="ln"><a href="#L338">338</a></td><td class="code">        <span class="kw">struct</span> symtab stab[<span class="nu">200</span>];</td></tr>
+<tr id="L339" class="s0"><td class="ln"><a href="#L339">339</a></td><td class="code">        <span class="kw">char</span> ln[<span class="nu">196</span>];</td></tr>
+<tr id="L340" class="s0"><td class="ln"><a href="#L340">340</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> c;</td></tr>
+<tr id="L341" class="s0"><td class="ln"><a href="#L341">341</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *rlp;</td></tr>
+<tr id="L342" class="s0"><td class="ln"><a href="#L342">342</a></td><td class="code"> </td></tr>
+<tr id="L343" class="s0"><td class="ln"><a href="#L343">343</a></td><td class="code">        exfail = <span class="nu">0</span>;</td></tr>
+<tr id="L344" class="s0"><td class="ln"><a href="#L344">344</a></td><td class="code">        ibuf = ibuf1 = ib1;</td></tr>
+<tr id="L345" class="s0"><td class="ln"><a href="#L345">345</a></td><td class="code">        ibuf2 = ib2;</td></tr>
+<tr id="L346" class="s0"><td class="ln"><a href="#L346">346</a></td><td class="code">        <span class="kw">if</span> (fopen(file, ibuf1)&lt;<span class="nu">0</span>)</td></tr>
+<tr id="L347" class="s0"><td class="ln"><a href="#L347">347</a></td><td class="code">                <span class="kw">return</span>(file);</td></tr>
+<tr id="L348" class="s0"><td class="ln"><a href="#L348">348</a></td><td class="code">        <span class="kw">if</span> (<a class="id" href="../source/cvopt.c.html#L9242">getc</a>(ibuf1) != <span class="st">'#'</span>) {</td></tr>
+<tr id="L349" class="s0"><td class="ln"><a href="#L349">349</a></td><td class="code">                close(ibuf1[<span class="nu">0</span>]);</td></tr>
+<tr id="L350" class="s1"><td class="ln"><a href="#L350">350</a></td><td class="code">                <span class="kw">return</span>(file);</td></tr>
+<tr id="L351" class="s1"><td class="ln"><a href="#L351">351</a></td><td class="code">        }</td></tr>
+<tr id="L352" class="s1"><td class="ln"><a href="#L352">352</a></td><td class="code">        ibuf1[<span class="nu">1</span>]++;</td></tr>
+<tr id="L353" class="s1"><td class="ln"><a href="#L353">353</a></td><td class="code">        ibuf1[<span class="nu">2</span>]--;</td></tr>
+<tr id="L354" class="s1"><td class="ln"><a href="#L354">354</a></td><td class="code">        obuf = ob;</td></tr>
+<tr id="L355" class="s1"><td class="ln"><a href="#L355">355</a></td><td class="code">        symtab = stab;</td></tr>
+<tr id="L356" class="s1"><td class="ln"><a href="#L356">356</a></td><td class="code">        <span class="kw">for</span> (c=<span class="nu">0</span>; c&lt;<span class="nu">200</span>; c++) {</td></tr>
+<tr id="L357" class="s1"><td class="ln"><a href="#L357">357</a></td><td class="code">                stab[c].name[<span class="nu">0</span>] = <span class="st">'\0'</span>;</td></tr>
+<tr id="L358" class="s1"><td class="ln"><a href="#L358">358</a></td><td class="code">                stab[c].value = <span class="nu">0</span>;</td></tr>
+<tr id="L359" class="s1"><td class="ln"><a href="#L359">359</a></td><td class="code">        }</td></tr>
+<tr id="L360" class="s1"><td class="ln"><a href="#L360">360</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L500">insym</a>(&amp;defloc, <span class="st">"define"</span>);</td></tr>
+<tr id="L361" class="s1"><td class="ln"><a href="#L361">361</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L500">insym</a>(&amp;incloc, <span class="st">"include"</span>);</td></tr>
+<tr id="L362" class="s1"><td class="ln"><a href="#L362">362</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L500">insym</a>(&amp;eifloc, <span class="st">"endif"</span>);</td></tr>
+<tr id="L363" class="s1"><td class="ln"><a href="#L363">363</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L500">insym</a>(&amp;ifdloc, <span class="st">"ifdef"</span>);</td></tr>
+<tr id="L364" class="s1"><td class="ln"><a href="#L364">364</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L500">insym</a>(&amp;ifnloc, <span class="st">"ifndef"</span>);</td></tr>
+<tr id="L365" class="s1"><td class="ln"><a href="#L365">365</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L500">insym</a>(&amp;unxloc, <span class="st">"unix"</span>);</td></tr>
+<tr id="L366" class="s1"><td class="ln"><a href="#L366">366</a></td><td class="code">        stringbuf = sbf;</td></tr>
+<tr id="L367" class="s1"><td class="ln"><a href="#L367">367</a></td><td class="code">        trulvl = <span class="nu">0</span>;</td></tr>
+<tr id="L368" class="s1"><td class="ln"><a href="#L368">368</a></td><td class="code">        flslvl = <span class="nu">0</span>;</td></tr>
+<tr id="L369" class="s1"><td class="ln"><a href="#L369">369</a></td><td class="code">        line  = ln;</td></tr>
+<tr id="L370" class="s1"><td class="ln"><a href="#L370">370</a></td><td class="code">        lineno = <span class="nu">0</span>;</td></tr>
+<tr id="L371" class="s1"><td class="ln"><a href="#L371">371</a></td><td class="code">        <span class="kw">if</span> (fcreat(tmp4, obuf) &lt; <span class="nu">0</span>) {</td></tr>
+<tr id="L372" class="s1"><td class="ln"><a href="#L372">372</a></td><td class="code">                printf(<span class="st">"Can't creat %s\n"</span>, tmp4);</td></tr>
+<tr id="L373" class="s1"><td class="ln"><a href="#L373">373</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L320">dexit</a>();</td></tr>
+<tr id="L374" class="s1"><td class="ln"><a href="#L374">374</a></td><td class="code">        }</td></tr>
+<tr id="L375" class="s1"><td class="ln"><a href="#L375">375</a></td><td class="code">        <span class="kw">while</span>(<a class="id" href="../source/cc.c.html#L391">getline</a>()) {</td></tr>
+<tr id="L376" class="s1"><td class="ln"><a href="#L376">376</a></td><td class="code">                <span class="kw">if</span> (ibuf==ibuf2 &amp;&amp; pflag==<span class="nu">0</span>)</td></tr>
+<tr id="L377" class="s1"><td class="ln"><a href="#L377">377</a></td><td class="code">                        putc(<span class="nu">001</span>, obuf);        <span class="cm">/*SOH: insert */</span></td></tr>
+<tr id="L378" class="s1"><td class="ln"><a href="#L378">378</a></td><td class="code">                <span class="kw">if</span> (ln[<span class="nu">0</span>] != <span class="st">'#'</span> &amp;&amp; flslvl==<span class="nu">0</span>)</td></tr>
+<tr id="L379" class="s1"><td class="ln"><a href="#L379">379</a></td><td class="code">                        <span class="kw">for</span> (rlp = line; c = *rlp++;)</td></tr>
+<tr id="L380" class="s1"><td class="ln"><a href="#L380">380</a></td><td class="code">                                putc(c, obuf);</td></tr>
+<tr id="L381" class="s1"><td class="ln"><a href="#L381">381</a></td><td class="code">                putc(<span class="st">'\n'</span>, obuf);</td></tr>
+<tr id="L382" class="s1"><td class="ln"><a href="#L382">382</a></td><td class="code">        }</td></tr>
+<tr id="L383" class="s1"><td class="ln"><a href="#L383">383</a></td><td class="code">        <span class="kw">for</span>(rlp=line; c = *rlp++;)</td></tr>
+<tr id="L384" class="s1"><td class="ln"><a href="#L384">384</a></td><td class="code">                        putc(c,obuf);</td></tr>
+<tr id="L385" class="s1"><td class="ln"><a href="#L385">385</a></td><td class="code">        fflush(obuf);</td></tr>
+<tr id="L386" class="s1"><td class="ln"><a href="#L386">386</a></td><td class="code">        close(obuf[<span class="nu">0</span>]);</td></tr>
+<tr id="L387" class="s1"><td class="ln"><a href="#L387">387</a></td><td class="code">        close(ibuf1[<span class="nu">0</span>]);</td></tr>
+<tr id="L388" class="s1"><td class="ln"><a href="#L388">388</a></td><td class="code">        <span class="kw">return</span>(tmp4);</td></tr>
+<tr id="L389" class="s1"><td class="ln"><a href="#L389">389</a></td><td class="code">}</td></tr>
+<tr id="L390" class="s1"><td class="ln"><a href="#L390">390</a></td><td class="code"> </td></tr>
+<tr id="L391" class="s1"><td class="ln"><a href="#L391">391</a></td><td class="code"><span class="def">getline</span>()</td></tr>
+<tr id="L392" class="s1"><td class="ln"><a href="#L392">392</a></td><td class="code">{</td></tr>
+<tr id="L393" class="s1"><td class="ln"><a href="#L393">393</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> c, sc, state;</td></tr>
+<tr id="L394" class="s1"><td class="ln"><a href="#L394">394</a></td><td class="code">        <span class="kw">struct</span> symtab *np;</td></tr>
+<tr id="L395" class="s1"><td class="ln"><a href="#L395">395</a></td><td class="code">        <span class="kw">char</span> *namep, *filname;</td></tr>
+<tr id="L396" class="s1"><td class="ln"><a href="#L396">396</a></td><td class="code"> </td></tr>
+<tr id="L397" class="s1"><td class="ln"><a href="#L397">397</a></td><td class="code">        <span class="kw">if</span> (ibuf==ibuf1)</td></tr>
+<tr id="L398" class="s1"><td class="ln"><a href="#L398">398</a></td><td class="code">                lineno++;</td></tr>
+<tr id="L399" class="s1"><td class="ln"><a href="#L399">399</a></td><td class="code">        lp = line;</td></tr>
+<tr id="L400" class="s0"><td class="ln"><a href="#L400">400</a></td><td class="code">        *lp = <span class="st">'\0'</span>;</td></tr>
+<tr id="L401" class="s0"><td class="ln"><a href="#L401">401</a></td><td class="code">        state = <span class="nu">0</span>;</td></tr>
+<tr id="L402" class="s0"><td class="ln"><a href="#L402">402</a></td><td class="code">        <span class="kw">if</span> ((c=<a class="id" href="../source/cc.c.html#L541">getch</a>()) == <span class="st">'#'</span>)</td></tr>
+<tr id="L403" class="s0"><td class="ln"><a href="#L403">403</a></td><td class="code">                state = <span class="nu">1</span>;</td></tr>
+<tr id="L404" class="s0"><td class="ln"><a href="#L404">404</a></td><td class="code">        <span class="kw">while</span> (c!=<span class="st">'\n'</span> &amp;&amp; c!=<span class="st">'\0'</span>) {</td></tr>
+<tr id="L405" class="s0"><td class="ln"><a href="#L405">405</a></td><td class="code">                <span class="kw">if</span> (<span class="st">'a'</span>&lt;=c &amp;&amp; c&lt;=<span class="st">'z'</span> || <span class="st">'A'</span>&lt;=c &amp;&amp; c&lt;=<span class="st">'Z'</span> || c==<span class="st">'_'</span>) {</td></tr>
+<tr id="L406" class="s0"><td class="ln"><a href="#L406">406</a></td><td class="code">                        namep = lp;</td></tr>
+<tr id="L407" class="s0"><td class="ln"><a href="#L407">407</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L519">sch</a>(c);</td></tr>
+<tr id="L408" class="s0"><td class="ln"><a href="#L408">408</a></td><td class="code">                        <span class="kw">while</span> (<span class="st">'a'</span>&lt;=(c=<a class="id" href="../source/cc.c.html#L541">getch</a>()) &amp;&amp; c&lt;=<span class="st">'z'</span></td></tr>
+<tr id="L409" class="s0"><td class="ln"><a href="#L409">409</a></td><td class="code">                              ||<span class="st">'A'</span>&lt;=c &amp;&amp; c&lt;=<span class="st">'Z'</span></td></tr>
+<tr id="L410" class="s0"><td class="ln"><a href="#L410">410</a></td><td class="code">                              ||<span class="st">'0'</span>&lt;=c &amp;&amp; c&lt;=<span class="st">'9'</span> </td></tr>
+<tr id="L411" class="s0"><td class="ln"><a href="#L411">411</a></td><td class="code">                              ||c==<span class="st">'_'</span>)</td></tr>
+<tr id="L412" class="s0"><td class="ln"><a href="#L412">412</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L519">sch</a>(c);</td></tr>
+<tr id="L413" class="s0"><td class="ln"><a href="#L413">413</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L519">sch</a>(<span class="st">'\0'</span>);</td></tr>
+<tr id="L414" class="s0"><td class="ln"><a href="#L414">414</a></td><td class="code">                        lp--;</td></tr>
+<tr id="L415" class="s0"><td class="ln"><a href="#L415">415</a></td><td class="code">                        <span class="kw">if</span> (state&gt;<span class="nu">3</span>) {</td></tr>
+<tr id="L416" class="s0"><td class="ln"><a href="#L416">416</a></td><td class="code">                                <span class="kw">if</span> (flslvl==<span class="nu">0</span> &amp;&amp;(state+!<a class="id" href="../source/cc.c.html#L602">lookup</a>(namep,-<span class="nu">1</span>)-&gt;name[<span class="nu">0</span>])==<span class="nu">5</span>)</td></tr>
+<tr id="L417" class="s0"><td class="ln"><a href="#L417">417</a></td><td class="code">                                        trulvl++;</td></tr>
+<tr id="L418" class="s0"><td class="ln"><a href="#L418">418</a></td><td class="code">                                <span class="kw">else</span></td></tr>
+<tr id="L419" class="s0"><td class="ln"><a href="#L419">419</a></td><td class="code">                                        flslvl++;</td></tr>
+<tr id="L420" class="s0"><td class="ln"><a href="#L420">420</a></td><td class="code">                out:</td></tr>
+<tr id="L421" class="s0"><td class="ln"><a href="#L421">421</a></td><td class="code">                                <span class="kw">while</span> (c!=<span class="st">'\n'</span> &amp;&amp; c!= <span class="st">'\0'</span>)</td></tr>
+<tr id="L422" class="s0"><td class="ln"><a href="#L422">422</a></td><td class="code">                                        c = <a class="id" href="../source/cc.c.html#L541">getch</a>();</td></tr>
+<tr id="L423" class="s0"><td class="ln"><a href="#L423">423</a></td><td class="code">                                <span class="kw">return</span>(c);</td></tr>
+<tr id="L424" class="s0"><td class="ln"><a href="#L424">424</a></td><td class="code">                        }</td></tr>
+<tr id="L425" class="s0"><td class="ln"><a href="#L425">425</a></td><td class="code">                        <span class="kw">if</span> (state!=<span class="nu">2</span> || flslvl==<span class="nu">0</span>)</td></tr>
+<tr id="L426" class="s0"><td class="ln"><a href="#L426">426</a></td><td class="code">                                {</td></tr>
+<tr id="L427" class="s0"><td class="ln"><a href="#L427">427</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L578">ungetc</a>(c);</td></tr>
+<tr id="L428" class="s0"><td class="ln"><a href="#L428">428</a></td><td class="code">                                np = <a class="id" href="../source/cc.c.html#L602">lookup</a>(namep, state);</td></tr>
+<tr id="L429" class="s0"><td class="ln"><a href="#L429">429</a></td><td class="code">                                c = <a class="id" href="../source/cc.c.html#L541">getch</a>();</td></tr>
+<tr id="L430" class="s0"><td class="ln"><a href="#L430">430</a></td><td class="code">                                }</td></tr>
+<tr id="L431" class="s0"><td class="ln"><a href="#L431">431</a></td><td class="code">                        <span class="kw">if</span> (state==<span class="nu">1</span>) {</td></tr>
+<tr id="L432" class="s0"><td class="ln"><a href="#L432">432</a></td><td class="code">                                <span class="kw">if</span> (np==defloc)</td></tr>
+<tr id="L433" class="s0"><td class="ln"><a href="#L433">433</a></td><td class="code">                                        state = <span class="nu">2</span>;</td></tr>
+<tr id="L434" class="s0"><td class="ln"><a href="#L434">434</a></td><td class="code">                                <span class="kw">else</span> <span class="kw">if</span> (np==incloc)</td></tr>
+<tr id="L435" class="s0"><td class="ln"><a href="#L435">435</a></td><td class="code">                                        state = <span class="nu">3</span>;</td></tr>
+<tr id="L436" class="s0"><td class="ln"><a href="#L436">436</a></td><td class="code">                                <span class="kw">else</span> <span class="kw">if</span> (np==ifnloc)</td></tr>
+<tr id="L437" class="s0"><td class="ln"><a href="#L437">437</a></td><td class="code">                                        state = <span class="nu">4</span>;</td></tr>
+<tr id="L438" class="s0"><td class="ln"><a href="#L438">438</a></td><td class="code">                                <span class="kw">else</span> <span class="kw">if</span> (np==ifdloc)</td></tr>
+<tr id="L439" class="s0"><td class="ln"><a href="#L439">439</a></td><td class="code">                                        state = <span class="nu">5</span>;</td></tr>
+<tr id="L440" class="s0"><td class="ln"><a href="#L440">440</a></td><td class="code">                                <span class="kw">else</span> <span class="kw">if</span> (np==eifloc) {</td></tr>
+<tr id="L441" class="s0"><td class="ln"><a href="#L441">441</a></td><td class="code">                                        <span class="kw">if</span> (flslvl)</td></tr>
+<tr id="L442" class="s0"><td class="ln"><a href="#L442">442</a></td><td class="code">                                                --flslvl;</td></tr>
+<tr id="L443" class="s0"><td class="ln"><a href="#L443">443</a></td><td class="code">                                        <span class="kw">else</span> <span class="kw">if</span> (trulvl)</td></tr>
+<tr id="L444" class="s0"><td class="ln"><a href="#L444">444</a></td><td class="code">                                                --trulvl;</td></tr>
+<tr id="L445" class="s0"><td class="ln"><a href="#L445">445</a></td><td class="code">                                        <span class="kw">else</span> <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"If-less endif"</span>);</td></tr>
+<tr id="L446" class="s0"><td class="ln"><a href="#L446">446</a></td><td class="code">                                        <span class="kw">goto</span> out;</td></tr>
+<tr id="L447" class="s0"><td class="ln"><a href="#L447">447</a></td><td class="code">                                }</td></tr>
+<tr id="L448" class="s0"><td class="ln"><a href="#L448">448</a></td><td class="code">                                <span class="kw">else</span> {</td></tr>
+<tr id="L449" class="s0"><td class="ln"><a href="#L449">449</a></td><td class="code">                                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Undefined control"</span>);</td></tr>
+<tr id="L450" class="s1"><td class="ln"><a href="#L450">450</a></td><td class="code">                                        <span class="kw">while</span> (c!=<span class="st">'\n'</span> &amp;&amp; c!=<span class="st">'\0'</span>)</td></tr>
+<tr id="L451" class="s1"><td class="ln"><a href="#L451">451</a></td><td class="code">                                                c = <a class="id" href="../source/cc.c.html#L541">getch</a>();</td></tr>
+<tr id="L452" class="s1"><td class="ln"><a href="#L452">452</a></td><td class="code">                                        <span class="kw">return</span>(c);</td></tr>
+<tr id="L453" class="s1"><td class="ln"><a href="#L453">453</a></td><td class="code">                                }</td></tr>
+<tr id="L454" class="s1"><td class="ln"><a href="#L454">454</a></td><td class="code">                        } <span class="kw">else</span> <span class="kw">if</span> (state==<span class="nu">2</span>) {</td></tr>
+<tr id="L455" class="s1"><td class="ln"><a href="#L455">455</a></td><td class="code">                                <span class="kw">if</span> (flslvl)</td></tr>
+<tr id="L456" class="s1"><td class="ln"><a href="#L456">456</a></td><td class="code">                                        <span class="kw">goto</span> out;</td></tr>
+<tr id="L457" class="s1"><td class="ln"><a href="#L457">457</a></td><td class="code">                                np-&gt;value = stringbuf;</td></tr>
+<tr id="L458" class="s1"><td class="ln"><a href="#L458">458</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L532">savch</a>(c);</td></tr>
+<tr id="L459" class="s1"><td class="ln"><a href="#L459">459</a></td><td class="code">                                <span class="kw">while</span> ((c=<a class="id" href="../source/cc.c.html#L541">getch</a>())!=<span class="st">'\n'</span> &amp;&amp; c!=<span class="st">'\0'</span>)</td></tr>
+<tr id="L460" class="s1"><td class="ln"><a href="#L460">460</a></td><td class="code">                                        <a class="id" href="../source/cc.c.html#L532">savch</a>(c);</td></tr>
+<tr id="L461" class="s1"><td class="ln"><a href="#L461">461</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L532">savch</a>(<span class="st">'\0'</span>);</td></tr>
+<tr id="L462" class="s1"><td class="ln"><a href="#L462">462</a></td><td class="code">                                <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L463" class="s1"><td class="ln"><a href="#L463">463</a></td><td class="code">                        }</td></tr>
+<tr id="L464" class="s1"><td class="ln"><a href="#L464">464</a></td><td class="code">                        <span class="kw">continue</span>;</td></tr>
+<tr id="L465" class="s1"><td class="ln"><a href="#L465">465</a></td><td class="code">                } <span class="kw">else</span> <span class="kw">if</span> ((sc=c)==<span class="st">'\''</span> || sc==<span class="st">'"'</span>) {</td></tr>
+<tr id="L466" class="s1"><td class="ln"><a href="#L466">466</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L519">sch</a>(sc);</td></tr>
+<tr id="L467" class="s1"><td class="ln"><a href="#L467">467</a></td><td class="code">                        filname = lp;</td></tr>
+<tr id="L468" class="s1"><td class="ln"><a href="#L468">468</a></td><td class="code">                        instring++;</td></tr>
+<tr id="L469" class="s1"><td class="ln"><a href="#L469">469</a></td><td class="code">                        <span class="kw">while</span> ((c=<a class="id" href="../source/cc.c.html#L541">getch</a>())!=sc &amp;&amp; c!=<span class="st">'\n'</span> &amp;&amp; c!=<span class="st">'\0'</span>) {</td></tr>
+<tr id="L470" class="s1"><td class="ln"><a href="#L470">470</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L519">sch</a>(c);</td></tr>
+<tr id="L471" class="s1"><td class="ln"><a href="#L471">471</a></td><td class="code">                                <span class="kw">if</span> (c==<span class="st">'\\'</span>)</td></tr>
+<tr id="L472" class="s1"><td class="ln"><a href="#L472">472</a></td><td class="code">                                        <a class="id" href="../source/cc.c.html#L519">sch</a>(<a class="id" href="../source/cc.c.html#L541">getch</a>());</td></tr>
+<tr id="L473" class="s1"><td class="ln"><a href="#L473">473</a></td><td class="code">                        }</td></tr>
+<tr id="L474" class="s1"><td class="ln"><a href="#L474">474</a></td><td class="code">                        instring = <span class="nu">0</span>;</td></tr>
+<tr id="L475" class="s1"><td class="ln"><a href="#L475">475</a></td><td class="code">                        <span class="kw">if</span> (flslvl)</td></tr>
+<tr id="L476" class="s1"><td class="ln"><a href="#L476">476</a></td><td class="code">                                <span class="kw">goto</span> out;</td></tr>
+<tr id="L477" class="s1"><td class="ln"><a href="#L477">477</a></td><td class="code">                        <span class="kw">if</span> (state==<span class="nu">3</span>) {</td></tr>
+<tr id="L478" class="s1"><td class="ln"><a href="#L478">478</a></td><td class="code">                                <span class="kw">if</span> (flslvl)</td></tr>
+<tr id="L479" class="s1"><td class="ln"><a href="#L479">479</a></td><td class="code">                                        <span class="kw">goto</span> out;</td></tr>
+<tr id="L480" class="s1"><td class="ln"><a href="#L480">480</a></td><td class="code">                                *lp = <span class="st">'\0'</span>;</td></tr>
+<tr id="L481" class="s1"><td class="ln"><a href="#L481">481</a></td><td class="code">                                <span class="kw">while</span> ((c=<a class="id" href="../source/cc.c.html#L541">getch</a>())!=<span class="st">'\n'</span> &amp;&amp; c!=<span class="st">'\0'</span>);</td></tr>
+<tr id="L482" class="s1"><td class="ln"><a href="#L482">482</a></td><td class="code">                                <span class="kw">if</span> (ibuf==ibuf2)</td></tr>
+<tr id="L483" class="s1"><td class="ln"><a href="#L483">483</a></td><td class="code">                                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Nested 'include'"</span>);</td></tr>
+<tr id="L484" class="s1"><td class="ln"><a href="#L484">484</a></td><td class="code">                                <span class="kw">if</span> (fopen(filname, ibuf2)&lt;<span class="nu">0</span>)</td></tr>
+<tr id="L485" class="s1"><td class="ln"><a href="#L485">485</a></td><td class="code">                                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Missing file %s"</span>, filname);</td></tr>
+<tr id="L486" class="s1"><td class="ln"><a href="#L486">486</a></td><td class="code">                                <span class="kw">else</span></td></tr>
+<tr id="L487" class="s1"><td class="ln"><a href="#L487">487</a></td><td class="code">                                        ibuf = ibuf2;</td></tr>
+<tr id="L488" class="s1"><td class="ln"><a href="#L488">488</a></td><td class="code">                                <span class="kw">return</span>(c);</td></tr>
+<tr id="L489" class="s1"><td class="ln"><a href="#L489">489</a></td><td class="code">                        }</td></tr>
+<tr id="L490" class="s1"><td class="ln"><a href="#L490">490</a></td><td class="code">                }</td></tr>
+<tr id="L491" class="s1"><td class="ln"><a href="#L491">491</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L519">sch</a>(c);</td></tr>
+<tr id="L492" class="s1"><td class="ln"><a href="#L492">492</a></td><td class="code">                c = <a class="id" href="../source/cc.c.html#L541">getch</a>();</td></tr>
+<tr id="L493" class="s1"><td class="ln"><a href="#L493">493</a></td><td class="code">        }</td></tr>
+<tr id="L494" class="s1"><td class="ln"><a href="#L494">494</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L519">sch</a>(<span class="st">'\0'</span>);</td></tr>
+<tr id="L495" class="s1"><td class="ln"><a href="#L495">495</a></td><td class="code">        <span class="kw">if</span> (state&gt;<span class="nu">1</span>)</td></tr>
+<tr id="L496" class="s1"><td class="ln"><a href="#L496">496</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Control syntax"</span>);</td></tr>
+<tr id="L497" class="s1"><td class="ln"><a href="#L497">497</a></td><td class="code">        <span class="kw">return</span>(c);</td></tr>
+<tr id="L498" class="s1"><td class="ln"><a href="#L498">498</a></td><td class="code">}</td></tr>
+<tr id="L499" class="s1"><td class="ln"><a href="#L499">499</a></td><td class="code"> </td></tr>
+<tr id="L500" class="s0"><td class="ln"><a href="#L500">500</a></td><td class="code"><span class="def">insym</span>(sp, namep)</td></tr>
+<tr id="L501" class="s0"><td class="ln"><a href="#L501">501</a></td><td class="code"><span class="kw">struct</span> symtab **sp;</td></tr>
+<tr id="L502" class="s0"><td class="ln"><a href="#L502">502</a></td><td class="code"><span class="kw">char</span> *namep;</td></tr>
+<tr id="L503" class="s0"><td class="ln"><a href="#L503">503</a></td><td class="code">{</td></tr>
+<tr id="L504" class="s0"><td class="ln"><a href="#L504">504</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> symtab *np;</td></tr>
+<tr id="L505" class="s0"><td class="ln"><a href="#L505">505</a></td><td class="code"> </td></tr>
+<tr id="L506" class="s0"><td class="ln"><a href="#L506">506</a></td><td class="code">        *sp = np = <a class="id" href="../source/cc.c.html#L602">lookup</a>(namep, <span class="nu">1</span>);</td></tr>
+<tr id="L507" class="s0"><td class="ln"><a href="#L507">507</a></td><td class="code">        np-&gt;value = np-&gt;name;</td></tr>
+<tr id="L508" class="s0"><td class="ln"><a href="#L508">508</a></td><td class="code">}</td></tr>
+<tr id="L509" class="s0"><td class="ln"><a href="#L509">509</a></td><td class="code"> </td></tr>
+<tr id="L510" class="s0"><td class="ln"><a href="#L510">510</a></td><td class="code"><span class="def">error</span>(s, x)</td></tr>
+<tr id="L511" class="s0"><td class="ln"><a href="#L511">511</a></td><td class="code">{</td></tr>
+<tr id="L512" class="s0"><td class="ln"><a href="#L512">512</a></td><td class="code">        printf(<span class="st">"%d: "</span>, lineno);</td></tr>
+<tr id="L513" class="s0"><td class="ln"><a href="#L513">513</a></td><td class="code">        printf(s, x);</td></tr>
+<tr id="L514" class="s0"><td class="ln"><a href="#L514">514</a></td><td class="code">        <a class="id" href="../source/c04.c.html#L4095">putchar</a>(<span class="st">'\n'</span>);</td></tr>
+<tr id="L515" class="s0"><td class="ln"><a href="#L515">515</a></td><td class="code">        exfail++;</td></tr>
+<tr id="L516" class="s0"><td class="ln"><a href="#L516">516</a></td><td class="code">        cflag++;</td></tr>
+<tr id="L517" class="s0"><td class="ln"><a href="#L517">517</a></td><td class="code">}</td></tr>
+<tr id="L518" class="s0"><td class="ln"><a href="#L518">518</a></td><td class="code"> </td></tr>
+<tr id="L519" class="s0"><td class="ln"><a href="#L519">519</a></td><td class="code"><span class="def">sch</span>(c)</td></tr>
+<tr id="L520" class="s0"><td class="ln"><a href="#L520">520</a></td><td class="code">{</td></tr>
+<tr id="L521" class="s0"><td class="ln"><a href="#L521">521</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *rlp;</td></tr>
+<tr id="L522" class="s0"><td class="ln"><a href="#L522">522</a></td><td class="code"> </td></tr>
+<tr id="L523" class="s0"><td class="ln"><a href="#L523">523</a></td><td class="code">        rlp = lp;</td></tr>
+<tr id="L524" class="s0"><td class="ln"><a href="#L524">524</a></td><td class="code">        <span class="kw">if</span> (rlp==line+<span class="nu">194</span>)</td></tr>
+<tr id="L525" class="s0"><td class="ln"><a href="#L525">525</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Line overflow"</span>);</td></tr>
+<tr id="L526" class="s0"><td class="ln"><a href="#L526">526</a></td><td class="code">        *rlp++ = c;</td></tr>
+<tr id="L527" class="s0"><td class="ln"><a href="#L527">527</a></td><td class="code">        <span class="kw">if</span> (rlp&gt;line+<span class="nu">195</span>)</td></tr>
+<tr id="L528" class="s0"><td class="ln"><a href="#L528">528</a></td><td class="code">                rlp = line+<span class="nu">195</span>;</td></tr>
+<tr id="L529" class="s0"><td class="ln"><a href="#L529">529</a></td><td class="code">        lp = rlp;</td></tr>
+<tr id="L530" class="s0"><td class="ln"><a href="#L530">530</a></td><td class="code">}</td></tr>
+<tr id="L531" class="s0"><td class="ln"><a href="#L531">531</a></td><td class="code"> </td></tr>
+<tr id="L532" class="s0"><td class="ln"><a href="#L532">532</a></td><td class="code"><span class="def">savch</span>(c)</td></tr>
+<tr id="L533" class="s0"><td class="ln"><a href="#L533">533</a></td><td class="code">{</td></tr>
+<tr id="L534" class="s0"><td class="ln"><a href="#L534">534</a></td><td class="code">        *stringbuf++ = c;</td></tr>
+<tr id="L535" class="s0"><td class="ln"><a href="#L535">535</a></td><td class="code">        <span class="kw">if</span> (stringbuf-sbf &lt; SBSIZE)</td></tr>
+<tr id="L536" class="s0"><td class="ln"><a href="#L536">536</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L537" class="s0"><td class="ln"><a href="#L537">537</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Too much defining"</span>);</td></tr>
+<tr id="L538" class="s0"><td class="ln"><a href="#L538">538</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L320">dexit</a>();</td></tr>
+<tr id="L539" class="s0"><td class="ln"><a href="#L539">539</a></td><td class="code">}</td></tr>
+<tr id="L540" class="s0"><td class="ln"><a href="#L540">540</a></td><td class="code"> </td></tr>
+<tr id="L541" class="s0"><td class="ln"><a href="#L541">541</a></td><td class="code"><span class="def">getch</span>()</td></tr>
+<tr id="L542" class="s0"><td class="ln"><a href="#L542">542</a></td><td class="code">{</td></tr>
+<tr id="L543" class="s0"><td class="ln"><a href="#L543">543</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> c;</td></tr>
+<tr id="L544" class="s0"><td class="ln"><a href="#L544">544</a></td><td class="code"> </td></tr>
+<tr id="L545" class="s0"><td class="ln"><a href="#L545">545</a></td><td class="code">loop:</td></tr>
+<tr id="L546" class="s0"><td class="ln"><a href="#L546">546</a></td><td class="code">        <span class="kw">if</span> ((c=<a class="id" href="../source/cc.c.html#L583">getc1</a>())==<span class="st">'/'</span> &amp;&amp; !instring) {</td></tr>
+<tr id="L547" class="s0"><td class="ln"><a href="#L547">547</a></td><td class="code">                <span class="kw">if</span> ((c=<a class="id" href="../source/cc.c.html#L583">getc1</a>())!=<span class="st">'*'</span>)</td></tr>
+<tr id="L548" class="s0"><td class="ln"><a href="#L548">548</a></td><td class="code">                        {</td></tr>
+<tr id="L549" class="s0"><td class="ln"><a href="#L549">549</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L578">ungetc</a>(c);</td></tr>
+<tr id="L550" class="s1"><td class="ln"><a href="#L550">550</a></td><td class="code">                        <span class="kw">return</span>(<span class="st">'/'</span>);</td></tr>
+<tr id="L551" class="s1"><td class="ln"><a href="#L551">551</a></td><td class="code">                        }</td></tr>
+<tr id="L552" class="s1"><td class="ln"><a href="#L552">552</a></td><td class="code">                <span class="kw">for</span>(;;) {</td></tr>
+<tr id="L553" class="s1"><td class="ln"><a href="#L553">553</a></td><td class="code">                        c = <a class="id" href="../source/cc.c.html#L583">getc1</a>();</td></tr>
+<tr id="L554" class="s1"><td class="ln"><a href="#L554">554</a></td><td class="code">                cloop:</td></tr>
+<tr id="L555" class="s1"><td class="ln"><a href="#L555">555</a></td><td class="code">                        <span class="kw">switch</span> (c) {</td></tr>
+<tr id="L556" class="s1"><td class="ln"><a href="#L556">556</a></td><td class="code"> </td></tr>
+<tr id="L557" class="s1"><td class="ln"><a href="#L557">557</a></td><td class="code">                        <span class="kw">case</span> <span class="st">'\0'</span>:</td></tr>
+<tr id="L558" class="s1"><td class="ln"><a href="#L558">558</a></td><td class="code">                                <span class="kw">return</span>(<span class="st">'\0'</span>);</td></tr>
+<tr id="L559" class="s1"><td class="ln"><a href="#L559">559</a></td><td class="code"> </td></tr>
+<tr id="L560" class="s1"><td class="ln"><a href="#L560">560</a></td><td class="code">                        <span class="kw">case</span> <span class="st">'*'</span>:</td></tr>
+<tr id="L561" class="s1"><td class="ln"><a href="#L561">561</a></td><td class="code">                                <span class="kw">if</span> ((c=<a class="id" href="../source/cc.c.html#L583">getc1</a>())==<span class="st">'/'</span>)</td></tr>
+<tr id="L562" class="s1"><td class="ln"><a href="#L562">562</a></td><td class="code">                                        <span class="kw">goto</span> loop;</td></tr>
+<tr id="L563" class="s1"><td class="ln"><a href="#L563">563</a></td><td class="code">                                <span class="kw">goto</span> cloop;</td></tr>
+<tr id="L564" class="s1"><td class="ln"><a href="#L564">564</a></td><td class="code"> </td></tr>
+<tr id="L565" class="s1"><td class="ln"><a href="#L565">565</a></td><td class="code">                        <span class="kw">case</span> <span class="st">'\n'</span>:</td></tr>
+<tr id="L566" class="s1"><td class="ln"><a href="#L566">566</a></td><td class="code">                                <span class="kw">if</span> (ibuf==ibuf1) {</td></tr>
+<tr id="L567" class="s1"><td class="ln"><a href="#L567">567</a></td><td class="code">                                        putc(<span class="st">'\n'</span>, obuf);</td></tr>
+<tr id="L568" class="s1"><td class="ln"><a href="#L568">568</a></td><td class="code">                                        lineno++;</td></tr>
+<tr id="L569" class="s1"><td class="ln"><a href="#L569">569</a></td><td class="code">                                }</td></tr>
+<tr id="L570" class="s1"><td class="ln"><a href="#L570">570</a></td><td class="code">                                <span class="kw">continue</span>;</td></tr>
+<tr id="L571" class="s1"><td class="ln"><a href="#L571">571</a></td><td class="code">                        }</td></tr>
+<tr id="L572" class="s1"><td class="ln"><a href="#L572">572</a></td><td class="code">                }</td></tr>
+<tr id="L573" class="s1"><td class="ln"><a href="#L573">573</a></td><td class="code">        }</td></tr>
+<tr id="L574" class="s1"><td class="ln"><a href="#L574">574</a></td><td class="code">        <span class="kw">return</span>(c);</td></tr>
+<tr id="L575" class="s1"><td class="ln"><a href="#L575">575</a></td><td class="code">}</td></tr>
+<tr id="L576" class="s1"><td class="ln"><a href="#L576">576</a></td><td class="code"><span class="kw">char</span> pushbuff[<span class="nu">300</span>];</td></tr>
+<tr id="L577" class="s1"><td class="ln"><a href="#L577">577</a></td><td class="code"><span class="kw">char</span> *pushp pushbuff;</td></tr>
+<tr id="L578" class="s1"><td class="ln"><a href="#L578">578</a></td><td class="code"><span class="def">ungetc</span>(c)</td></tr>
+<tr id="L579" class="s1"><td class="ln"><a href="#L579">579</a></td><td class="code">        {</td></tr>
+<tr id="L580" class="s1"><td class="ln"><a href="#L580">580</a></td><td class="code">        *++pushp = c;</td></tr>
+<tr id="L581" class="s1"><td class="ln"><a href="#L581">581</a></td><td class="code">        }</td></tr>
+<tr id="L582" class="s1"><td class="ln"><a href="#L582">582</a></td><td class="code"> </td></tr>
+<tr id="L583" class="s1"><td class="ln"><a href="#L583">583</a></td><td class="code"><span class="def">getc1</span>()</td></tr>
+<tr id="L584" class="s1"><td class="ln"><a href="#L584">584</a></td><td class="code">{</td></tr>
+<tr id="L585" class="s1"><td class="ln"><a href="#L585">585</a></td><td class="code">        <span class="kw">register</span> c;</td></tr>
+<tr id="L586" class="s1"><td class="ln"><a href="#L586">586</a></td><td class="code"> </td></tr>
+<tr id="L587" class="s1"><td class="ln"><a href="#L587">587</a></td><td class="code">        <span class="kw">if</span> (*pushp !=<span class="nu">0</span>)</td></tr>
+<tr id="L588" class="s1"><td class="ln"><a href="#L588">588</a></td><td class="code">                <span class="kw">return</span>(*pushp--);</td></tr>
+<tr id="L589" class="s1"><td class="ln"><a href="#L589">589</a></td><td class="code">        depth=<span class="nu">0</span>;</td></tr>
+<tr id="L590" class="s1"><td class="ln"><a href="#L590">590</a></td><td class="code">        <span class="kw">if</span> ((c = <a class="id" href="../source/cvopt.c.html#L9242">getc</a>(ibuf)) &lt; <span class="nu">0</span> &amp;&amp; ibuf==ibuf2) {</td></tr>
+<tr id="L591" class="s1"><td class="ln"><a href="#L591">591</a></td><td class="code">                close(ibuf2[<span class="nu">0</span>]);</td></tr>
+<tr id="L592" class="s1"><td class="ln"><a href="#L592">592</a></td><td class="code">                ibuf = ibuf1;</td></tr>
+<tr id="L593" class="s1"><td class="ln"><a href="#L593">593</a></td><td class="code">                putc(<span class="st">'\n'</span>, obuf);</td></tr>
+<tr id="L594" class="s1"><td class="ln"><a href="#L594">594</a></td><td class="code">                lineno++;</td></tr>
+<tr id="L595" class="s1"><td class="ln"><a href="#L595">595</a></td><td class="code">                c = <a class="id" href="../source/cc.c.html#L583">getc1</a>();</td></tr>
+<tr id="L596" class="s1"><td class="ln"><a href="#L596">596</a></td><td class="code">        }</td></tr>
+<tr id="L597" class="s1"><td class="ln"><a href="#L597">597</a></td><td class="code">        <span class="kw">if</span> (c&lt;<span class="nu">0</span>)</td></tr>
+<tr id="L598" class="s1"><td class="ln"><a href="#L598">598</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L599" class="s1"><td class="ln"><a href="#L599">599</a></td><td class="code">        <span class="kw">return</span>(c);</td></tr>
+<tr id="L600" class="s0"><td class="ln"><a href="#L600">600</a></td><td class="code">}</td></tr>
+<tr id="L601" class="s0"><td class="ln"><a href="#L601">601</a></td><td class="code"> </td></tr>
+<tr id="L602" class="s0"><td class="ln"><a href="#L602">602</a></td><td class="code"><span class="def">lookup</span>(namep, enterf)</td></tr>
+<tr id="L603" class="s0"><td class="ln"><a href="#L603">603</a></td><td class="code"><span class="kw">char</span> *namep;</td></tr>
+<tr id="L604" class="s0"><td class="ln"><a href="#L604">604</a></td><td class="code">{</td></tr>
+<tr id="L605" class="s0"><td class="ln"><a href="#L605">605</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *np, *snp;</td></tr>
+<tr id="L606" class="s0"><td class="ln"><a href="#L606">606</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> symtab *sp;</td></tr>
+<tr id="L607" class="s0"><td class="ln"><a href="#L607">607</a></td><td class="code">        <span class="kw">int</span> i, c, around;</td></tr>
+<tr id="L608" class="s0"><td class="ln"><a href="#L608">608</a></td><td class="code">        np = namep;</td></tr>
+<tr id="L609" class="s0"><td class="ln"><a href="#L609">609</a></td><td class="code">        around = i = <span class="nu">0</span>;</td></tr>
+<tr id="L610" class="s0"><td class="ln"><a href="#L610">610</a></td><td class="code">        <span class="kw">while</span> (c = *np++)</td></tr>
+<tr id="L611" class="s0"><td class="ln"><a href="#L611">611</a></td><td class="code">                i =+ c;</td></tr>
+<tr id="L612" class="s0"><td class="ln"><a href="#L612">612</a></td><td class="code">        i =% symsiz;</td></tr>
+<tr id="L613" class="s0"><td class="ln"><a href="#L613">613</a></td><td class="code">        sp = &amp;symtab[i];</td></tr>
+<tr id="L614" class="s0"><td class="ln"><a href="#L614">614</a></td><td class="code">        <span class="kw">while</span> (sp-&gt;name[<span class="nu">0</span>]) {</td></tr>
+<tr id="L615" class="s0"><td class="ln"><a href="#L615">615</a></td><td class="code">                snp = sp;</td></tr>
+<tr id="L616" class="s0"><td class="ln"><a href="#L616">616</a></td><td class="code">                np = namep;</td></tr>
+<tr id="L617" class="s0"><td class="ln"><a href="#L617">617</a></td><td class="code">                <span class="kw">while</span> (*snp++ == *np)</td></tr>
+<tr id="L618" class="s0"><td class="ln"><a href="#L618">618</a></td><td class="code">                        <span class="kw">if</span> (*np++ == <span class="st">'\0'</span> || np==namep+<span class="nu">8</span>) {</td></tr>
+<tr id="L619" class="s0"><td class="ln"><a href="#L619">619</a></td><td class="code">                                <span class="kw">if</span> (!enterf)</td></tr>
+<tr id="L620" class="s0"><td class="ln"><a href="#L620">620</a></td><td class="code">                                        <a class="id" href="../source/cc.c.html#L649">subst</a>(namep, sp);</td></tr>
+<tr id="L621" class="s0"><td class="ln"><a href="#L621">621</a></td><td class="code">                                <span class="kw">return</span>(sp);</td></tr>
+<tr id="L622" class="s0"><td class="ln"><a href="#L622">622</a></td><td class="code">                        }</td></tr>
+<tr id="L623" class="s0"><td class="ln"><a href="#L623">623</a></td><td class="code">                <span class="kw">if</span> (++sp &gt;= &amp;symtab[symsiz])</td></tr>
+<tr id="L624" class="s0"><td class="ln"><a href="#L624">624</a></td><td class="code">                        <span class="kw">if</span> (around++)</td></tr>
+<tr id="L625" class="s0"><td class="ln"><a href="#L625">625</a></td><td class="code">                                {</td></tr>
+<tr id="L626" class="s0"><td class="ln"><a href="#L626">626</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"too many defines"</span>);</td></tr>
+<tr id="L627" class="s0"><td class="ln"><a href="#L627">627</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L320">dexit</a>();</td></tr>
+<tr id="L628" class="s0"><td class="ln"><a href="#L628">628</a></td><td class="code">                                }</td></tr>
+<tr id="L629" class="s0"><td class="ln"><a href="#L629">629</a></td><td class="code">                        <span class="kw">else</span></td></tr>
+<tr id="L630" class="s0"><td class="ln"><a href="#L630">630</a></td><td class="code">                        sp = symtab;</td></tr>
+<tr id="L631" class="s0"><td class="ln"><a href="#L631">631</a></td><td class="code">        }</td></tr>
+<tr id="L632" class="s0"><td class="ln"><a href="#L632">632</a></td><td class="code">        <span class="kw">if</span> (enterf&gt;<span class="nu">0</span>) {</td></tr>
+<tr id="L633" class="s0"><td class="ln"><a href="#L633">633</a></td><td class="code">                snp = namep;</td></tr>
+<tr id="L634" class="s0"><td class="ln"><a href="#L634">634</a></td><td class="code">                <span class="kw">for</span> (np = &amp;sp-&gt;name[<span class="nu">0</span>]; np &lt; &amp;sp-&gt;name[<span class="nu">8</span>];)</td></tr>
+<tr id="L635" class="s0"><td class="ln"><a href="#L635">635</a></td><td class="code">                        <span class="kw">if</span> (*np++ = *snp)</td></tr>
+<tr id="L636" class="s0"><td class="ln"><a href="#L636">636</a></td><td class="code">                                snp++;</td></tr>
+<tr id="L637" class="s0"><td class="ln"><a href="#L637">637</a></td><td class="code">        }</td></tr>
+<tr id="L638" class="s0"><td class="ln"><a href="#L638">638</a></td><td class="code">        <span class="kw">return</span>(sp);</td></tr>
+<tr id="L639" class="s0"><td class="ln"><a href="#L639">639</a></td><td class="code">}</td></tr>
+<tr id="L640" class="s0"><td class="ln"><a href="#L640">640</a></td><td class="code"><span class="kw">char</span> revbuff[<span class="nu">200</span>];</td></tr>
+<tr id="L641" class="s0"><td class="ln"><a href="#L641">641</a></td><td class="code"><span class="kw">char</span>    *bp;</td></tr>
+<tr id="L642" class="s0"><td class="ln"><a href="#L642">642</a></td><td class="code"><span class="def">backsch</span>(c)</td></tr>
+<tr id="L643" class="s0"><td class="ln"><a href="#L643">643</a></td><td class="code">        {</td></tr>
+<tr id="L644" class="s0"><td class="ln"><a href="#L644">644</a></td><td class="code">        <span class="kw">if</span> (bp-revbuff &gt; <span class="nu">200</span>)</td></tr>
+<tr id="L645" class="s0"><td class="ln"><a href="#L645">645</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Excessive define looping"</span>, bp--);</td></tr>
+<tr id="L646" class="s0"><td class="ln"><a href="#L646">646</a></td><td class="code">        *bp++ = c;</td></tr>
+<tr id="L647" class="s0"><td class="ln"><a href="#L647">647</a></td><td class="code">        }</td></tr>
+<tr id="L648" class="s0"><td class="ln"><a href="#L648">648</a></td><td class="code"> </td></tr>
+<tr id="L649" class="s0"><td class="ln"><a href="#L649">649</a></td><td class="code"><span class="def">subst</span>(np, sp)</td></tr>
+<tr id="L650" class="s1"><td class="ln"><a href="#L650">650</a></td><td class="code"><span class="kw">char</span> *np;</td></tr>
+<tr id="L651" class="s1"><td class="ln"><a href="#L651">651</a></td><td class="code"><span class="kw">struct</span> symtab *sp;</td></tr>
+<tr id="L652" class="s1"><td class="ln"><a href="#L652">652</a></td><td class="code">{</td></tr>
+<tr id="L653" class="s1"><td class="ln"><a href="#L653">653</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *vp;</td></tr>
+<tr id="L654" class="s1"><td class="ln"><a href="#L654">654</a></td><td class="code"> </td></tr>
+<tr id="L655" class="s1"><td class="ln"><a href="#L655">655</a></td><td class="code">        lp = np;</td></tr>
+<tr id="L656" class="s1"><td class="ln"><a href="#L656">656</a></td><td class="code">        bp = revbuff;</td></tr>
+<tr id="L657" class="s1"><td class="ln"><a href="#L657">657</a></td><td class="code">        <span class="kw">if</span> (depth++&gt;<span class="nu">100</span>)</td></tr>
+<tr id="L658" class="s1"><td class="ln"><a href="#L658">658</a></td><td class="code">                {</td></tr>
+<tr id="L659" class="s1"><td class="ln"><a href="#L659">659</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"define recursion loop\n"</span>);</td></tr>
+<tr id="L660" class="s1"><td class="ln"><a href="#L660">660</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L661" class="s1"><td class="ln"><a href="#L661">661</a></td><td class="code">                }</td></tr>
+<tr id="L662" class="s1"><td class="ln"><a href="#L662">662</a></td><td class="code">        <span class="kw">if</span> ((vp = sp-&gt;value) == <span class="nu">0</span>)</td></tr>
+<tr id="L663" class="s1"><td class="ln"><a href="#L663">663</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L664" class="s1"><td class="ln"><a href="#L664">664</a></td><td class="code">        <span class="cm">/* arrange that define unix unix still</span></td></tr>
+<tr id="L665" class="s1"><td class="ln"><a href="#L665">665</a></td><td class="code"><span class="cm">        has no effect, avoiding rescanning */</span></td></tr>
+<tr id="L666" class="s1"><td class="ln"><a href="#L666">666</a></td><td class="code">        <span class="kw">if</span> (streq(sp-&gt;name,sp-&gt;value))</td></tr>
+<tr id="L667" class="s1"><td class="ln"><a href="#L667">667</a></td><td class="code">                {</td></tr>
+<tr id="L668" class="s1"><td class="ln"><a href="#L668">668</a></td><td class="code">                <span class="kw">while</span> (*vp)</td></tr>
+<tr id="L669" class="s1"><td class="ln"><a href="#L669">669</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L519">sch</a>(*vp++);</td></tr>
+<tr id="L670" class="s1"><td class="ln"><a href="#L670">670</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L671" class="s1"><td class="ln"><a href="#L671">671</a></td><td class="code">                }</td></tr>
+<tr id="L672" class="s1"><td class="ln"><a href="#L672">672</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L642">backsch</a>(<span class="st">' '</span>);</td></tr>
+<tr id="L673" class="s1"><td class="ln"><a href="#L673">673</a></td><td class="code">        <span class="kw">if</span> (*vp == <span class="st">'('</span>)</td></tr>
+<tr id="L674" class="s1"><td class="ln"><a href="#L674">674</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L776">expdef</a>(vp);</td></tr>
+<tr id="L675" class="s1"><td class="ln"><a href="#L675">675</a></td><td class="code">        <span class="kw">else</span></td></tr>
+<tr id="L676" class="s1"><td class="ln"><a href="#L676">676</a></td><td class="code">        <span class="kw">while</span> (*vp)</td></tr>
+<tr id="L677" class="s1"><td class="ln"><a href="#L677">677</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L642">backsch</a>(*vp++);</td></tr>
+<tr id="L678" class="s1"><td class="ln"><a href="#L678">678</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L642">backsch</a>(<span class="st">' '</span>);</td></tr>
+<tr id="L679" class="s1"><td class="ln"><a href="#L679">679</a></td><td class="code">        <span class="kw">while</span> (bp&gt;revbuff)</td></tr>
+<tr id="L680" class="s1"><td class="ln"><a href="#L680">680</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L578">ungetc</a>(*--bp);</td></tr>
+<tr id="L681" class="s1"><td class="ln"><a href="#L681">681</a></td><td class="code">}</td></tr>
+<tr id="L682" class="s1"><td class="ln"><a href="#L682">682</a></td><td class="code"> </td></tr>
+<tr id="L683" class="s1"><td class="ln"><a href="#L683">683</a></td><td class="code"><span class="def">getsuf</span>(as)</td></tr>
+<tr id="L684" class="s1"><td class="ln"><a href="#L684">684</a></td><td class="code"><span class="kw">char</span> as[];</td></tr>
+<tr id="L685" class="s1"><td class="ln"><a href="#L685">685</a></td><td class="code">{</td></tr>
+<tr id="L686" class="s1"><td class="ln"><a href="#L686">686</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> c;</td></tr>
+<tr id="L687" class="s1"><td class="ln"><a href="#L687">687</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *s;</td></tr>
+<tr id="L688" class="s1"><td class="ln"><a href="#L688">688</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> t;</td></tr>
+<tr id="L689" class="s1"><td class="ln"><a href="#L689">689</a></td><td class="code"> </td></tr>
+<tr id="L690" class="s1"><td class="ln"><a href="#L690">690</a></td><td class="code">        s = as;</td></tr>
+<tr id="L691" class="s1"><td class="ln"><a href="#L691">691</a></td><td class="code">        c = <span class="nu">0</span>;</td></tr>
+<tr id="L692" class="s1"><td class="ln"><a href="#L692">692</a></td><td class="code">        <span class="kw">while</span>(t = *s++)</td></tr>
+<tr id="L693" class="s1"><td class="ln"><a href="#L693">693</a></td><td class="code">                <span class="kw">if</span> (t==<span class="st">'/'</span>)</td></tr>
+<tr id="L694" class="s1"><td class="ln"><a href="#L694">694</a></td><td class="code">                        c = <span class="nu">0</span>;</td></tr>
+<tr id="L695" class="s1"><td class="ln"><a href="#L695">695</a></td><td class="code">                <span class="kw">else</span></td></tr>
+<tr id="L696" class="s1"><td class="ln"><a href="#L696">696</a></td><td class="code">                        c++;</td></tr>
+<tr id="L697" class="s1"><td class="ln"><a href="#L697">697</a></td><td class="code">        s =- <span class="nu">3</span>;</td></tr>
+<tr id="L698" class="s1"><td class="ln"><a href="#L698">698</a></td><td class="code">        <span class="kw">if</span> (c&lt;=<span class="nu">14</span> &amp;&amp; c&gt;<span class="nu">2</span> &amp;&amp; *s++==<span class="st">'.'</span>)</td></tr>
+<tr id="L699" class="s1"><td class="ln"><a href="#L699">699</a></td><td class="code">                <span class="kw">return</span>(*s);</td></tr>
+<tr id="L700" class="s0"><td class="ln"><a href="#L700">700</a></td><td class="code">        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L701" class="s0"><td class="ln"><a href="#L701">701</a></td><td class="code">}</td></tr>
+<tr id="L702" class="s0"><td class="ln"><a href="#L702">702</a></td><td class="code"> </td></tr>
+<tr id="L703" class="s0"><td class="ln"><a href="#L703">703</a></td><td class="code"><span class="def">setsuf</span>(as, ch)</td></tr>
+<tr id="L704" class="s0"><td class="ln"><a href="#L704">704</a></td><td class="code"><span class="kw">char</span> as[];</td></tr>
+<tr id="L705" class="s0"><td class="ln"><a href="#L705">705</a></td><td class="code">{</td></tr>
+<tr id="L706" class="s0"><td class="ln"><a href="#L706">706</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *s, *s1;</td></tr>
+<tr id="L707" class="s0"><td class="ln"><a href="#L707">707</a></td><td class="code"> </td></tr>
+<tr id="L708" class="s0"><td class="ln"><a href="#L708">708</a></td><td class="code">        s = s1 = <a class="id" href="../source/cc.c.html#L738">copy</a>(as);</td></tr>
+<tr id="L709" class="s0"><td class="ln"><a href="#L709">709</a></td><td class="code">        <span class="kw">while</span>(*s)</td></tr>
+<tr id="L710" class="s0"><td class="ln"><a href="#L710">710</a></td><td class="code">                <span class="kw">if</span> (*s++ == <span class="st">'/'</span>)</td></tr>
+<tr id="L711" class="s0"><td class="ln"><a href="#L711">711</a></td><td class="code">                        s1 = s;</td></tr>
+<tr id="L712" class="s0"><td class="ln"><a href="#L712">712</a></td><td class="code">        s[-<span class="nu">1</span>] = ch;</td></tr>
+<tr id="L713" class="s0"><td class="ln"><a href="#L713">713</a></td><td class="code">        <span class="kw">return</span>(s1);</td></tr>
+<tr id="L714" class="s0"><td class="ln"><a href="#L714">714</a></td><td class="code">}</td></tr>
+<tr id="L715" class="s0"><td class="ln"><a href="#L715">715</a></td><td class="code"> </td></tr>
+<tr id="L716" class="s0"><td class="ln"><a href="#L716">716</a></td><td class="code"><span class="def">callsys</span>(f, v)</td></tr>
+<tr id="L717" class="s0"><td class="ln"><a href="#L717">717</a></td><td class="code"><span class="kw">char</span> f[], *v[]; {</td></tr>
+<tr id="L718" class="s0"><td class="ln"><a href="#L718">718</a></td><td class="code">        <span class="kw">int</span> t, status;</td></tr>
+<tr id="L719" class="s0"><td class="ln"><a href="#L719">719</a></td><td class="code"> </td></tr>
+<tr id="L720" class="s0"><td class="ln"><a href="#L720">720</a></td><td class="code">        <span class="kw">if</span> ((t=fork())==<span class="nu">0</span>) {</td></tr>
+<tr id="L721" class="s0"><td class="ln"><a href="#L721">721</a></td><td class="code">                execv(f, v);</td></tr>
+<tr id="L722" class="s0"><td class="ln"><a href="#L722">722</a></td><td class="code">                printf(<span class="st">"Can't find %s\n"</span>, f);</td></tr>
+<tr id="L723" class="s0"><td class="ln"><a href="#L723">723</a></td><td class="code">                exit(<span class="nu">1</span>);</td></tr>
+<tr id="L724" class="s0"><td class="ln"><a href="#L724">724</a></td><td class="code">        } <span class="kw">else</span></td></tr>
+<tr id="L725" class="s0"><td class="ln"><a href="#L725">725</a></td><td class="code">                <span class="kw">if</span> (t == -<span class="nu">1</span>) {</td></tr>
+<tr id="L726" class="s0"><td class="ln"><a href="#L726">726</a></td><td class="code">                        printf(<span class="st">"Try again\n"</span>);</td></tr>
+<tr id="L727" class="s0"><td class="ln"><a href="#L727">727</a></td><td class="code">                        <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L728" class="s0"><td class="ln"><a href="#L728">728</a></td><td class="code">                }</td></tr>
+<tr id="L729" class="s0"><td class="ln"><a href="#L729">729</a></td><td class="code">        <span class="kw">while</span>(t!=wait(&amp;status));</td></tr>
+<tr id="L730" class="s0"><td class="ln"><a href="#L730">730</a></td><td class="code">        <span class="kw">if</span> ((t=(status&amp;<span class="nu">0377</span>)) != <span class="nu">0</span> &amp;&amp; t!=<span class="nu">14</span>) {</td></tr>
+<tr id="L731" class="s0"><td class="ln"><a href="#L731">731</a></td><td class="code">                <span class="kw">if</span> (t!=<span class="nu">2</span>)               <span class="cm">/* interrupt */</span></td></tr>
+<tr id="L732" class="s0"><td class="ln"><a href="#L732">732</a></td><td class="code">                        printf(<span class="st">"Fatal error in %s\n"</span>, f);</td></tr>
+<tr id="L733" class="s0"><td class="ln"><a href="#L733">733</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L320">dexit</a>();</td></tr>
+<tr id="L734" class="s0"><td class="ln"><a href="#L734">734</a></td><td class="code">        }</td></tr>
+<tr id="L735" class="s0"><td class="ln"><a href="#L735">735</a></td><td class="code">        <span class="kw">return</span>((status&gt;&gt;<span class="nu">8</span>) &amp; <span class="nu">0377</span>);</td></tr>
+<tr id="L736" class="s0"><td class="ln"><a href="#L736">736</a></td><td class="code">}</td></tr>
+<tr id="L737" class="s0"><td class="ln"><a href="#L737">737</a></td><td class="code"> </td></tr>
+<tr id="L738" class="s0"><td class="ln"><a href="#L738">738</a></td><td class="code"><span class="def">copy</span>(as)</td></tr>
+<tr id="L739" class="s0"><td class="ln"><a href="#L739">739</a></td><td class="code"><span class="kw">char</span> as[];</td></tr>
+<tr id="L740" class="s0"><td class="ln"><a href="#L740">740</a></td><td class="code">{</td></tr>
+<tr id="L741" class="s0"><td class="ln"><a href="#L741">741</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *otsp, *s;</td></tr>
+<tr id="L742" class="s0"><td class="ln"><a href="#L742">742</a></td><td class="code"> </td></tr>
+<tr id="L743" class="s0"><td class="ln"><a href="#L743">743</a></td><td class="code">        otsp = tsp;</td></tr>
+<tr id="L744" class="s0"><td class="ln"><a href="#L744">744</a></td><td class="code">        s = as;</td></tr>
+<tr id="L745" class="s0"><td class="ln"><a href="#L745">745</a></td><td class="code">        <span class="kw">while</span>(*tsp++ = *s++);</td></tr>
+<tr id="L746" class="s0"><td class="ln"><a href="#L746">746</a></td><td class="code">        <span class="kw">return</span>(otsp);</td></tr>
+<tr id="L747" class="s0"><td class="ln"><a href="#L747">747</a></td><td class="code">}</td></tr>
+<tr id="L748" class="s0"><td class="ln"><a href="#L748">748</a></td><td class="code"> </td></tr>
+<tr id="L749" class="s0"><td class="ln"><a href="#L749">749</a></td><td class="code"><span class="def">nodup</span>(l, os)</td></tr>
+<tr id="L750" class="s1"><td class="ln"><a href="#L750">750</a></td><td class="code"><span class="kw">char</span> **l, *os;</td></tr>
+<tr id="L751" class="s1"><td class="ln"><a href="#L751">751</a></td><td class="code">{</td></tr>
+<tr id="L752" class="s1"><td class="ln"><a href="#L752">752</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *t, *s;</td></tr>
+<tr id="L753" class="s1"><td class="ln"><a href="#L753">753</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> c;</td></tr>
+<tr id="L754" class="s1"><td class="ln"><a href="#L754">754</a></td><td class="code"> </td></tr>
+<tr id="L755" class="s1"><td class="ln"><a href="#L755">755</a></td><td class="code">        s = os;</td></tr>
+<tr id="L756" class="s1"><td class="ln"><a href="#L756">756</a></td><td class="code">        <span class="kw">if</span> (<a class="id" href="../source/cc.c.html#L683">getsuf</a>(s) != <span class="st">'o'</span>)</td></tr>
+<tr id="L757" class="s1"><td class="ln"><a href="#L757">757</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L758" class="s1"><td class="ln"><a href="#L758">758</a></td><td class="code">        <span class="kw">while</span>(t = *l++) {</td></tr>
+<tr id="L759" class="s1"><td class="ln"><a href="#L759">759</a></td><td class="code">                <span class="kw">while</span>(c = *s++)</td></tr>
+<tr id="L760" class="s1"><td class="ln"><a href="#L760">760</a></td><td class="code">                        <span class="kw">if</span> (c != *t++)</td></tr>
+<tr id="L761" class="s1"><td class="ln"><a href="#L761">761</a></td><td class="code">                                <span class="kw">break</span>;</td></tr>
+<tr id="L762" class="s1"><td class="ln"><a href="#L762">762</a></td><td class="code">                <span class="kw">if</span> (*t==<span class="st">'\0'</span> &amp;&amp; c==<span class="st">'\0'</span>)</td></tr>
+<tr id="L763" class="s1"><td class="ln"><a href="#L763">763</a></td><td class="code">                        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L764" class="s1"><td class="ln"><a href="#L764">764</a></td><td class="code">                s = os;</td></tr>
+<tr id="L765" class="s1"><td class="ln"><a href="#L765">765</a></td><td class="code">        }</td></tr>
+<tr id="L766" class="s1"><td class="ln"><a href="#L766">766</a></td><td class="code">        <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L767" class="s1"><td class="ln"><a href="#L767">767</a></td><td class="code">}</td></tr>
+<tr id="L768" class="s1"><td class="ln"><a href="#L768">768</a></td><td class="code"> </td></tr>
+<tr id="L769" class="s1"><td class="ln"><a href="#L769">769</a></td><td class="code"><span class="def">cunlink</span>(f)</td></tr>
+<tr id="L770" class="s1"><td class="ln"><a href="#L770">770</a></td><td class="code"><span class="kw">char</span> *f;</td></tr>
+<tr id="L771" class="s1"><td class="ln"><a href="#L771">771</a></td><td class="code">{</td></tr>
+<tr id="L772" class="s1"><td class="ln"><a href="#L772">772</a></td><td class="code">        <span class="kw">if</span> (f==<span class="nu">0</span>)</td></tr>
+<tr id="L773" class="s1"><td class="ln"><a href="#L773">773</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L774" class="s1"><td class="ln"><a href="#L774">774</a></td><td class="code">        <span class="kw">return</span>(unlink(f));</td></tr>
+<tr id="L775" class="s1"><td class="ln"><a href="#L775">775</a></td><td class="code">}</td></tr>
+<tr id="L776" class="s1"><td class="ln"><a href="#L776">776</a></td><td class="code"><span class="def">expdef</span>(proto)</td></tr>
+<tr id="L777" class="s1"><td class="ln"><a href="#L777">777</a></td><td class="code">  <span class="kw">char</span> *proto;</td></tr>
+<tr id="L778" class="s1"><td class="ln"><a href="#L778">778</a></td><td class="code">{</td></tr>
+<tr id="L779" class="s1"><td class="ln"><a href="#L779">779</a></td><td class="code"><span class="kw">char</span> buffer[<span class="nu">100</span>], *parg[<span class="nu">20</span>], *pval[<span class="nu">20</span>], name[<span class="nu">20</span>], *cspace, *wp;</td></tr>
+<tr id="L780" class="s1"><td class="ln"><a href="#L780">780</a></td><td class="code"><span class="kw">char</span> protcop[<span class="nu">100</span>], *pr;</td></tr>
+<tr id="L781" class="s1"><td class="ln"><a href="#L781">781</a></td><td class="code"><span class="kw">int</span> narg, k, i, c;</td></tr>
+<tr id="L782" class="s1"><td class="ln"><a href="#L782">782</a></td><td class="code">pr = protcop;</td></tr>
+<tr id="L783" class="s1"><td class="ln"><a href="#L783">783</a></td><td class="code"><span class="kw">while</span> (*pr++ = *proto++);</td></tr>
+<tr id="L784" class="s1"><td class="ln"><a href="#L784">784</a></td><td class="code">proto= protcop;</td></tr>
+<tr id="L785" class="s1"><td class="ln"><a href="#L785">785</a></td><td class="code"><span class="kw">for</span> (narg=<span class="nu">0</span>; (parg[narg] = token(&amp;proto)) != <span class="nu">0</span>; narg++)</td></tr>
+<tr id="L786" class="s1"><td class="ln"><a href="#L786">786</a></td><td class="code">        ;</td></tr>
+<tr id="L787" class="s1"><td class="ln"><a href="#L787">787</a></td><td class="code"><span class="cm">/* now scan input */</span></td></tr>
+<tr id="L788" class="s1"><td class="ln"><a href="#L788">788</a></td><td class="code">cspace = buffer;</td></tr>
+<tr id="L789" class="s1"><td class="ln"><a href="#L789">789</a></td><td class="code"><span class="kw">while</span> ((c=<a class="id" href="../source/cc.c.html#L541">getch</a>()) == <span class="st">' '</span>);</td></tr>
+<tr id="L790" class="s1"><td class="ln"><a href="#L790">790</a></td><td class="code"><span class="kw">if</span> (c != <span class="st">'('</span>)</td></tr>
+<tr id="L791" class="s1"><td class="ln"><a href="#L791">791</a></td><td class="code">        {</td></tr>
+<tr id="L792" class="s1"><td class="ln"><a href="#L792">792</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"defined function requires arguments"</span>);</td></tr>
+<tr id="L793" class="s1"><td class="ln"><a href="#L793">793</a></td><td class="code">        <span class="kw">return</span>;</td></tr>
+<tr id="L794" class="s1"><td class="ln"><a href="#L794">794</a></td><td class="code">        }</td></tr>
+<tr id="L795" class="s1"><td class="ln"><a href="#L795">795</a></td><td class="code"><a class="id" href="../source/cc.c.html#L578">ungetc</a>(c);</td></tr>
+<tr id="L796" class="s1"><td class="ln"><a href="#L796">796</a></td><td class="code"><span class="kw">for</span>(k=<span class="nu">0</span>; pval[k] = coptok(&amp;cspace); k++);</td></tr>
+<tr id="L797" class="s1"><td class="ln"><a href="#L797">797</a></td><td class="code"><span class="kw">if</span> (k!=narg)</td></tr>
+<tr id="L798" class="s1"><td class="ln"><a href="#L798">798</a></td><td class="code"> {</td></tr>
+<tr id="L799" class="s1"><td class="ln"><a href="#L799">799</a></td><td class="code">  <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"define argument mismatch"</span>);</td></tr>
+<tr id="L800" class="s0"><td class="ln"><a href="#L800">800</a></td><td class="code">  <span class="kw">return</span>;</td></tr>
+<tr id="L801" class="s0"><td class="ln"><a href="#L801">801</a></td><td class="code"> }</td></tr>
+<tr id="L802" class="s0"><td class="ln"><a href="#L802">802</a></td><td class="code"><span class="kw">while</span> (c= *proto++)</td></tr>
+<tr id="L803" class="s0"><td class="ln"><a href="#L803">803</a></td><td class="code">   {</td></tr>
+<tr id="L804" class="s0"><td class="ln"><a href="#L804">804</a></td><td class="code">   <span class="kw">if</span> (!<a class="id" href="../source/cc.c.html#L888">letter</a>(c))</td></tr>
+<tr id="L805" class="s0"><td class="ln"><a href="#L805">805</a></td><td class="code">      <a class="id" href="../source/cc.c.html#L642">backsch</a>(c);</td></tr>
+<tr id="L806" class="s0"><td class="ln"><a href="#L806">806</a></td><td class="code">   <span class="kw">else</span></td></tr>
+<tr id="L807" class="s0"><td class="ln"><a href="#L807">807</a></td><td class="code">      {</td></tr>
+<tr id="L808" class="s0"><td class="ln"><a href="#L808">808</a></td><td class="code">      wp = name;</td></tr>
+<tr id="L809" class="s0"><td class="ln"><a href="#L809">809</a></td><td class="code">      *wp++ = c;</td></tr>
+<tr id="L810" class="s0"><td class="ln"><a href="#L810">810</a></td><td class="code">      <span class="kw">while</span> (<a class="id" href="../source/cc.c.html#L897">letnum</a>(*proto))</td></tr>
+<tr id="L811" class="s0"><td class="ln"><a href="#L811">811</a></td><td class="code">        *wp++ = *proto++;</td></tr>
+<tr id="L812" class="s0"><td class="ln"><a href="#L812">812</a></td><td class="code">      *wp = <span class="nu">0</span>;</td></tr>
+<tr id="L813" class="s0"><td class="ln"><a href="#L813">813</a></td><td class="code">      <span class="kw">for</span> (k=<span class="nu">0</span>; k&lt;narg; k++)</td></tr>
+<tr id="L814" class="s0"><td class="ln"><a href="#L814">814</a></td><td class="code">      <span class="kw">if</span>(streq(name,parg[k]))</td></tr>
+<tr id="L815" class="s0"><td class="ln"><a href="#L815">815</a></td><td class="code">        <span class="kw">break</span>;</td></tr>
+<tr id="L816" class="s0"><td class="ln"><a href="#L816">816</a></td><td class="code">      wp = k &lt;narg ? pval[k] : name;</td></tr>
+<tr id="L817" class="s0"><td class="ln"><a href="#L817">817</a></td><td class="code">      <span class="kw">while</span> (*wp) <a class="id" href="../source/cc.c.html#L642">backsch</a>(*wp++);</td></tr>
+<tr id="L818" class="s0"><td class="ln"><a href="#L818">818</a></td><td class="code">      }</td></tr>
+<tr id="L819" class="s0"><td class="ln"><a href="#L819">819</a></td><td class="code">   }</td></tr>
+<tr id="L820" class="s0"><td class="ln"><a href="#L820">820</a></td><td class="code">}</td></tr>
+<tr id="L821" class="s0"><td class="ln"><a href="#L821">821</a></td><td class="code">token(cpp) <span class="kw">char</span> **cpp;</td></tr>
+<tr id="L822" class="s0"><td class="ln"><a href="#L822">822</a></td><td class="code">{</td></tr>
+<tr id="L823" class="s0"><td class="ln"><a href="#L823">823</a></td><td class="code"><span class="kw">char</span> *val;</td></tr>
+<tr id="L824" class="s0"><td class="ln"><a href="#L824">824</a></td><td class="code"><span class="kw">int</span> stc;</td></tr>
+<tr id="L825" class="s0"><td class="ln"><a href="#L825">825</a></td><td class="code">stc = **cpp;</td></tr>
+<tr id="L826" class="s0"><td class="ln"><a href="#L826">826</a></td><td class="code">*(*cpp)++ = <span class="st">'\0'</span>;</td></tr>
+<tr id="L827" class="s0"><td class="ln"><a href="#L827">827</a></td><td class="code"><span class="kw">if</span> (stc==<span class="st">')'</span>) <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L828" class="s0"><td class="ln"><a href="#L828">828</a></td><td class="code"><span class="kw">while</span> (**cpp == <span class="st">' '</span>) (*cpp)++;</td></tr>
+<tr id="L829" class="s0"><td class="ln"><a href="#L829">829</a></td><td class="code"><span class="kw">for</span> (val = *cpp; (stc= **cpp) != <span class="st">','</span> &amp;&amp; stc!= <span class="st">')'</span>; (*cpp)++)</td></tr>
+<tr id="L830" class="s0"><td class="ln"><a href="#L830">830</a></td><td class="code">  {</td></tr>
+<tr id="L831" class="s0"><td class="ln"><a href="#L831">831</a></td><td class="code">  <span class="kw">if</span> (!<a class="id" href="../source/cc.c.html#L897">letnum</a>(stc) || (val == *cpp &amp;&amp; !<a class="id" href="../source/cc.c.html#L888">letter</a>(stc)))</td></tr>
+<tr id="L832" class="s0"><td class="ln"><a href="#L832">832</a></td><td class="code">    {</td></tr>
+<tr id="L833" class="s0"><td class="ln"><a href="#L833">833</a></td><td class="code">    <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"define prototype argument error"</span>);</td></tr>
+<tr id="L834" class="s0"><td class="ln"><a href="#L834">834</a></td><td class="code">    <span class="kw">break</span>;</td></tr>
+<tr id="L835" class="s0"><td class="ln"><a href="#L835">835</a></td><td class="code">    }</td></tr>
+<tr id="L836" class="s0"><td class="ln"><a href="#L836">836</a></td><td class="code">  }</td></tr>
+<tr id="L837" class="s0"><td class="ln"><a href="#L837">837</a></td><td class="code"><span class="kw">return</span>(val);</td></tr>
+<tr id="L838" class="s0"><td class="ln"><a href="#L838">838</a></td><td class="code">}</td></tr>
+<tr id="L839" class="s0"><td class="ln"><a href="#L839">839</a></td><td class="code">coptok (cpp) <span class="kw">char</span> **cpp; {</td></tr>
+<tr id="L840" class="s0"><td class="ln"><a href="#L840">840</a></td><td class="code"><span class="kw">char</span> *val;</td></tr>
+<tr id="L841" class="s0"><td class="ln"><a href="#L841">841</a></td><td class="code"><span class="kw">int</span> stc, stop,paren;</td></tr>
+<tr id="L842" class="s0"><td class="ln"><a href="#L842">842</a></td><td class="code">paren = <span class="nu">0</span>;</td></tr>
+<tr id="L843" class="s0"><td class="ln"><a href="#L843">843</a></td><td class="code">val = *cpp;</td></tr>
+<tr id="L844" class="s0"><td class="ln"><a href="#L844">844</a></td><td class="code"><span class="kw">if</span> (<a class="id" href="../source/cc.c.html#L541">getch</a>() == <span class="st">')'</span>)</td></tr>
+<tr id="L845" class="s0"><td class="ln"><a href="#L845">845</a></td><td class="code">  <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L846" class="s0"><td class="ln"><a href="#L846">846</a></td><td class="code"><span class="kw">while</span> (((stc = <a class="id" href="../source/cc.c.html#L541">getch</a>()) != <span class="st">','</span> &amp;&amp; stc != <span class="st">')'</span>) || paren &gt; <span class="nu">0</span>)</td></tr>
+<tr id="L847" class="s0"><td class="ln"><a href="#L847">847</a></td><td class="code">  {</td></tr>
+<tr id="L848" class="s0"><td class="ln"><a href="#L848">848</a></td><td class="code">  <span class="kw">if</span> (stc == <span class="st">'"'</span> || stc == <span class="st">'\''</span>)</td></tr>
+<tr id="L849" class="s0"><td class="ln"><a href="#L849">849</a></td><td class="code">    {</td></tr>
+<tr id="L850" class="s1"><td class="ln"><a href="#L850">850</a></td><td class="code">    stop = stc;</td></tr>
+<tr id="L851" class="s1"><td class="ln"><a href="#L851">851</a></td><td class="code">    <span class="kw">if</span> (stop == <span class="st">'\''</span>)</td></tr>
+<tr id="L852" class="s1"><td class="ln"><a href="#L852">852</a></td><td class="code">      *(*cpp)++ = <span class="st">'\''</span>;</td></tr>
+<tr id="L853" class="s1"><td class="ln"><a href="#L853">853</a></td><td class="code">    <span class="kw">while</span> ( (stc = <a class="id" href="../source/cc.c.html#L541">getch</a>()) != stop)</td></tr>
+<tr id="L854" class="s1"><td class="ln"><a href="#L854">854</a></td><td class="code">      {</td></tr>
+<tr id="L855" class="s1"><td class="ln"><a href="#L855">855</a></td><td class="code">      <span class="kw">if</span> (stc == <span class="st">'\n'</span>)</td></tr>
+<tr id="L856" class="s1"><td class="ln"><a href="#L856">856</a></td><td class="code">        {</td></tr>
+<tr id="L857" class="s1"><td class="ln"><a href="#L857">857</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L510">error</a> (<span class="st">"non-terminated string"</span>);</td></tr>
+<tr id="L858" class="s1"><td class="ln"><a href="#L858">858</a></td><td class="code">        <span class="kw">break</span>;</td></tr>
+<tr id="L859" class="s1"><td class="ln"><a href="#L859">859</a></td><td class="code">        }</td></tr>
+<tr id="L860" class="s1"><td class="ln"><a href="#L860">860</a></td><td class="code">      <span class="kw">if</span> (stc == <span class="st">'\\'</span>)</td></tr>
+<tr id="L861" class="s1"><td class="ln"><a href="#L861">861</a></td><td class="code">        <span class="kw">if</span> ((stc= <a class="id" href="../source/cc.c.html#L541">getch</a>()) != stop &amp;&amp; stc != <span class="st">'\\'</span>)</td></tr>
+<tr id="L862" class="s1"><td class="ln"><a href="#L862">862</a></td><td class="code">          *(*cpp)++ = <span class="st">'\\'</span>;</td></tr>
+<tr id="L863" class="s1"><td class="ln"><a href="#L863">863</a></td><td class="code">      *(*cpp)++ = stc;</td></tr>
+<tr id="L864" class="s1"><td class="ln"><a href="#L864">864</a></td><td class="code">      }</td></tr>
+<tr id="L865" class="s1"><td class="ln"><a href="#L865">865</a></td><td class="code">    <span class="kw">if</span> (stop == <span class="st">'\''</span>) </td></tr>
+<tr id="L866" class="s1"><td class="ln"><a href="#L866">866</a></td><td class="code">      *(*cpp)++ = <span class="st">'\''</span>;</td></tr>
+<tr id="L867" class="s1"><td class="ln"><a href="#L867">867</a></td><td class="code">    }</td></tr>
+<tr id="L868" class="s1"><td class="ln"><a href="#L868">868</a></td><td class="code">  <span class="kw">else</span> <span class="kw">if</span> (stc == <span class="st">'\\'</span>)</td></tr>
+<tr id="L869" class="s1"><td class="ln"><a href="#L869">869</a></td><td class="code">      {</td></tr>
+<tr id="L870" class="s1"><td class="ln"><a href="#L870">870</a></td><td class="code">      stc = <a class="id" href="../source/cc.c.html#L541">getch</a>();</td></tr>
+<tr id="L871" class="s1"><td class="ln"><a href="#L871">871</a></td><td class="code">      <span class="kw">if</span> (stc != <span class="st">'"'</span> &amp;&amp; stc != <span class="st">'\\'</span>)</td></tr>
+<tr id="L872" class="s1"><td class="ln"><a href="#L872">872</a></td><td class="code">        *(*cpp)++ = <span class="st">'\\'</span>;</td></tr>
+<tr id="L873" class="s1"><td class="ln"><a href="#L873">873</a></td><td class="code">      *(*cpp)++ = stc;</td></tr>
+<tr id="L874" class="s1"><td class="ln"><a href="#L874">874</a></td><td class="code">      }</td></tr>
+<tr id="L875" class="s1"><td class="ln"><a href="#L875">875</a></td><td class="code">  <span class="kw">else</span></td></tr>
+<tr id="L876" class="s1"><td class="ln"><a href="#L876">876</a></td><td class="code">    {</td></tr>
+<tr id="L877" class="s1"><td class="ln"><a href="#L877">877</a></td><td class="code">    *(*cpp)++ = stc;</td></tr>
+<tr id="L878" class="s1"><td class="ln"><a href="#L878">878</a></td><td class="code">    <span class="kw">if</span> (stc == <span class="st">'('</span>)</td></tr>
+<tr id="L879" class="s1"><td class="ln"><a href="#L879">879</a></td><td class="code">        paren++;</td></tr>
+<tr id="L880" class="s1"><td class="ln"><a href="#L880">880</a></td><td class="code">    <span class="kw">if</span> (stc == <span class="st">')'</span>)</td></tr>
+<tr id="L881" class="s1"><td class="ln"><a href="#L881">881</a></td><td class="code">        paren--;</td></tr>
+<tr id="L882" class="s1"><td class="ln"><a href="#L882">882</a></td><td class="code">    }</td></tr>
+<tr id="L883" class="s1"><td class="ln"><a href="#L883">883</a></td><td class="code">  }</td></tr>
+<tr id="L884" class="s1"><td class="ln"><a href="#L884">884</a></td><td class="code">*(*cpp)++ = <span class="nu">0</span>;</td></tr>
+<tr id="L885" class="s1"><td class="ln"><a href="#L885">885</a></td><td class="code"><a class="id" href="../source/cc.c.html#L578">ungetc</a>(stc);</td></tr>
+<tr id="L886" class="s1"><td class="ln"><a href="#L886">886</a></td><td class="code"><span class="kw">return</span>(val);</td></tr>
+<tr id="L887" class="s1"><td class="ln"><a href="#L887">887</a></td><td class="code">}</td></tr>
+<tr id="L888" class="s1"><td class="ln"><a href="#L888">888</a></td><td class="code"><span class="def">letter</span>(c)</td></tr>
+<tr id="L889" class="s1"><td class="ln"><a href="#L889">889</a></td><td class="code">{</td></tr>
+<tr id="L890" class="s1"><td class="ln"><a href="#L890">890</a></td><td class="code"><span class="kw">if</span> ((c &gt;= <span class="st">'a'</span> &amp;&amp; c &lt;= <span class="st">'z'</span>) ||</td></tr>
+<tr id="L891" class="s1"><td class="ln"><a href="#L891">891</a></td><td class="code">    (c &gt;= <span class="st">'A'</span> &amp;&amp; c &lt;= <span class="st">'Z'</span>) ||</td></tr>
+<tr id="L892" class="s1"><td class="ln"><a href="#L892">892</a></td><td class="code">    (c == <span class="st">'_'</span>))</td></tr>
+<tr id="L893" class="s1"><td class="ln"><a href="#L893">893</a></td><td class="code">    <span class="kw">return</span> (<span class="nu">1</span>);</td></tr>
+<tr id="L894" class="s1"><td class="ln"><a href="#L894">894</a></td><td class="code"><span class="kw">else</span></td></tr>
+<tr id="L895" class="s1"><td class="ln"><a href="#L895">895</a></td><td class="code">    <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L896" class="s1"><td class="ln"><a href="#L896">896</a></td><td class="code">}</td></tr>
+<tr id="L897" class="s1"><td class="ln"><a href="#L897">897</a></td><td class="code"><span class="def">letnum</span>(c)</td></tr>
+<tr id="L898" class="s1"><td class="ln"><a href="#L898">898</a></td><td class="code">{</td></tr>
+<tr id="L899" class="s1"><td class="ln"><a href="#L899">899</a></td><td class="code"><span class="kw">if</span> (<a class="id" href="../source/cc.c.html#L888">letter</a>(c) || (c &gt;= <span class="st">'0'</span> &amp;&amp; c &lt;= <span class="st">'9'</span>))</td></tr>
+<tr id="L900" class="s0"><td class="ln"><a href="#L900">900</a></td><td class="code">  <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L901" class="s0"><td class="ln"><a href="#L901">901</a></td><td class="code"><span class="kw">else</span></td></tr>
+<tr id="L902" class="s0"><td class="ln"><a href="#L902">902</a></td><td class="code">  <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L903" class="s0"><td class="ln"><a href="#L903">903</a></td><td class="code">}</td></tr>
+<tr id="L904" class="s0"><td class="ln"><a href="#L904">904</a></td><td class="code">streq(s,t) <span class="kw">char</span> *s, *t;</td></tr>
+<tr id="L905" class="s0"><td class="ln"><a href="#L905">905</a></td><td class="code">{</td></tr>
+<tr id="L906" class="s0"><td class="ln"><a href="#L906">906</a></td><td class="code"><span class="kw">int</span> c;</td></tr>
+<tr id="L907" class="s0"><td class="ln"><a href="#L907">907</a></td><td class="code"><span class="kw">while</span> ( (c= *s++) == *t++)</td></tr>
+<tr id="L908" class="s0"><td class="ln"><a href="#L908">908</a></td><td class="code">   <span class="kw">if</span> (c==<span class="nu">0</span>) <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L909" class="s0"><td class="ln"><a href="#L909">909</a></td><td class="code"><span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L910" class="s0"><td class="ln"><a href="#L910">910</a></td><td class="code">}</td></tr></table></div>
+<nav class="pager"><span></span><a href="c0h.c.html">c0h.c &rarr;</a></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>

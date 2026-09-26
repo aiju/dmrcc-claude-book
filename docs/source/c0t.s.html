@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>c0t.s · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>c0t.s</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 87 &middot; lines 4350&ndash;4508</p>
+<h1><code>c0t.s</code></h1>
+<p class="desc">Pass 0: number scanner (assembly)</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L4350" class="s1"><td class="ln"><a href="#L4350">4350</a></td><td class="code"><span class="cm">/ assure fake printf (no floating)</span></td></tr>
+<tr id="L4351" class="s1"><td class="ln"><a href="#L4351">4351</a></td><td class="code"> </td></tr>
+<tr id="L4352" class="s1"><td class="ln"><a href="#L4352">4352</a></td><td class="code">.globl  fltused; fltused = 0</td></tr>
+<tr id="L4353" class="s1"><td class="ln"><a href="#L4353">4353</a></td><td class="code"> </td></tr>
+<tr id="L4354" class="s1"><td class="ln"><a href="#L4354">4354</a></td><td class="code"><span class="cm">/ convert stream to number; result is type.</span></td></tr>
+<tr id="L4355" class="s1"><td class="ln"><a href="#L4355">4355</a></td><td class="code"><span class="cm">/ value in cval or fcval</span></td></tr>
+<tr id="L4356" class="s1"><td class="ln"><a href="#L4356">4356</a></td><td class="code"> </td></tr>
+<tr id="L4357" class="s1"><td class="ln"><a href="#L4357">4357</a></td><td class="code">fpp = 1</td></tr>
+<tr id="L4358" class="s1"><td class="ln"><a href="#L4358">4358</a></td><td class="code"> </td></tr>
+<tr id="L4359" class="s1"><td class="ln"><a href="#L4359">4359</a></td><td class="code">.globl  _getnum</td></tr>
+<tr id="L4360" class="s1"><td class="ln"><a href="#L4360">4360</a></td><td class="code"> </td></tr>
+<tr id="L4361" class="s1"><td class="ln"><a href="#L4361">4361</a></td><td class="code">.globl  _peekc</td></tr>
+<tr id="L4362" class="s1"><td class="ln"><a href="#L4362">4362</a></td><td class="code">.globl  _getchar</td></tr>
+<tr id="L4363" class="s1"><td class="ln"><a href="#L4363">4363</a></td><td class="code">.globl  _cval</td></tr>
+<tr id="L4364" class="s1"><td class="ln"><a href="#L4364">4364</a></td><td class="code">.globl  _fcval</td></tr>
+<tr id="L4365" class="s1"><td class="ln"><a href="#L4365">4365</a></td><td class="code">.globl  _error</td></tr>
+<tr id="L4366" class="s1"><td class="ln"><a href="#L4366">4366</a></td><td class="code"> </td></tr>
+<tr id="L4367" class="s1"><td class="ln"><a href="#L4367">4367</a></td><td class="code">_getnum:</td></tr>
+<tr id="L4368" class="s1"><td class="ln"><a href="#L4368">4368</a></td><td class="code">        .if     fpp</td></tr>
+<tr id="L4369" class="s1"><td class="ln"><a href="#L4369">4369</a></td><td class="code">        movif   $10.,fr3</td></tr>
+<tr id="L4370" class="s1"><td class="ln"><a href="#L4370">4370</a></td><td class="code">        clrf    fr0</td></tr>
+<tr id="L4371" class="s1"><td class="ln"><a href="#L4371">4371</a></td><td class="code">        .endif</td></tr>
+<tr id="L4372" class="s1"><td class="ln"><a href="#L4372">4372</a></td><td class="code">        clr     nfract</td></tr>
+<tr id="L4373" class="s1"><td class="ln"><a href="#L4373">4373</a></td><td class="code">        clr     totdig</td></tr>
+<tr id="L4374" class="s1"><td class="ln"><a href="#L4374">4374</a></td><td class="code">        clr     decpt</td></tr>
+<tr id="L4375" class="s1"><td class="ln"><a href="#L4375">4375</a></td><td class="code">        clr     _cval</td></tr>
+<tr id="L4376" class="s1"><td class="ln"><a href="#L4376">4376</a></td><td class="code">        mov     2(sp),base</td></tr>
+<tr id="L4377" class="s1"><td class="ln"><a href="#L4377">4377</a></td><td class="code">        mov     r2,-(sp)</td></tr>
+<tr id="L4378" class="s1"><td class="ln"><a href="#L4378">4378</a></td><td class="code">1:</td></tr>
+<tr id="L4379" class="s1"><td class="ln"><a href="#L4379">4379</a></td><td class="code">        jsr     r5,getdig</td></tr>
+<tr id="L4380" class="s1"><td class="ln"><a href="#L4380">4380</a></td><td class="code">                br 2f</td></tr>
+<tr id="L4381" class="s1"><td class="ln"><a href="#L4381">4381</a></td><td class="code">        .if     fpp</td></tr>
+<tr id="L4382" class="s1"><td class="ln"><a href="#L4382">4382</a></td><td class="code">        mulf    fr3,fr0</td></tr>
+<tr id="L4383" class="s1"><td class="ln"><a href="#L4383">4383</a></td><td class="code">        movif   r0,fr1</td></tr>
+<tr id="L4384" class="s1"><td class="ln"><a href="#L4384">4384</a></td><td class="code">        addf    fr1,fr0</td></tr>
+<tr id="L4385" class="s1"><td class="ln"><a href="#L4385">4385</a></td><td class="code">        .endif</td></tr>
+<tr id="L4386" class="s1"><td class="ln"><a href="#L4386">4386</a></td><td class="code">        inc     nfract</td></tr>
+<tr id="L4387" class="s1"><td class="ln"><a href="#L4387">4387</a></td><td class="code">        br      1b</td></tr>
+<tr id="L4388" class="s1"><td class="ln"><a href="#L4388">4388</a></td><td class="code">2:</td></tr>
+<tr id="L4389" class="s1"><td class="ln"><a href="#L4389">4389</a></td><td class="code">        tst     decpt</td></tr>
+<tr id="L4390" class="s1"><td class="ln"><a href="#L4390">4390</a></td><td class="code">        bne     1f</td></tr>
+<tr id="L4391" class="s1"><td class="ln"><a href="#L4391">4391</a></td><td class="code">        clr     nfract</td></tr>
+<tr id="L4392" class="s1"><td class="ln"><a href="#L4392">4392</a></td><td class="code">        cmp     r0,$'.</td></tr>
+<tr id="L4393" class="s1"><td class="ln"><a href="#L4393">4393</a></td><td class="code">        bne     1f</td></tr>
+<tr id="L4394" class="s1"><td class="ln"><a href="#L4394">4394</a></td><td class="code">        mov     pc,decpt</td></tr>
+<tr id="L4395" class="s1"><td class="ln"><a href="#L4395">4395</a></td><td class="code">        br      1b</td></tr>
+<tr id="L4396" class="s1"><td class="ln"><a href="#L4396">4396</a></td><td class="code">1:</td></tr>
+<tr id="L4397" class="s1"><td class="ln"><a href="#L4397">4397</a></td><td class="code">        tst     totdig</td></tr>
+<tr id="L4398" class="s1"><td class="ln"><a href="#L4398">4398</a></td><td class="code">        beq     1f</td></tr>
+<tr id="L4399" class="s1"><td class="ln"><a href="#L4399">4399</a></td><td class="code">        cmp     r0,$'e</td></tr>
+<tr id="L4400" class="s0"><td class="ln"><a href="#L4400">4400</a></td><td class="code">        bne     1f</td></tr>
+<tr id="L4401" class="s0"><td class="ln"><a href="#L4401">4401</a></td><td class="code">        clr     -(sp)</td></tr>
+<tr id="L4402" class="s0"><td class="ln"><a href="#L4402">4402</a></td><td class="code">        clr     _cval</td></tr>
+<tr id="L4403" class="s0"><td class="ln"><a href="#L4403">4403</a></td><td class="code">        mov     pc,decpt</td></tr>
+<tr id="L4404" class="s0"><td class="ln"><a href="#L4404">4404</a></td><td class="code">        clr     _cval</td></tr>
+<tr id="L4405" class="s0"><td class="ln"><a href="#L4405">4405</a></td><td class="code">        mov     $10.,base</td></tr>
+<tr id="L4406" class="s0"><td class="ln"><a href="#L4406">4406</a></td><td class="code">        jsr     pc,_getchar</td></tr>
+<tr id="L4407" class="s0"><td class="ln"><a href="#L4407">4407</a></td><td class="code">        cmp     r0,$'+</td></tr>
+<tr id="L4408" class="s0"><td class="ln"><a href="#L4408">4408</a></td><td class="code">        beq     2f</td></tr>
+<tr id="L4409" class="s0"><td class="ln"><a href="#L4409">4409</a></td><td class="code">        cmp     r0,$'-</td></tr>
+<tr id="L4410" class="s0"><td class="ln"><a href="#L4410">4410</a></td><td class="code">        bne     3f</td></tr>
+<tr id="L4411" class="s0"><td class="ln"><a href="#L4411">4411</a></td><td class="code">        inc     (sp)</td></tr>
+<tr id="L4412" class="s0"><td class="ln"><a href="#L4412">4412</a></td><td class="code">        br      2f</td></tr>
+<tr id="L4413" class="s0"><td class="ln"><a href="#L4413">4413</a></td><td class="code">3:</td></tr>
+<tr id="L4414" class="s0"><td class="ln"><a href="#L4414">4414</a></td><td class="code">        mov     r0,_peekc</td></tr>
+<tr id="L4415" class="s0"><td class="ln"><a href="#L4415">4415</a></td><td class="code">2:</td></tr>
+<tr id="L4416" class="s0"><td class="ln"><a href="#L4416">4416</a></td><td class="code">        jsr     r5,getdig</td></tr>
+<tr id="L4417" class="s0"><td class="ln"><a href="#L4417">4417</a></td><td class="code">                br 2f</td></tr>
+<tr id="L4418" class="s0"><td class="ln"><a href="#L4418">4418</a></td><td class="code">        br      2b</td></tr>
+<tr id="L4419" class="s0"><td class="ln"><a href="#L4419">4419</a></td><td class="code">2:</td></tr>
+<tr id="L4420" class="s0"><td class="ln"><a href="#L4420">4420</a></td><td class="code">        tst     (sp)+</td></tr>
+<tr id="L4421" class="s0"><td class="ln"><a href="#L4421">4421</a></td><td class="code">        beq     2f</td></tr>
+<tr id="L4422" class="s0"><td class="ln"><a href="#L4422">4422</a></td><td class="code">        neg     _cval</td></tr>
+<tr id="L4423" class="s0"><td class="ln"><a href="#L4423">4423</a></td><td class="code">2:</td></tr>
+<tr id="L4424" class="s0"><td class="ln"><a href="#L4424">4424</a></td><td class="code">        sub     _cval,nfract</td></tr>
+<tr id="L4425" class="s0"><td class="ln"><a href="#L4425">4425</a></td><td class="code">1:</td></tr>
+<tr id="L4426" class="s0"><td class="ln"><a href="#L4426">4426</a></td><td class="code">        mov     r0,_peekc</td></tr>
+<tr id="L4427" class="s0"><td class="ln"><a href="#L4427">4427</a></td><td class="code">        tst     totdig</td></tr>
+<tr id="L4428" class="s0"><td class="ln"><a href="#L4428">4428</a></td><td class="code">        bne     1f</td></tr>
+<tr id="L4429" class="s0"><td class="ln"><a href="#L4429">4429</a></td><td class="code">        mov     $39.,r0         <span class="cm">/ "." operator</span></td></tr>
+<tr id="L4430" class="s0"><td class="ln"><a href="#L4430">4430</a></td><td class="code">9:</td></tr>
+<tr id="L4431" class="s0"><td class="ln"><a href="#L4431">4431</a></td><td class="code">        mov     (sp)+,r2</td></tr>
+<tr id="L4432" class="s0"><td class="ln"><a href="#L4432">4432</a></td><td class="code">        rts     pc</td></tr>
+<tr id="L4433" class="s0"><td class="ln"><a href="#L4433">4433</a></td><td class="code">1:</td></tr>
+<tr id="L4434" class="s0"><td class="ln"><a href="#L4434">4434</a></td><td class="code">        tst     decpt</td></tr>
+<tr id="L4435" class="s0"><td class="ln"><a href="#L4435">4435</a></td><td class="code">        bne     1f</td></tr>
+<tr id="L4436" class="s0"><td class="ln"><a href="#L4436">4436</a></td><td class="code">        mov     $21.,r0         <span class="cm">/ fixed constant</span></td></tr>
+<tr id="L4437" class="s0"><td class="ln"><a href="#L4437">4437</a></td><td class="code">        br      9b</td></tr>
+<tr id="L4438" class="s0"><td class="ln"><a href="#L4438">4438</a></td><td class="code">1:</td></tr>
+<tr id="L4439" class="s0"><td class="ln"><a href="#L4439">4439</a></td><td class="code">        .if     fpp</td></tr>
+<tr id="L4440" class="s0"><td class="ln"><a href="#L4440">4440</a></td><td class="code">        movif   $1,fr2</td></tr>
+<tr id="L4441" class="s0"><td class="ln"><a href="#L4441">4441</a></td><td class="code">        mov     nfract,r2</td></tr>
+<tr id="L4442" class="s0"><td class="ln"><a href="#L4442">4442</a></td><td class="code">        mov     r2,-(sp)</td></tr>
+<tr id="L4443" class="s0"><td class="ln"><a href="#L4443">4443</a></td><td class="code">        beq     2f</td></tr>
+<tr id="L4444" class="s0"><td class="ln"><a href="#L4444">4444</a></td><td class="code">        bgt     1f</td></tr>
+<tr id="L4445" class="s0"><td class="ln"><a href="#L4445">4445</a></td><td class="code">        neg     r2</td></tr>
+<tr id="L4446" class="s0"><td class="ln"><a href="#L4446">4446</a></td><td class="code">1:</td></tr>
+<tr id="L4447" class="s0"><td class="ln"><a href="#L4447">4447</a></td><td class="code">        mulf    fr3,fr2</td></tr>
+<tr id="L4448" class="s0"><td class="ln"><a href="#L4448">4448</a></td><td class="code">        sob     r2,1b</td></tr>
+<tr id="L4449" class="s0"><td class="ln"><a href="#L4449">4449</a></td><td class="code">2:</td></tr>
+<tr id="L4450" class="s1"><td class="ln"><a href="#L4450">4450</a></td><td class="code">        tst     (sp)+</td></tr>
+<tr id="L4451" class="s1"><td class="ln"><a href="#L4451">4451</a></td><td class="code">        ble     1f</td></tr>
+<tr id="L4452" class="s1"><td class="ln"><a href="#L4452">4452</a></td><td class="code">        divf    fr2,fr0</td></tr>
+<tr id="L4453" class="s1"><td class="ln"><a href="#L4453">4453</a></td><td class="code">        br      2f</td></tr>
+<tr id="L4454" class="s1"><td class="ln"><a href="#L4454">4454</a></td><td class="code">1:</td></tr>
+<tr id="L4455" class="s1"><td class="ln"><a href="#L4455">4455</a></td><td class="code">        mulf    fr2,fr0</td></tr>
+<tr id="L4456" class="s1"><td class="ln"><a href="#L4456">4456</a></td><td class="code">2:</td></tr>
+<tr id="L4457" class="s1"><td class="ln"><a href="#L4457">4457</a></td><td class="code">        mov     $_fcval,r0</td></tr>
+<tr id="L4458" class="s1"><td class="ln"><a href="#L4458">4458</a></td><td class="code">        movf    fr0,(r0)</td></tr>
+<tr id="L4459" class="s1"><td class="ln"><a href="#L4459">4459</a></td><td class="code">        tst     (r0)+</td></tr>
+<tr id="L4460" class="s1"><td class="ln"><a href="#L4460">4460</a></td><td class="code">        tst     (r0)+</td></tr>
+<tr id="L4461" class="s1"><td class="ln"><a href="#L4461">4461</a></td><td class="code">        bne     1f</td></tr>
+<tr id="L4462" class="s1"><td class="ln"><a href="#L4462">4462</a></td><td class="code">        tst     (r0)+</td></tr>
+<tr id="L4463" class="s1"><td class="ln"><a href="#L4463">4463</a></td><td class="code">        bne     1f</td></tr>
+<tr id="L4464" class="s1"><td class="ln"><a href="#L4464">4464</a></td><td class="code">        tst     (r0)+</td></tr>
+<tr id="L4465" class="s1"><td class="ln"><a href="#L4465">4465</a></td><td class="code">        bne     1f</td></tr>
+<tr id="L4466" class="s1"><td class="ln"><a href="#L4466">4466</a></td><td class="code">        mov     $24.,r0</td></tr>
+<tr id="L4467" class="s1"><td class="ln"><a href="#L4467">4467</a></td><td class="code">        mov     _fcval,_cval</td></tr>
+<tr id="L4468" class="s1"><td class="ln"><a href="#L4468">4468</a></td><td class="code">        br      9b</td></tr>
+<tr id="L4469" class="s1"><td class="ln"><a href="#L4469">4469</a></td><td class="code">1:</td></tr>
+<tr id="L4470" class="s1"><td class="ln"><a href="#L4470">4470</a></td><td class="code">        mov     $23.,r0</td></tr>
+<tr id="L4471" class="s1"><td class="ln"><a href="#L4471">4471</a></td><td class="code">        br      9b</td></tr>
+<tr id="L4472" class="s1"><td class="ln"><a href="#L4472">4472</a></td><td class="code">        .endif</td></tr>
+<tr id="L4473" class="s1"><td class="ln"><a href="#L4473">4473</a></td><td class="code">        .if     1-fpp</td></tr>
+<tr id="L4474" class="s1"><td class="ln"><a href="#L4474">4474</a></td><td class="code">        mov     $fperr,-(sp)</td></tr>
+<tr id="L4475" class="s1"><td class="ln"><a href="#L4475">4475</a></td><td class="code">        jsr     pc,_error</td></tr>
+<tr id="L4476" class="s1"><td class="ln"><a href="#L4476">4476</a></td><td class="code">        tst     (sp)+</td></tr>
+<tr id="L4477" class="s1"><td class="ln"><a href="#L4477">4477</a></td><td class="code">        mov     $21.,r0</td></tr>
+<tr id="L4478" class="s1"><td class="ln"><a href="#L4478">4478</a></td><td class="code">        br      9b</td></tr>
+<tr id="L4479" class="s1"><td class="ln"><a href="#L4479">4479</a></td><td class="code">fperr:  <span class="st">&lt;No floating point!\0&gt;</span>; .even</td></tr>
+<tr id="L4480" class="s1"><td class="ln"><a href="#L4480">4480</a></td><td class="code">        .endif</td></tr>
+<tr id="L4481" class="s1"><td class="ln"><a href="#L4481">4481</a></td><td class="code"> </td></tr>
+<tr id="L4482" class="s1"><td class="ln"><a href="#L4482">4482</a></td><td class="code">getdig:</td></tr>
+<tr id="L4483" class="s1"><td class="ln"><a href="#L4483">4483</a></td><td class="code">        mov     _peekc,r0</td></tr>
+<tr id="L4484" class="s1"><td class="ln"><a href="#L4484">4484</a></td><td class="code">        beq     1f</td></tr>
+<tr id="L4485" class="s1"><td class="ln"><a href="#L4485">4485</a></td><td class="code">        clr     _peekc</td></tr>
+<tr id="L4486" class="s1"><td class="ln"><a href="#L4486">4486</a></td><td class="code">        br      2f</td></tr>
+<tr id="L4487" class="s1"><td class="ln"><a href="#L4487">4487</a></td><td class="code">1:</td></tr>
+<tr id="L4488" class="s1"><td class="ln"><a href="#L4488">4488</a></td><td class="code">        jsr     pc,_getchar</td></tr>
+<tr id="L4489" class="s1"><td class="ln"><a href="#L4489">4489</a></td><td class="code">2:</td></tr>
+<tr id="L4490" class="s1"><td class="ln"><a href="#L4490">4490</a></td><td class="code">        sub     $'0,r0</td></tr>
+<tr id="L4491" class="s1"><td class="ln"><a href="#L4491">4491</a></td><td class="code">        cmp     r0,$9.</td></tr>
+<tr id="L4492" class="s1"><td class="ln"><a href="#L4492">4492</a></td><td class="code">        bhi     1f</td></tr>
+<tr id="L4493" class="s1"><td class="ln"><a href="#L4493">4493</a></td><td class="code">        inc     totdig</td></tr>
+<tr id="L4494" class="s1"><td class="ln"><a href="#L4494">4494</a></td><td class="code">        mov     _cval,r1</td></tr>
+<tr id="L4495" class="s1"><td class="ln"><a href="#L4495">4495</a></td><td class="code">        mul     base,r1</td></tr>
+<tr id="L4496" class="s1"><td class="ln"><a href="#L4496">4496</a></td><td class="code">        add     r0,r1</td></tr>
+<tr id="L4497" class="s1"><td class="ln"><a href="#L4497">4497</a></td><td class="code">        mov     r1,_cval</td></tr>
+<tr id="L4498" class="s1"><td class="ln"><a href="#L4498">4498</a></td><td class="code">        tst     (r5)+</td></tr>
+<tr id="L4499" class="s1"><td class="ln"><a href="#L4499">4499</a></td><td class="code">        rts     r5</td></tr>
+<tr id="L4500" class="s0"><td class="ln"><a href="#L4500">4500</a></td><td class="code">1:</td></tr>
+<tr id="L4501" class="s0"><td class="ln"><a href="#L4501">4501</a></td><td class="code">        add     $'0,r0</td></tr>
+<tr id="L4502" class="s0"><td class="ln"><a href="#L4502">4502</a></td><td class="code">        rts     r5</td></tr>
+<tr id="L4503" class="s0"><td class="ln"><a href="#L4503">4503</a></td><td class="code"> </td></tr>
+<tr id="L4504" class="s0"><td class="ln"><a href="#L4504">4504</a></td><td class="code">.bss</td></tr>
+<tr id="L4505" class="s0"><td class="ln"><a href="#L4505">4505</a></td><td class="code">base:   .=.+2</td></tr>
+<tr id="L4506" class="s0"><td class="ln"><a href="#L4506">4506</a></td><td class="code">nfract: .=.+2</td></tr>
+<tr id="L4507" class="s0"><td class="ln"><a href="#L4507">4507</a></td><td class="code">decpt:  .=.+2</td></tr>
+<tr id="L4508" class="s0"><td class="ln"><a href="#L4508">4508</a></td><td class="code">totdig: .=.+2</td></tr></table></div>
+<nav class="pager"><a href="c05.c.html">&larr; c05.c</a><a href="c1h.c.html">c1h.c &rarr;</a></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>
