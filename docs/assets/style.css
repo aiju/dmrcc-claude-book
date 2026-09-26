@@ -403,3 +403,9 @@ pre.tmpl { margin: .3rem 0 .2rem; padding: .35rem .6rem; font-size: 13.5px; back
 .c2cols pre { margin: .3rem 0 0; font-size: 13.5px; }
 .asm .del { background: rgba(192, 57, 43, .16); text-decoration: line-through; color: var(--muted); display: inline-block; min-width: 100%; }
 .asm .add { background: var(--greenbar); display: inline-block; min-width: 100%; }
+@media (max-width: 480px) {
+  .frontpanel { gap: 4px; }
+  .fp-group { gap: 3px; padding: 6px 5px 5px; }
+  .lamp { width: 10px; height: 10px; }
+  .switch { width: 10px; height: 24px; }
+}

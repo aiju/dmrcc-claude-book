@@ -568,7 +568,7 @@ def build_index(chs, src):
     text = text.replace('<!-- TOC -->', toc)
     text = topbar('', []) + text
     open(os.path.join(OUT, 'index.html'), 'w').write(
-        page(BOOK_TITLE + ', with Commentary', text, '', ['listing-data.js', 'reader.js'] + meta(text, 'scripts').split(), 'cover'))
+        page(BOOK_TITLE, text, '', ['listing-data.js', 'reader.js'] + meta(text, 'scripts').split(), 'cover'))
 
 
 def main():
