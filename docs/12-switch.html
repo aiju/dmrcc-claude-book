@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Switch Statement · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="chpage">
+<header class="topbar"><nav><a class="home" href="index.html">The Sixth Edition C Compiler</a><span class="sep">/</span>Chapter 12</nav><div class="tools"><a href="contents.html">Contents</a><a href="source/index.html">Listing</a><a href="xref.html">Index</a></div></header>
+<div class="reader">
+<main class="prose chapter">
+<header class="chead">
+<p class="eyebrow">Chapter 12</p>
+<h1>The Switch Statement</h1>
+<nav class="local"><ol><li><a href="#direct">A jump table</a></li><li><a href="#simple">A linear search</a></li><li><a href="#hash">A hash table</a></li><li><a href="#try">Try it</a></li></ol></nav>
+</header>
+<!-- title: The Switch Statement -->
+<!-- number: 12 -->
+<!-- short: Switch -->
+<!-- scripts: switch.js -->
+<!-- blurb: The three ways c1 dispatches a switch: a jump table, a linear search with a sentinel, and a small hash table whose buckets hold quotients. -->
+
+<p>Of all the statements, <code>switch</code> is the only one whose code is not a simple arrangement
+of branches. <code>c0</code> compiles the body with the case labels in it, puts the controlling value
+in <code>r0</code>, and hands <code>c1</code> a <code>SWIT</code> record listing the values, their labels, and the
+default (<a href="08-statements.html#switch">chapter 8</a>). <code>getree</code> reads the list into the
+now unused tree space and calls <code>pswitch</code> (<a class="lref" data-file="c11.c" data-line="6524" href="source/c11.c.html#L6524">6524&ndash;6533</a>).</p>
+
+<p><code>pswitch</code> (<a class="lref" data-file="c11.c" data-line="6141" href="source/c11.c.html#L6141">6141&ndash;6225</a>) is under a hundred lines, and contains three different
+dispatch methods, each worth a look. It first sorts the cases with a bubble sort, which is also
+where duplicate values are found and reported (<a class="lref" data-file="c11.c" data-line="6227" href="source/c11.c.html#L6227">6227&ndash;6256</a>). Then it chooses.</p>
+
+<h2 id="direct">A jump table</h2>
+
+<p>If the values are dense, meaning the range from the smallest to the largest is no more than three
+times the number of cases, <code>pswitch</code> builds a table with one entry for every value in the
+range (<a class="lref" data-file="c11.c" data-line="6160" href="source/c11.c.html#L6160">6160&ndash;6174</a>). The code, from the string <code>dirsw</code> (<a class="lref" data-file="c11.c" data-line="6107" href="source/c11.c.html#L6107">6107&ndash;6114</a>), subtracts
+the smallest value, compares with the range, and jumps through the table:</p>
+
+<pre>sub	$1,r0
+cmp	r0,$3
+jhi	L2
+asl	r0
+jmp	*L10001(r0)
+.data
+L10001:L4
+L5
+L2
+L6
+.text</pre>
+
+<p>This is <code>dense()</code> from <code>sw.c</code>, with cases 1, 2 and 4. Values in the range that have no
+case, here 3, get the default label in the table. The comparison uses <code>jhi</code>, the unsigned
+branch, which catches values below the smallest case as well as above the largest: after the
+subtraction they are negative, and a negative number compared unsigned is very large. One
+comparison checks both bounds.</p>
+
+<h2 id="simple">A linear search</h2>
+
+<p>If the values are spread out and there are fewer than eight of them, <code>pswitch</code> searches a
+list (<a class="lref" data-file="c11.c" data-line="6175" href="source/c11.c.html#L6175">6175&ndash;6188</a>):</p>
+
+<pre>mov	$L10003,r1
+mov	r0,L10004
+L10005:cmp	r0,(r1)+
+jne	L10005
+jmp	*L10004-L10003(r1)
+.data
+L10003:1
+144
+1750
+L10004:..
+L10
+L11
+L12
+L8
+.text</pre>
+
+<p>The list of values, 1, 100 and 1000, is followed by a spare word, and before searching, the code
+stores the value being looked for in that word. So the search is certain to find it, and the loop
+needs only one comparison per step, with no test for the end of the list. This is the sentinel
+technique, and the word is overwritten each time the switch is executed; the <code>..</code> the compiler
+writes into it is just a placeholder.</p>
+
+<p>When the loop stops, <code>r1</code> points just past the matching value. The labels are laid out in a
+second list, at a fixed distance from the first, so <code>jmp *L10004-L10003(r1)</code>, which adds that
+distance to <code>r1</code>, fetches the label that corresponds to the value found. The label after the
+last case label, matching the sentinel, is the default.</p>
+
+<h2 id="hash">A hash table</h2>
+
+<p>With eight or more widely spread values, <code>pswitch</code> builds a hash table
+(<a class="lref" data-file="c11.c" data-line="6189" href="source/c11.c.html#L6189">6189&ndash;6222</a>). The hash function is the remainder on division by the number of buckets. To
+choose that number, <code>pswitch</code> tries every value between a quarter and a half of the number of
+cases, and keeps the one that minimizes the number of buckets multiplied by the size of the
+largest bucket, a rough measure of table size and search time together (<a class="lref" data-file="c11.c" data-line="6190" href="source/c11.c.html#L6190">6190&ndash;6204</a>).</p>
+
+<p>The code, from <code>hashsw</code> (<a class="lref" data-file="c11.c" data-line="6126" href="source/c11.c.html#L6126">6126&ndash;6139</a>), for <code>many()</code> in <code>sw.c</code>, with ten cases
+and two buckets:</p>
+
+<pre>mov	r0,r1
+clr	r0
+div	$2,r0
+asl	r1
+add	$L10008,r1
+mov	r0,*(r1)+
+mov	(r1)+,r1
+L10007:cmp	r0,-(r1)
+jne	L10007
+jmp	*L10011-L10009(r1)</pre>
+
+<p>The value is divided by the number of buckets, leaving the quotient in <code>r0</code> and the remainder
+in <code>r1</code>. The remainder, doubled, indexes a directory of bucket addresses, <code>L10008</code>. Each bucket
+begins with a spare word, and the quotient is stored into it through the directory entry, which
+is the sentinel trick again. Then <code>r1</code> is set to the start of the next bucket, which is the end
+of this one, and the bucket is searched backwards with autodecrement until the quotient is found.
+Finally the label is fetched from a parallel table, as in the linear search.</p>
+
+<p>The buckets hold quotients, not values. Within a bucket every value has the same remainder, so
+the quotient alone identifies it, and the comparison can use the number already in <code>r0</code>. The
+data for <code>many()</code> is</p>
+
+<pre>L10008:L10009           <span class="cm">/ directory: bucket 0,</span>
+L10010                  <span class="cm">/ bucket 1,</span>
+L10011                  <span class="cm">/ end of the last bucket</span>
+L10009:..               <span class="cm">/ bucket 0: the even cases</span>
+67                      <span class="cm">/ 110/2 = 55</span>
+175                     <span class="cm">/ 250/2 = 125</span>
+400
+1000
+1750
+2734
+L10010:..               <span class="cm">/ bucket 1: the odd cases</span>
+1                       <span class="cm">/ 3/2 = 1</span>
+10                      <span class="cm">/ 17/2 = 8</span>
+310
+604
+L10011:L14              <span class="cm">/ labels, in the same layout</span>
+...</pre>
+
+<p>The directory has one more entry than there are buckets, so that the end of the last bucket can
+be found the same way as the others; conveniently it is also the start of the label table.</p>
+
+<h2 id="try">Try it</h2>
+
+<p>The figure is a JavaScript version of <code>pswitch</code> that prints the same code. Case <i>n</i> in
+the list gets the label L<i>n</i>, and the default is L99; the other labels are numbered from
+10000, as in <code>c1</code>. Enter a value to see the dispatch code at work on it.</p>
+
+<div class="widget" data-widget="switch">
+<div class="wbar"><span class="wt">pswitch()</span>
+<span class="row">
+<button type="button" class="btn" data-vals="1, 2, 4">Dense</button>
+<button type="button" class="btn" data-vals="1, 100, 1000">Few</button>
+<button type="button" class="btn" data-vals="3, 17, 110, 250, 401, 512, 777, 1024, 2000, 3000">Many</button>
+<button type="button" class="btn" data-vals="97, 101, 105, 111, 117">Vowels</button>
+</span></div>
+<div class="wbody">
+<div class="row">
+<span style="flex:3 1 16rem"><label for="swv">Case values</label><input type="text" id="swv" class="swvals" value="3, 17, 110, 250, 401, 512, 777, 1024, 2000, 3000" spellcheck="false"></span>
+<span style="flex:1 1 7rem"><label for="swx">Switch on</label><input type="text" id="swx" class="swval" value="401" spellcheck="false"></span>
+</div>
+<div class="swwhy" style="margin-top:.8rem"></div>
+<div class="pair">
+<div><div class="stackhead">Code</div><pre class="swcode tree-txt"></pre></div>
+<div><div class="stackhead">Dispatch</div><div class="swsim"></div></div>
+</div>
+</div>
+</div>
+
+<p>The vowels of <a href="14-walkthrough.html">chapter 14</a> are 97, 101, 105, 111 and 117: five
+values over a range of twenty, which is more than three times five, so they get a linear search.
+Add a sixth vowel, <code>'y'</code>, 121, and the range of 24 is still too wide for six cases. Add
+enough values to reach eight and the hash table appears.</p>
+
+<nav class="pager"><a href="11-codegen.html">&larr; Code generation</a><span></span></nav>
+</main>
+<aside class="panel" id="panel" hidden>
+<div class="panelbar"><span class="pfile"></span><button type="button" class="pclose" aria-label="Close listing">Close</button></div>
+<div class="pbody"></div>
+</aside>
+</div>
+<script src="assets/book.js"></script>
+<script src="assets/listing-data.js"></script><script src="assets/reader.js"></script><script src="assets/switch.js"></script>
+</body>
+</html>
