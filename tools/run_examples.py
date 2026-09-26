@@ -12,7 +12,7 @@ produced in examples/out/:
 
     python3 tools/run_examples.py [NAME ...]
 """
-import glob, os, sys
+import glob, os, re, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'v6'))
 from v6 import V6
 
@@ -37,20 +37,25 @@ def main(names):
         for path in files:
             name = os.path.basename(path)[:-2]
             text = open(path).read().rstrip('\n')
+            # An example can ask for extra cc flags with a first line
+            # like "/* cc -f */"; -f selects the floating-point passes.
+            m = re.match(r'/\* cc (.*?) \*/', text)
+            flags = (m.group(1) + ' ') if m else ''
+            lib = '/lib/f' if '-f' in flags else '/lib/'
             u.put('x.c', text)
-            err = u.run('cc -S x.c')
+            err = u.run('cc -S ' + flags + 'x.c')
             save(name, '.err', err)
             save(name, '.s', u.run('cat x.s'))
             u.run('rm x.s')
-            u.run('cc -S -O x.c')
+            u.run('cc -S -O ' + flags + 'x.c')
             save(name, '.O.s', u.run('cat x.s'))
-            u.run('/lib/c0 x.c t1 t2')
+            u.run(lib + 'c0 x.c t1 t2')
             save(name, '.i', u.run('od -b t1'))
             save(name, '.i2', u.run('od -b t2'))
-            u.run('/lib/c1 t1 t2 x.s')
+            u.run(lib + 'c1 t1 t2 x.s')
             save(name, '.c2', u.run('/lib/c2 - x.s y.s'))
             if 'main(' in text:
-                u.run('cc x.c')
+                u.run('cc ' + flags + 'x.c')
                 save(name, '.run', u.run('a.out'))
             u.run('rm x.s y.s t1 t2 a.out')
             print(name, file=sys.stderr)
