@@ -27,9 +27,9 @@ table of opcode names, and <code>subop</code> is the condition of a conditional 
 byte form of an instruction. A label that is a number, <code>L</code> followed by digits, is stored as that
 number, so labels can be compared with integers; jumps to such labels have the number in
 <code>labno</code>, and after <code>refcount</code> has run, a pointer to the label's node in <code>ref</code>. Anything
-else, operands included, is kept as a string in <code>code</code>. Lines the table does not know, such as
-the data of a switch table or the debugger's symbols, have <code>op</code> 0 and are carried through
-unchanged.</p>
+else, operands included, is kept as a string in <code>code</code>. Lines the table does not know, such as the values in a switch table or the debugger's symbols,
+have <code>op</code> 0 and are carried through unchanged. The labels in a switch table are recognised
+as a kind of their own, <code>JSW</code>, so that they count as references ([[c20.c:400-406]]).</p>
 
 <p>The input is processed one function at a time. <code>input</code> ([[c20.c:147-202]]) stops at each
 <code>.globl</code>, which <code>c1</code> writes before every function, and <code>main</code> ([[c20.c:65-145]]) then
@@ -49,7 +49,8 @@ until an iteration makes no change.</p>
 <h2 id="jumps">Jumps</h2>
 
 <p><code>refcount</code> ([[c20.c:412-449]]) finds each jump's label and counts the references to every
-label. A jump to one of several consecutive labels is redirected to the first. A label with no
+label. A jump to one of several consecutive labels is redirected to the last of them, the one
+immediately before the next instruction. A label with no
 references is deleted, which is where most of the &ldquo;redundant labels&rdquo; in the statistics
 come from.</p>
 
@@ -97,8 +98,8 @@ sob	r3,L4</pre>
 
 <p><code>rmove</code> ([[c21.c:8-145]]) is the most intricate routine in <code>c2</code>. It walks through the code
 keeping, for each register, a string saying what the register is known to hold: <code>regs[r]</code>
-might be <code>-10(r5)</code> after <code>mov -10(r5),r1</code>, or <code>$0</code> after <code>clr r1</code>. Any label or jump
-clears everything, since control may arrive from elsewhere. Any instruction that writes to a
+might be <code>-10(r5)</code> after <code>mov -10(r5),r1</code>, or <code>$0</code> after <code>clr r1</code>. Any label or unconditional jump clears everything, since control may arrive from elsewhere;
+a conditional jump forgets only the condition codes. Any instruction that writes to a
 location clears the registers that held it, and one that writes through a pointer clears
 everything that might be in memory, since the pointer could point anywhere ([[c21.c:296-317]]).
 With this information it:</p>

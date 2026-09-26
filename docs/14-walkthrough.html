@@ -252,8 +252,9 @@ L13:.byte 45,144,12,0</pre>
 <p>With <code>-O</code>, <code>c1</code>'s output goes through <code>c2</code> (<a href="13-c2.html">chapter 13</a>).
 <code>movedat</code> moves the switch table to the front. Then <code>refcount</code> finds that the five
 consecutive case labels <code>L8</code> to <code>L12</code> are one place, and makes every reference use the
-last one, <code>L12</code>. Jumps to jumps disappear: the end of the switch, <code>L6</code>, is the same place as
-the increment <code>L5</code>. <code>codemove</code> moves the dispatch code, which was reachable only by a jump,
+last one, <code>L12</code>. The end of the switch, <code>L6</code>, is immediately followed by the increment's label <code>L5</code>, so
+it is merged into it, and the <code>jbr L5</code> just before <code>L5:</code> is removed as a jump to the
+next instruction. <code>codemove</code> moves the dispatch code, which was reachable only by a jump,
 to where it is jumped from, inside the loop, and the loop is inverted so that the test is at the
 bottom:</p>
 

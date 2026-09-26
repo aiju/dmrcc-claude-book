@@ -53,7 +53,7 @@
     return '(' + infix(k[0]) + ' ' + opText(n.op) + ' ' + infix(k[1]) + ')';
   }
   // pattern letters, as translated by cvopt.c and tested by match()
-  var DEG = {z: 'zero', '1': 'the constant 1', c: 'a positive constant', r: 'a register', i: 'addressable',
+  var DEG = {z: 'zero', '1': 'the constant 0 or 1', c: 'a small constant', r: 'a register or a constant', i: 'addressable',
              a: 'addressable', e: 'computable in the free registers', n: 'anything'};
   var TYP = {w: 'word', b: 'byte', f: 'float or double', d: 'double', l: 'long', s: 'struct', i: 'int', p: 'pointer'};
   function explainOperand(s) {

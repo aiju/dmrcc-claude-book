@@ -35,8 +35,8 @@ register ([[c10.c:326-345]]). So the other tables need only contain the cases wh
 better than that.</p>
 
 <p>A fifth table, <code>lsptab</code>, has no entries of its own. It is <code>sptab</code> with one difference:
-it stores into <code>(sp)</code> instead of pushing onto <code>-(sp)</code>. It is used for the first argument
-of a call, which goes into the free word at the top of the stack
+it stores into <code>(sp)</code> instead of pushing onto <code>-(sp)</code>. It is used for the first argument evaluated, which is the last one in the source, since
+arguments are compiled from right to left; that one goes into the free word at the top of the stack
 (<a href="01-overview.html#frames">chapter 1</a>). <code>match</code> quietly substitutes <code>sptab</code> for
 it ([[c10.c:88-89]]), and the difference is made when the template is expanded.</p>
 
@@ -142,8 +142,9 @@ abbreviates the macros into single characters, as its comment records ([[cvopt.c
 <code>I</code>, and so on. A subtree macro is followed by one more letter that encodes its
 modifiers: <code>A</code> plus 1 for <code>*</code>, 2 for <code>S</code>, 4 for <code>C</code> and 8 for <code>1</code>, so that
 <code>F</code> becomes <code>GA</code> and <code>F*</code> becomes <code>GB</code>. <code>cexpr</code> decodes them by subtracting
-<code>'A'</code> ([[c10.c:545-560]]). A tab at the start of a line becomes the top bit of the
-next character. The difficulty letters become numbers that <code>match</code> can compare with the
+<code>'A'</code> ([[c10.c:545-560]]). The leading tab of every template line is dropped, and a tab inside a line, between the
+instruction and its operands, is stored as the top bit of the character after it, which
+<code>cexpr</code> turns back into a tab ([[c10.c:453-457]]). The difficulty letters become numbers that <code>match</code> can compare with the
 result of <code>dcalc</code>: <code>z</code> is 4, <code>1</code> is 5, <code>c</code> is 8, <code>r</code> is 9, <code>a</code> is 16,
 <code>e</code> is 20 and <code>n</code> is 63, and <code>*</code> adds 0100.</p>
 

@@ -63,8 +63,8 @@ statement is not wanted. The space for tree nodes is reclaimed after every expre
 <p>The node layouts of <code>c1</code> (<a class="lref" data-file="c1h.c" data-line="4557" href="source/c1h.c.html#L4557">4557&ndash;4598</a>) look like <code>c0</code>'s, but the third word of every
 node is now <code>degree</code>, an estimate of the number of registers needed to evaluate it, which
 the optimizer fills in. Name nodes are rearranged too: class and register number are packed into
-one word as two bytes, followed by an offset and a location, and an external name is stored
-directly after the node, eight bytes of it, so the node for <code>_printf</code> is nine words long.</p>
+one word as two bytes, followed by an offset and a location, and an external name is stored, eight bytes of it, starting in the location word, so the
+node for <code>_printf</code> is nine words long (<a class="lref" data-file="c11.c" data-line="6546" href="source/c11.c.html#L6546">6546&ndash;6553</a>).</p>
 
 <h2 id="names">Names become addresses</h2>
 
@@ -91,8 +91,8 @@ does most of the work (<a class="lref" data-file="c12.c" data-line="6858" href="
 <ul>
 <li><code>*&amp;x</code> is <code>x</code>.</li>
 <li><code>*r</code>, with <code>r</code> a register variable, is <code>OFFS</code> with offset 0: <code>(r4)</code>.</li>
-<li><code>*r++</code> and <code>*--r</code> become <code>AUTOI</code> and <code>AUTOD</code>, if the increment matches the size
-of the object, which is what the type check at <a class="lref" data-file="c12.c" data-line="6868" href="source/c12.c.html#L6868">6868&ndash;6869</a> ensures.</li>
+<li><code>*r++</code> and <code>*--r</code> become <code>AUTOI</code> and <code>AUTOD</code>, provided the register's type is the type of the increment node and the object is not a
+<code>long</code> (<a class="lref" data-file="c12.c" data-line="6868" href="source/c12.c.html#L6868">6868&ndash;6869</a>).</li>
 <li><code>*(r + c)</code> becomes <code>OFFS</code> with offset <code>c</code>.</li>
 <li><code>*(r + &amp;x)</code> becomes <code>XOFFS</code> or <code>SOFFS</code>: <code>_x(r)</code>, which is how arrays are
 subscripted with an index in a register.</li>
@@ -120,7 +120,7 @@ compiler's name for <code>bic</code>'s operation (<a class="lref" data-file="c12
 <code>=&amp;~</code> (<a class="lref" data-file="c12.c" data-line="6729" href="source/c12.c.html#L6729">6729&ndash;6738</a>). When <code>b</code> is a constant, the complement is folded into it, so
 <code>x &amp; 7</code> costs a single <code>bic $-10</code>. When the value is only being tested, as in
 <code>if (a &amp; 010)</code>, the code generator turns the operator into <code>TAND</code> to use the
-<code>bit</code> instruction instead (<a class="lref" data-file="c10.c" data-line="5076" href="source/c10.c.html#L5076">5076&ndash;5086</a>); see <code>gen.c</code> in the next chapter.</li>
+<code>bit</code> instruction instead (<a class="lref" data-file="c10.c" data-line="5076" href="source/c10.c.html#L5076">5076&ndash;5086</a>); see <code>gen.c</code> in chapter 11.</li>
 <li><strong>Right shifts.</strong> <code>ash</code> shifts left by a positive count and right by a
 negative one, so <code>x &gt;&gt; n</code> becomes <code>x &lt;&lt; -n</code>, except for a shift by one, for which
 there is <code>asr</code> (<a class="lref" data-file="c12.c" data-line="6782" href="source/c12.c.html#L6782">6782&ndash;6799</a>).</li>
@@ -151,8 +151,8 @@ demanding operand, which can be done first (<a class="lref" data-file="c12.c" da
 of leaves come from <code>degree</code> (<a class="lref" data-file="c11.c" data-line="5814" href="source/c11.c.html#L5814">5814&ndash;5833</a>):
 constants count &minus;3 and addresses &minus;2, since they need no register at all and can
 appear as immediate operands; other leaves count 0, except <code>char</code> and <code>float</code>, which must
-be converted in a register and count 1. Multiplication and division add 2 to their operands'
-degrees, because they tie up a pair of registers, and a call counts 10, since it destroys the
+be converted in a register and count 1. Division and remainder add 2 to their operands' degrees, because they tie up a pair of
+registers, and multiplication adds 1, and a call counts 10, since it destroys the
 contents of every register the callee may use.</p>
 
 <p>Degrees are used in two places. The code tables choose between templates by comparing an
