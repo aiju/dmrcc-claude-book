@@ -1,0 +1,31 @@
+% cc vowels.c
+% size a.out
+674+98+530=1302 (2426)
+% a.out
+3
+% cc -O vowels.c
+% size a.out
+670+98+530=1298 (2422)
+% a.out
+3
+% cc -c -O vowels.c
+% size vowels.o
+62+44+0=106 (152)
+% nm vowels.o
+000130d L1
+000100d L10001
+000112d L10002
+000032t L10003
+000042t L12
+000145d L13
+000020t L20001
+000050t L3
+000046t L5
+000000T _main
+      U _printf
+000076D _s
+      U cret
+      U csv
+177770a n
+000004a p
+000000t ~main

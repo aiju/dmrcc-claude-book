@@ -1,0 +1,164 @@
+<!-- title: One Program, Start to Finish -->
+<!-- number: 14 -->
+<!-- short: Walkthrough -->
+<!-- scripts: v6.js ifile.js c1view.js c2view.js -->
+<!-- blurb: A small program followed through every stage of the compiler, with the real intermediate file, trees, templates and code at each step. -->
+
+<p>This chapter follows one program through the whole compiler, pass by pass, using what the
+compiler really produced at each step. It pulls together the previous chapters, and can also be
+read first, as a tour, with the links used to find the details.</p>
+
+<p>The program counts the vowels in a string:</p>
+
+<pre>[[include:examples/vowels.c]]</pre>
+
+<p>It uses an external variable with an initializer, a register variable, a <code>for</code> loop, a
+<code>switch</code> with several cases sharing one action, and a call. Here is the whole session on the
+simulated PDP-11, compiled without and then with <code>-O</code>:</p>
+
+<pre>[[include:examples/extra/vowels.session]]</pre>
+
+<p>&ldquo;hello, world&rdquo; has three vowels, so the answer is right. The rest of the chapter
+explains how it was reached.</p>
+
+<h2 id="cc">cc</h2>
+
+<p><code>cc</code> sees one argument ending in <code>.c</code> ([[cc.c:102-114]]), creates its temporary files, and
+calls <code>expand</code>. The file begins with <code>/</code>, not <code>#</code>, so there is nothing to preprocess, and
+<code>c0</code> is given <code>vowels.c</code> itself ([[cc.c:249-252]]). Then <code>c1</code>, <code>c2</code> if asked for,
+<code>as</code>, and, since <code>-c</code> was not given, <code>ld</code> with <code>crt0.o</code> and the C library.</p>
+
+<h2 id="c0">c0</h2>
+
+<p><code>c0</code>'s main loop calls <code>extdef</code> for each external definition
+(<a href="03-c0.html#main">chapter 3</a>). The first token is the comment, which <code>symbol</code> skips
+(<a href="04-lexer.html">chapter 4</a>), and then the keyword <code>char</code>.</p>
+
+<h3>The external</h3>
+
+<p><code>extdef</code> reads the keywords with <code>getkeywords</code> and the declarator <code>*s</code> with
+<code>decl1</code> and <code>getype</code>, giving <code>s</code> the type pointer to <code>char</code>, 011 octal
+(<a href="07-declarations.html">chapter 7</a>). Its class is <code>EXTERN</code>, and because it is being
+defined at the outer level it gets the flag <code>FNDEL</code>, so it will survive the end of the next
+function. <code>extdef</code> writes <code>SYMDEF</code>, which will become <code>.globl _s</code>. The declarator is not
+a function, so <code>cinit</code> handles the initializer. The next token is a string, but the object is a
+pointer, not an array of <code>char</code>, so the string is an ordinary expression: <code>tree</code> turns it into
+the address of a static array labelled <code>L1</code>, whose bytes go to the string file, and
+<code>cinit1</code> writes the address as an <code>INIT</code> tree
+(<a href="07-declarations.html#externals">chapter 7</a>).</p>
+
+<h3>main</h3>
+
+<p>The next external definition is <code>main()</code>. <code>getype</code> sees the parentheses and makes it a
+function, and <code>extdef</code> calls <code>cfunc</code> (<a href="08-statements.html#functions">chapter 8</a>),
+which writes <code>PROG</code> and <code>RLABEL</code> and allocates <code>L2</code> for the exit. The body's
+declarations are read by <code>blkhed</code>. <code>register char *p</code> takes <code>r4</code>, and <code>regvar</code>
+drops to 4. <code>int n</code> is automatic: <code>autolen</code> goes from 6 to 8, so <code>n</code> is at &minus;8.
+<code>blkhed</code> writes debugger records for both, then <code>SETREG 4</code>, and returns 8, which
+becomes <code>SAVE 8</code>.</p>
+
+<p>Then the statements:</p>
+
+<ul>
+<li><code>n = 0;</code> is an expression statement: <code>tree</code> builds <code>=</code> with <code>n</code> and <code>0</code>
+(<a href="05-expressions.html">chapter 5</a>), and <code>rcexpr</code> writes it out with an <code>EXPR</code>
+record.</li>
+<li>The <code>for</code> writes its initialization <code>p = s</code>, the label <code>L3</code> for the test, and the
+test <code>*p</code> as a <code>CBRANCH</code> to <code>L4</code> if false. The increment <code>p++</code> is parsed and kept in
+memory, with <code>treespace</code> moved above it, and <code>L5</code> is allocated for it
+(<a href="08-statements.html#for">chapter 8</a>).</li>
+<li>The body is the <code>switch</code>. <code>*p</code> is written inside an <code>RFORCE</code>, a jump to <code>L7</code> is
+written where the dispatch code will go, and the body is compiled. Each <code>case</code> reads its
+constant with <code>conexp</code>, allocates a label, <code>L8</code> to <code>L12</code>, and records the value and label
+in <code>swtab</code>. <code>n++</code> is written, carrying the constant 1 as its increment. After the body,
+<code>pswitch</code> writes a jump to <code>L6</code>, the end of the switch; the label <code>L7</code>; and the
+<code>SWIT</code> record with the default <code>L6</code> and the five pairs.</li>
+<li>Back in <code>forstmt</code>, the label <code>L5</code> and the saved increment are written, then a jump back
+to the test, and the exit label <code>L4</code>.</li>
+<li>The call to <code>printf</code> is one tree: <code>CALL</code> with the function name and a <code>,</code> joining the
+address of the format string, <code>L13</code>, and <code>n</code>.</li>
+</ul>
+
+<p>Finally <code>cfunc</code> writes <code>L2</code> and <code>RETRN</code>, and <code>blkend</code> removes <code>p</code> and <code>n</code> from
+the symbol table. Here is the file that resulted, byte by byte:</p>
+
+<div class="widget" data-widget="ifile">
+<div class="wbar"><span class="wt">vowels.c after c0</span><span class="row"><button type="button" class="btn prev">&larr; Previous</button><button type="button" class="btn next">Next &rarr;</button></span></div>
+<div class="wbody"><p class="muted">This figure needs JavaScript.</p></div>
+<script type="application/json">[[bytes:examples/out/vowels.i]]</script>
+</div>
+
+<h2 id="c1">c1</h2>
+
+<p><code>c1</code> reads the file with <code>getree</code> (<a href="09-c1-trees.html">chapter 9</a>). The first
+records print <code>.globl _s</code>, <code>.data</code> and <code>_s:</code> directly. The <code>INIT</code> tree prints the
+address, <code>L1</code>. <code>PROG</code>, <code>RLABEL</code> and the debugger records become <code>.text</code>,
+<code>_main:</code>, <code>~~main:</code>, <code>~n=177770</code> and <code>~p=r4</code>. <code>SETREG 4</code> sets <code>nreg</code> to 3,
+leaving <code>r0</code> to <code>r3</code> for expressions, and <code>SAVE 8</code> becomes <code>jsr r5,csv</code> and
+<code>tst -(sp)</code>: two bytes beyond the save area are needed for <code>n</code>, and that is exactly the word
+<code>csv</code> already reserved, so one more word is pushed as the free word at the top of the stack
+(<a href="01-overview.html#frames">chapter 1</a>).</p>
+
+<p>Each <code>EXPR</code> sends a tree through <code>optim</code> and <code>rcexpr</code>. Step through them here to see
+the tree, the code-table entries chosen for it
+(<a href="10-tables.html">chapter 10</a>, <a href="11-codegen.html">chapter 11</a>), and the code:</p>
+
+<div class="widget" data-widget="c1trace" data-mode="codegen">
+<div class="wbar"><span class="wt">vowels.c in c1</span><span class="row"><button type="button" class="btn prev">&larr;</button><button type="button" class="btn next">&rarr;</button></span></div>
+<div class="wbody"><p class="muted">This figure needs JavaScript.</p></div>
+<script type="application/json">[[trace:vowels]]</script>
+</div>
+
+<p>Some things to notice:</p>
+
+<ul>
+<li><code>n = 0</code> matches the first pattern of <code>=</code> in <code>efftab</code>, <code>%a,z</code>, and becomes
+<code>clr -10(r5)</code>.</li>
+<li>The test <code>*p</code> reaches <code>c1</code> as <code>*r4</code>, which <code>optim</code> turns into the name
+<code>0(r4)</code>, printed <code>(r4)</code>. It is compiled with <code>cctab</code>, where comparing with zero is a
+<code>tst</code>, and since the operand is a <code>char</code>, <code>tstb</code>. <code>cbranch</code> adds <code>jeq L4</code>.</li>
+<li>The <code>RFORCE</code> of <code>*p</code> loads the character into <code>r0</code> with <code>movb</code>, which extends its
+sign.</li>
+<li><code>n++</code>, for its effect only, becomes <code>inc -10(r5)</code>, and <code>p++</code> becomes <code>inc r4</code>.</li>
+<li>The <code>SWIT</code> record goes to <code>pswitch</code> (<a href="12-switch.html">chapter 12</a>). The five
+values 97 to 117 span a range of 20, more than three times five, so a linear search is generated,
+with the value stored as a sentinel after the list.</li>
+<li>For <code>printf</code>, <code>n</code> is the first argument pushed, and the stack is empty, so it goes into
+the free word with <code>mov -10(r5),(sp)</code>; only the format's address is really pushed, and only
+one word is popped.</li>
+</ul>
+
+<p>After the main file, <code>getree</code> is called on the string file, which holds <code>L1</code> and <code>L13</code>.
+The complete output of <code>c1</code>:</p>
+
+<pre>[[include:examples/out/vowels.s]]</pre>
+
+<h2 id="c2">c2</h2>
+
+<p>With <code>-O</code>, <code>c1</code>'s output goes through <code>c2</code> (<a href="13-c2.html">chapter 13</a>).
+<code>movedat</code> moves the switch table to the front. Then <code>refcount</code> finds that the five
+consecutive case labels <code>L8</code> to <code>L12</code> are one place, and makes every reference use the
+last one, <code>L12</code>. Jumps to jumps disappear: the end of the switch, <code>L6</code>, is the same place as
+the increment <code>L5</code>. <code>codemove</code> moves the dispatch code, which was reachable only by a jump,
+to where it is jumped from, inside the loop, and the loop is inverted so that the test is at the
+bottom:</p>
+
+<div class="widget" data-widget="c2diff">
+<div class="wbar"><span class="wt">vowels.c in c2</span><span class="row"><select id="c2selw" style="width:auto" aria-label="Program"></select></span></div>
+<div class="wbody c2body"></div>
+<div class="c2set" data-name="vowels" hidden><pre class="before">[[include:examples/out/vowels.s]]</pre><pre class="after">[[include:examples/out/vowels.O.s]]</pre><pre class="stats">[[include:examples/out/vowels.c2]]</pre></div>
+</div>
+
+<p>The loop is now: test the character, and if it is not zero, search the vowel list, add one to
+<code>n</code> if the search finds a vowel, and step the pointer. The object file has 62 bytes of code, as
+<code>size</code> reported.</p>
+
+<h2 id="as">as, ld, and the answer</h2>
+
+<p>The assembler turns each <code>jbr</code> and <code>jne</code> into a short branch if its target is close
+enough, as all of these are, and leaves the undefined names <code>_printf</code>, <code>csv</code> and <code>cret</code> as external references,
+as <code>nm</code> shows. The symbols beginning with <code>~</code> are there for the debugger, with the class of
+each local visible in <code>nm</code>'s output: <code>n</code> at 177770, an offset, and <code>p</code> at 4, a register.
+<code>ld</code> puts <code>crt0.o</code> in front, which sets up the arguments and calls <code>_main</code>, and pulls in
+<code>printf</code>, <code>csv</code> and <code>cret</code> from the library. The finished program is 1298 bytes, and it
+prints 3.</p>

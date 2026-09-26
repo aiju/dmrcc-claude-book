@@ -4,3 +4,4 @@ with tools/v6/v6.py:
   pp2.err  output of "cc -c pp2.c"
   fl.err   output of "cc fl.c" (without -f)
   cgoto.O.run  output of "cc -O cgoto.c; a.out"
+  vowels.session  compiling, sizing and running vowels.c
