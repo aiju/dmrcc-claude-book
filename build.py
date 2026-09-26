@@ -543,7 +543,7 @@ def build_chapters(src):
 def build_contents(chs, src):
     items = []
     for ch in chs:
-        label = ch['num']
+        label = ch['num'] if ch['num'] != ch['title'] else ''
         items.append('<li><a href="%s"><span class="cnum">%s</span><span class="ctitle">%s</span></a>'
                      '<p>%s</p></li>' % (ch['file'], esc(label), esc(ch['title']), ch['blurb']))
     body = '''%s
@@ -564,7 +564,7 @@ def build_index(chs, src):
     text = open(os.path.join(BOOK, 'index.html')).read()
     text = expand(text, src)
     toc = '\n'.join('<li><a href="%s"><span class="cnum">%s</span> %s</a></li>' % (
-        ch['file'], esc(ch['num']), esc(ch['title'])) for ch in chs)
+        ch['file'], esc(ch['num'] if ch['num'] != ch['title'] else ''), esc(ch['title'])) for ch in chs)
     text = text.replace('<!-- TOC -->', toc)
     text = topbar('', []) + text
     open(os.path.join(OUT, 'index.html'), 'w').write(
