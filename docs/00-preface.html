@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Preface · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="chpage">
+<header class="topbar"><nav><a class="home" href="index.html">The Sixth Edition C Compiler</a><span class="sep">/</span>Preface</nav><div class="tools"><a href="contents.html">Contents</a><a href="source/index.html">Listing</a><a href="xref.html">Index</a></div></header>
+<div class="reader">
+<main class="prose chapter">
+<header class="chead">
+<p class="eyebrow">Preface</p>
+<h1>Preface</h1>
+<nav class="local"><ol><li><a href="#why">Why read this compiler</a></li><li><a href="#dialect">The C of 1975</a></li><li><a href="#arrangement">How the book is arranged</a></li><li><a href="#real">Everything here was run</a></li><li><a href="#thanks">Acknowledgements</a></li></ol></nav>
+</header>
+<!-- title: Preface -->
+<!-- number: Preface -->
+<!-- short: Preface -->
+<!-- blurb: Why this compiler is worth reading, what C looked like in 1975, and how the book is arranged. -->
+
+<p>In 1977 John Lions of the University of New South Wales published two volumes for his
+operating systems course. The first was the source of the Sixth Edition Unix kernel, about
+nine thousand lines, printed with every line numbered. The second was a commentary that
+walked through that source and explained it. Bell Labs would not allow the books to be
+sold, and for twenty years they circulated as photocopies of photocopies. They were among the
+most widely copied computer science texts ever produced, because they did something no
+textbook did: they let you read a real system, all of it, with someone explaining it to you.</p>
+
+<p>Lions covered the kernel. He did not cover the other large program in
+<code>/usr/source</code> that everything else depended on: the C compiler. This book tries to do for the
+compiler what Lions did for the kernel.</p>
+
+<h2 id="why">Why read this compiler</h2>
+
+<p>The Sixth Edition C compiler was written by Dennis Ritchie between about 1972 and 1975. It
+compiled the kernel, the shell, the editor and itself. It ran in 64 kilobytes of address space
+on machines that often had less real memory than that. And yet it is not a toy: it has a
+real type system with pointers, arrays, structures, <code>long</code> and <code>double</code>; it
+does register allocation, constant folding, strength reduction and a surprisingly clever
+treatment of conditional branches; and its code generator is driven by a table of templates, an
+idea that was new at the time and that later compiler generators made standard.</p>
+
+<p>It is also short. The three passes together come to a little over nine thousand lines, a
+thousand of them code tables, and the code
+is dense but not obscure. Ritchie wrote in a plain, economical style, and his comments are
+usually enough to tell you what a routine is for. What the comments do not tell you is how the
+routines fit together, why the data structures are shaped the way they are, and which lines
+are there to work around the limits of a 16-bit machine. That is what the commentary is for.</p>
+
+<p>Reading it is also a way to see C as it was before the book by Kernighan and Ritchie fixed
+the language in 1978. The compiler is written in its own dialect, and some of that dialect
+will look strange.</p>
+
+<h2 id="dialect">The C of 1975</h2>
+
+<p>You will meet the following differences almost at once. They are explained where they
+matter in the commentary, but it helps to know them before you open the listing.</p>
+
+<ul>
+<li><strong>Assignment operators are written the other way round.</strong> What is now
+<code>x += 1</code> was <code>x =+ 1</code>. This caused a famous ambiguity, since
+<code>x=-1</code> could mean <code>x = -1</code> or <code>x =- 1</code>. The compiler takes the second reading
+and prints a warning (see <a href="04-lexer.html">chapter 4</a>). The modern spelling came later,
+largely because of this problem.</li>
+<li><strong>Initializers have no equals sign.</strong> <code>int isn 1;</code> declares
+<code>isn</code> and initializes it to 1 (<a class="lref" data-file="c00.c" data-line="1365" href="source/c00.c.html#L1365">1365</a>). Tables are initialized with a brace list that
+follows the declarator directly: <code>int opdope[] { ... };</code>.</li>
+<li><strong>There is no <code>unsigned</code>, <code>short</code>, <code>union</code>, <code>typedef</code> or <code>enum</code>.</strong>
+The complete list of keywords is the table at <a class="lref" data-file="c00.c" data-line="1374" href="source/c00.c.html#L1374">1374&ndash;1403</a>. Unsigned arithmetic is done by
+using pointers, which compare unsigned, and <code>char</code> is signed.</li>
+<li><strong>Structure member names are global.</strong> Every member of every structure lives
+in a single name space, which is why the kernel's structures prefix their members
+(<code>p_stat</code>, <code>u_procp</code>). It also means that <code>x.y</code> works on anything, and that
+the compiler source declares several anonymous structures just to give names to field offsets,
+as at <a class="lref" data-file="c0h.c" data-line="980" href="source/c0h.c.html#L980">980&ndash;985</a>.</li>
+<li><strong>Identifiers are significant to eight characters</strong> (<a class="lref" data-file="c0h.c" data-line="962" href="source/c0h.c.html#L962">962</a>).</li>
+<li><strong>Functions return <code>int</code> by default and nobody declares them.</strong>
+Pointers and integers are freely mixed, and a pointer may be returned from a function
+declared as returning <code>int</code>. The routine <code>block</code>, which returns a pointer to a new
+tree node, is declared with no type at all (<a class="lref" data-file="c01.c" data-line="2486" href="source/c01.c.html#L2486">2486</a>).</li>
+<li><strong>The preprocessor is optional.</strong> A file is run through it only if its first
+character is <code>#</code>. That is why every compiler source file begins with a line containing
+just <code>#</code>.</li>
+</ul>
+
+<h2 id="arrangement">How the book is arranged</h2>
+
+<p>Part one is <a href="source/index.html">the listing</a>. It contains all the compiler's source
+files, the <code>cc</code> command that runs the passes, and the two library routines, <code>csv</code> and
+<code>cret</code>, that every compiled function calls on entry and exit. The files are printed exactly
+as they were distributed. As in Lions, each file begins on a fresh sheet of fifty lines and the
+lines are numbered straight through the whole listing, from 100 to 10,938.</p>
+
+<p>Part two is the commentary, which follows the path a program takes through the compiler.</p>
+
+<ul>
+<li><a href="01-overview.html">Chapter 1</a> is an overview of the whole system, with a short
+introduction to the PDP-11 for readers who have never used one.</li>
+<li><a href="02-cc.html">Chapter 2</a> covers <code>cc</code>, which runs the passes and contains the
+preprocessor.</li>
+<li>Chapters <a href="03-c0.html">3</a> to <a href="08-statements.html">8</a> cover the first pass,
+<code>c0</code>, which parses C and writes expression trees to a temporary file.</li>
+<li>Chapters <a href="09-c1-trees.html">9</a> to <a href="12-switch.html">12</a> cover the second pass,
+<code>c1</code>, which reads the trees, rewrites them and generates assembly language from a table of
+code templates.</li>
+<li><a href="13-c2.html">Chapter 13</a> covers the optional third pass, <code>c2</code>, which improves
+the assembly code.</li>
+<li><a href="14-walkthrough.html">Chapter 14</a> follows one small program through every stage.</li>
+<li>An <a href="15-curiosities.html">appendix</a> collects the bugs, limits and oddities found along
+the way.</li>
+</ul>
+
+<p>Part three is a <a href="xref.html">cross-reference index</a> of every identifier in the C
+files.</p>
+
+<p>Numbers such as <a class="lref" data-file="c00.c" data-line="1534" href="source/c00.c.html#L1534">1534</a> are line numbers. On a wide screen, clicking one opens the
+listing beside the text; on a narrow one it opens across the bottom of the screen.</p>
+
+<h2 id="real">Everything here was run</h2>
+
+<p>Every piece of compiler output in this book, every error message and every program result, was
+produced by the original binaries. The Sixth Edition distribution tape prepared by Ken Wellsch
+still exists; its disk images were booted on a simulated PDP-11/40, and a small script typed each
+example into the shell, compiled it with <code>cc</code> and captured what came back. Where the book
+says the compiler does something, you can see it doing it.</p>
+
+<p>That practice turned up a few things the source alone does not make obvious. The standard
+<code>c0</code> on the distribution tape cannot read floating-point constants at all, and a
+bit-field followed by an ordinary member can end up sharing storage with it. Both are
+explained where they occur.</p>
+
+<h2 id="thanks">Acknowledgements</h2>
+
+<p>The source comes from Diomidis Spinellis's <em>Unix History Repository</em>, which
+reconstructs the history of Unix from the archives of The Unix Heritage Society. The runnable
+system is Ken Wellsch's Sixth Edition tape, and the simulator is Bob Supnik's SIMH. Ritchie's own
+<em>A Tour through the UNIX C Compiler</em>, written for the Seventh Edition, and his paper
+<em>The Development of the C Language</em> are the best companions to this book. And the idea
+of the whole thing belongs to John Lions.</p>
+
+<nav class="pager"><span></span><a href="01-overview.html">Overview &rarr;</a></nav>
+</main>
+<aside class="panel" id="panel" hidden>
+<div class="panelbar"><span class="pfile"></span><button type="button" class="pclose" aria-label="Close listing">Close</button></div>
+<div class="pbody"></div>
+</aside>
+</div>
+<script src="assets/book.js"></script>
+<script src="assets/listing-data.js"></script><script src="assets/reader.js"></script>
+</body>
+</html>

@@ -1,0 +1,387 @@
+<!-- title: The Shape of the Thing -->
+<!-- number: 1 -->
+<!-- short: Overview -->
+<!-- blurb: What happens when you type cc, why the compiler is split into passes, and just enough PDP-11 to read its output. -->
+
+<p>Before looking at any routine in detail it is worth seeing the whole compiler at once:
+what programs it consists of, what each one reads and writes, and what the machine it
+targets looks like. This chapter is that overview. Nothing in it needs to be memorised; the
+later chapters come back to every point.</p>
+
+<h2 id="pipeline">From <code>cc x.c</code> to <code>a.out</code></h2>
+
+<p>The command <code>cc</code> is not the compiler. It is a small program ([[cc.c:50-219]]) that runs
+the real compiler, which is three separate programs called <code>c0</code>, <code>c1</code> and <code>c2</code>
+kept in <code>/lib</code>, followed by the assembler <code>as</code> and the link editor <code>ld</code>. The passes
+talk to each other through temporary files in <code>/tmp</code> whose names <code>cc</code> invents
+([[cc.c:118-135]]).</p>
+
+<figure>
+<div class="scroll">
+<svg viewBox="0 0 770 250" width="770" role="img" aria-label="The passes of the C compiler and the files between them" style="font-family: var(--f-display); font-size: 14px;">
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"></path></marker>
+</defs>
+<g style="stroke: var(--muted); stroke-width: 1.4; fill: none;" marker-end="url(#ah)">
+<path d="M60,55 L100,55"></path>
+<path d="M250,55 L290,55"></path>
+<path d="M380,42 L430,42"></path>
+<path d="M380,68 L430,68"></path>
+<path d="M500,42 L550,48"></path>
+<path d="M500,68 L550,62"></path>
+<path d="M640,55 L690,55"></path>
+<path d="M595,80 L595,135"></path>
+<path d="M560,152 L520,152"></path>
+<path d="M450,152 L410,152"></path>
+<path d="M350,152 L310,152"></path>
+<path d="M250,152 L210,152"></path>
+<path d="M280,205 L280,172"></path>
+<path d="M630,78 C 660,100 690,110 700,135" style="stroke-dasharray: 4 3"></path>
+<path d="M690,170 C 670,185 640,180 630,168" style="stroke-dasharray: 4 3"></path>
+</g>
+<g style="stroke-width: 1.4;">
+<rect x="10" y="38" width="50" height="34" rx="2" style="fill: var(--paper-2); stroke: var(--rule)"></rect>
+<rect x="100" y="30" width="150" height="50" rx="2" style="fill: var(--paper); stroke: var(--plum)"></rect>
+<rect x="290" y="30" width="90" height="50" rx="2" style="fill: var(--paper); stroke: var(--plum)"></rect>
+<rect x="430" y="26" width="70" height="30" rx="2" style="fill: var(--paper-2); stroke: var(--rule)"></rect>
+<rect x="430" y="56" width="70" height="30" rx="2" style="fill: var(--paper-2); stroke: var(--rule)"></rect>
+<rect x="550" y="30" width="90" height="50" rx="2" style="fill: var(--paper); stroke: var(--plum)"></rect>
+<rect x="690" y="38" width="60" height="34" rx="2" style="fill: var(--paper-2); stroke: var(--rule)"></rect>
+<rect x="560" y="135" width="70" height="34" rx="2" style="fill: var(--paper-2); stroke: var(--rule)"></rect>
+<rect x="450" y="135" width="70" height="34" rx="2" style="fill: var(--paper); stroke: var(--plum)"></rect>
+<rect x="350" y="135" width="60" height="34" rx="2" style="fill: var(--paper-2); stroke: var(--rule)"></rect>
+<rect x="250" y="135" width="60" height="34" rx="2" style="fill: var(--paper); stroke: var(--plum)"></rect>
+<rect x="140" y="135" width="70" height="34" rx="2" style="fill: var(--paper-2); stroke: var(--rule)"></rect>
+<rect x="245" y="205" width="70" height="38" rx="2" style="fill: var(--paper-2); stroke: var(--rule)"></rect>
+<rect x="680" y="135" width="60" height="34" rx="2" style="fill: var(--paper); stroke: var(--magenta); stroke-dasharray: 4 3"></rect>
+</g>
+<g text-anchor="middle">
+<text x="35" y="60" style="font-family: var(--f-mono)">x.c</text>
+<text x="175" y="52" style="font-weight:600">cc: expand</text>
+<text x="175" y="70" style="fill: var(--muted); font-size: 12px">preprocess if # first</text>
+<text x="335" y="52" style="font-weight:600">c0</text>
+<text x="335" y="70" style="fill: var(--muted); font-size: 12px">parse</text>
+<text x="465" y="46" style="font-family: var(--f-mono); font-size: 12.5px">ctm1a</text>
+<text x="465" y="76" style="font-family: var(--f-mono); font-size: 12.5px">ctm2a</text>
+<text x="595" y="52" style="font-weight:600">c1</text>
+<text x="595" y="70" style="fill: var(--muted); font-size: 12px">generate code</text>
+<text x="720" y="60" style="font-family: var(--f-mono)">x.s</text>
+<text x="720" y="28" style="fill: var(--muted); font-size: 12px">with -S</text>
+<text x="595" y="157" style="font-family: var(--f-mono); font-size: 12.5px">ctm3a</text>
+<text x="485" y="157" style="font-weight:600">as</text>
+<text x="380" y="157" style="font-family: var(--f-mono)">x.o</text>
+<text x="280" y="157" style="font-weight:600">ld</text>
+<text x="175" y="157" style="font-family: var(--f-mono)">a.out</text>
+<text x="280" y="221" style="font-family: var(--f-mono); font-size: 12px">crt0.o</text>
+<text x="280" y="236" style="font-family: var(--f-mono); font-size: 12px">libc.a</text>
+<text x="710" y="157" style="font-weight:600">c2</text>
+<text x="700" y="200" style="fill: var(--muted); font-size: 12px">with -O</text>
+<text x="175" y="20" style="fill: var(--muted); font-size: 12px">writes ctm4a</text>
+</g>
+</svg>
+</div>
+<figcaption>The passes of <code>cc</code>. Boxes with a plum border are programs; grey boxes are files.
+With <code>-O</code>, <code>c1</code> writes to <code>ctm5a</code> and <code>c2</code> turns that into <code>ctm3a</code>.
+The temporary names are <code>/tmp/ctm</code><i>n</i><code>a</code>, with the last letter bumped until an unused
+name is found.</figcaption>
+</figure>
+
+<p>In order:</p>
+
+<ol>
+<li><strong>Preprocessing.</strong> If, and only if, the source file begins with <code>#</code>, the
+routine <code>expand</code> inside <code>cc</code> handles <code>#define</code>, <code>#include</code> and
+conditional compilation and writes the result to a temporary file ([[cc.c:235-290]]).
+Otherwise the source goes straight to <code>c0</code>. <a href="02-cc.html">Chapter 2</a>.</li>
+<li><strong><code>c0</code></strong> reads C. It does all the lexical analysis, parsing, type checking and
+storage allocation, and writes two files: one holding the program as a sequence of expression
+trees and simple commands in a compact binary form, and one holding the text of string
+constants. It knows nothing about the instruction set. Chapters <a href="03-c0.html">3</a>
+to <a href="08-statements.html">8</a>.</li>
+<li><strong><code>c1</code></strong> reads the trees back, improves them, and turns them into PDP-11
+assembly language by matching them against tables of code templates. Chapters
+<a href="09-c1-trees.html">9</a> to <a href="12-switch.html">12</a>.</li>
+<li><strong><code>c2</code></strong>, run only if you ask for it with <code>-O</code>, reads the assembly
+language and improves it: removing jumps to jumps, merging identical code, remembering what
+each register holds. <a href="13-c2.html">Chapter 13</a>.</li>
+<li><strong><code>as</code></strong> assembles, and <strong><code>ld</code></strong> links the result with the start-up
+code <code>crt0.o</code> and the C library.</li>
+</ol>
+
+<p>With <code>-S</code>, <code>cc</code> stops after the assembly language and leaves it in <code>x.s</code>
+([[cc.c:62-65]], [[cc.c:163-164]]), which is how the output shown throughout this book was captured.
+With <code>-P</code> it stops after preprocessing and leaves the result in <code>x.i</code>.</p>
+
+<h2 id="why-passes">Why three programs</h2>
+
+<p>A PDP-11 program could address at most 64 kilobytes, and on the smaller machines Unix ran on,
+instructions and data had to share that space. The compiler had to fit, together with its
+symbol table and the tree for the largest expression it could meet. Splitting the work into
+separate programs means that each one needs only its own code and data in memory. <code>c0</code>
+never holds the code tables; <code>c1</code> never holds the symbol table. The intermediate files
+are the price.</p>
+
+<p>The split also falls along a sensible line. Everything that depends on the syntax of C is in
+<code>c0</code>. Everything that depends on the instruction set is in <code>c1</code>, and much of that is in
+the code tables rather than in C. Retargeting the compiler meant rewriting <code>c1</code> and its
+tables and leaving <code>c0</code> nearly alone, and versions of this compiler were produced that
+way for other machines. Steve Johnson's Portable C Compiler, which replaced it a few years
+later, made the same division its central design principle.</p>
+
+<p>Each pass is also a separate program in a stronger sense: they share no code. The pass headers
+<a href="source/c0h.c.html"><code>c0h.c</code></a> and <a href="source/c1h.c.html"><code>c1h.c</code></a>
+each define the operator numbers, and the two copies must agree, since the operators are the
+vocabulary of the intermediate file. Both passes also carry their own copy of the operator
+property table <code>opdope</code> ([[c05.c:16]] and [[c13.c:1]]), and the copies are not identical,
+because <code>c1</code> invents operators of its own.</p>
+
+<h2 id="pdp11">The PDP-11 in a few pages</h2>
+
+<p>Almost everything the compiler does in its second and third passes is shaped by the machine,
+so here is enough of it to read the generated code. Numbers in PDP-11 assembly language are
+octal unless they end with a decimal point, and the compiler prints them in octal
+([[c11.c:615-625]]). This book follows that convention inside code and uses decimal in the text.</p>
+
+<h3>Registers and memory</h3>
+
+<p>The machine has eight 16-bit general registers, <code>r0</code> to <code>r7</code>. Two are special:
+<code>r7</code> is the program counter, written <code>pc</code>, and <code>r6</code> is the stack pointer, written
+<code>sp</code>. The stack grows toward lower addresses. Memory is addressed in bytes, but most
+instructions operate on 16-bit words, which must be at even addresses. A word is stored low byte
+first.</p>
+
+<p>The C compiler assigns the remaining registers as follows. <code>r5</code> is the frame pointer:
+it points into the current function's stack frame, and locals and arguments are addressed
+relative to it. <code>r4</code>, <code>r3</code> and <code>r2</code> hold <code>register</code> variables, allocated from
+<code>r4</code> downward ([[c03.c:280-285]]). Whatever is not used for register variables, together
+with <code>r0</code> and <code>r1</code>, is available to hold temporary values while evaluating an expression.
+A function's result is returned in <code>r0</code>, or in <code>r0</code> and <code>r1</code> for a <code>long</code>.</p>
+
+<h3>Addressing modes</h3>
+
+<p>Every operand is specified by a three-bit mode and a register. The eight modes are the heart
+of the machine, and the reason the PDP-11 fitted C so well: several C expressions map onto a
+single operand.</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Mode</th><th>Syntax</th><th>Meaning</th><th>As C</th></tr></thead>
+<tbody>
+<tr><td class="num">0</td><td><code>r3</code></td><td>the register itself</td><td><code>r</code></td></tr>
+<tr><td class="num">1</td><td><code>(r3)</code></td><td>the word the register points at</td><td><code>*r</code></td></tr>
+<tr><td class="num">2</td><td><code>(r3)+</code></td><td>as mode 1, then add 2 (or 1 for a byte) to the register</td><td><code>*r++</code></td></tr>
+<tr><td class="num">3</td><td><code>*(r3)+</code></td><td>the register points at a pointer; use that, then add 2</td><td><code>**r++</code></td></tr>
+<tr><td class="num">4</td><td><code>-(r3)</code></td><td>subtract 2 (or 1) from the register first, then as mode 1</td><td><code>*--r</code></td></tr>
+<tr><td class="num">5</td><td><code>*-(r3)</code></td><td>subtract 2, then use the pointer the register points at</td><td><code>**--r</code></td></tr>
+<tr><td class="num">6</td><td><code>12(r3)</code></td><td>the word at the register plus a constant</td><td><code>r[5]</code>, <code>p-&gt;m</code></td></tr>
+<tr><td class="num">7</td><td><code>*12(r3)</code></td><td>the pointer at the register plus a constant</td><td><code>*p-&gt;m</code></td></tr>
+</tbody></table></div>
+
+<p>Modes 2, 3, 6 and 7 applied to the program counter give four more useful forms. Mode 2 with
+<code>pc</code> reads a constant stored right after the instruction and is written <code>$12</code>. Mode 6 with
+<code>pc</code> addresses memory relative to the current instruction and is written as a plain name,
+<code>_x</code>. Mode 3 and mode 7 give indirect versions of these, written <code>*$_x</code> and
+<code>*_x</code>. So <code>*</code> in PDP-11 assembly means one extra level of indirection, which is
+exactly what it means in C. The compiler's operand printer <code>pname</code> ([[c11.c:36-112]]) uses
+the same character for both.</p>
+
+<h3>Instructions</h3>
+
+<p>Two-operand instructions are written source first, destination second:
+<code>mov a,b</code> copies <code>a</code> to <code>b</code>, and <code>add a,b</code> adds <code>a</code> to <code>b</code>. Nearly
+every instruction also has a byte form with a <code>b</code> suffix. The instructions the compiler
+uses most are these.</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Instruction</th><th>Effect</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>mov a,b</code></td><td><code>b = a</code></td><td><code>movb</code> into a register sign-extends the byte to a word</td></tr>
+<tr><td><code>clr a</code></td><td><code>a = 0</code></td><td>shorter than <code>mov $0,a</code></td></tr>
+<tr><td><code>add a,b</code>, <code>sub a,b</code></td><td><code>b =+ a</code>, <code>b =- a</code></td><td>no byte forms</td></tr>
+<tr><td><code>inc a</code>, <code>dec a</code>, <code>neg a</code>, <code>com a</code></td><td><code>++a</code>, <code>--a</code>, <code>a = -a</code>, <code>a = ~a</code></td><td></td></tr>
+<tr><td><code>bis a,b</code></td><td><code>b =| a</code></td><td>&ldquo;bit set&rdquo;</td></tr>
+<tr><td><code>bic a,b</code></td><td><code>b =&amp; ~a</code></td><td>&ldquo;bit clear&rdquo;; there is no AND instruction</td></tr>
+<tr><td><code>bit a,b</code></td><td>set condition codes from <code>a &amp; b</code></td><td></td></tr>
+<tr><td><code>cmp a,b</code></td><td>set condition codes from <code>a - b</code></td><td>note the order: source minus destination</td></tr>
+<tr><td><code>tst a</code></td><td>set condition codes from <code>a</code></td><td></td></tr>
+<tr><td><code>asl a</code>, <code>asr a</code></td><td>shift left or right one place</td><td></td></tr>
+<tr><td><code>ash n,r</code></td><td>shift <code>r</code> by <code>n</code>; negative <code>n</code> shifts right</td><td>there is no right-shift-by-<code>n</code></td></tr>
+<tr><td><code>mul a,r</code></td><td><code>r = r * a</code></td><td>with odd <code>r</code>, keeps the low half of the product</td></tr>
+<tr><td><code>div a,r</code></td><td>divides the 32-bit pair <code>r</code>,<code>r+1</code> by <code>a</code></td><td><code>r</code> must be even; quotient in <code>r</code>, remainder in <code>r+1</code></td></tr>
+<tr><td><code>sxt r</code></td><td>fill <code>r</code> with the sign of the last result</td><td>used to widen an <code>int</code> into a <code>long</code> and before <code>div</code></td></tr>
+<tr><td><code>jsr r,f</code></td><td>call <code>f</code>, saving <code>r</code> on the stack and the return address in <code>r</code></td><td><code>jsr pc,f</code> is an ordinary call</td></tr>
+<tr><td><code>rts r</code></td><td>return, the inverse of <code>jsr r</code></td><td></td></tr>
+<tr><td><code>jbr L</code>, <code>jeq L</code>, &hellip;</td><td>jump, or jump if a condition holds</td><td>not machine instructions; see below</td></tr>
+</tbody></table></div>
+
+<p>Three of these constrain the compiler more than the others. <code>bic</code> is the only way to do
+a logical AND, so the compiler rewrites <code>a &amp; b</code> as a bit clear of the complement,
+<code>a &amp;~ (~b)</code>, and folds the <code>~</code> into the constant when there is one, which is why you will see <code>bic $-10,r0</code> where you might expect an AND with 7
+([[c12.c:39-47]]). <code>ash</code> shifts right only by a negative count, so right shifts are rewritten
+as left shifts by the negated amount ([[c12.c:139-150]]). And <code>mul</code> and <code>div</code> need
+registers with particular parity, which is the reason for the routine <code>oddreg</code>
+([[c11.c:263-282]]).</p>
+
+<p>The conditional jumps come in two families. <code>jlt</code>, <code>jle</code>, <code>jgt</code> and <code>jge</code> test
+the result as a signed number; <code>jlo</code>, <code>jlos</code>, <code>jhi</code> and <code>jhis</code> (lower, lower or same,
+higher, higher or same) test it as unsigned. The compiler uses the unsigned family to compare
+pointers ([[c1t.s:70-73]]). The names beginning with <code>j</code> are understood by the assembler, which
+turns each into a short branch if the target is close enough and into a branch around a
+<code>jmp</code> otherwise. This saved the compiler from having to know how long its own code was.</p>
+
+<h3>Floating point</h3>
+
+<p>Some PDP-11s had a floating-point unit with six more registers, <code>fr0</code> to <code>fr5</code>, and
+instructions such as <code>movf</code>, <code>addf</code> and <code>mulf</code>. Its mode bits decide whether it works in
+single or double precision, and C sets it to double. <code>movof</code> and <code>movfo</code> convert between
+<code>float</code> in memory and <code>double</code> in a register. Many machines, including the PDP-11/40,
+did not have the unit, and <code>cc -f</code> links in a simulator for it instead. The compiler
+itself is affected too, as <a href="04-lexer.html#numbers">chapter 4</a> explains.</p>
+
+<h2 id="frames">Calling a function</h2>
+
+<p>Arguments are pushed onto the stack from right to left, so the first argument ends up nearest
+the top. Then the function is called with <code>jsr pc,f</code>, which pushes the return address. The
+first thing every compiled function does is <code>jsr r5,csv</code>, and the last thing it does is
+<code>jmp cret</code>. These two routines live in the C library. Here they are in full.</p>
+
+[[src:csv.s:6-22]]
+
+<p><code>jsr r5,csv</code> pushes the old <code>r5</code> and puts the return address, which points back into
+the function, in <code>r5</code>. <code>csv</code> moves that address to <code>r0</code>, points <code>r5</code> at the saved
+<code>r5</code>, saves the three register-variable registers, reserves one more word with
+<code>tst -(sp)</code>, and jumps back. <code>cret</code> undoes it all. The frame that results looks
+like this.</p>
+
+<figure>
+<div class="scroll">
+<svg viewBox="0 0 560 330" width="560" role="img" aria-label="Stack frame of a compiled function" style="font-size: 14px;">
+<g style="font-family: var(--f-mono)">
+<g style="stroke: var(--rule); stroke-width: 1.2">
+<rect x="150" y="10" width="180" height="30" style="fill: var(--paper-2)"></rect>
+<rect x="150" y="40" width="180" height="30" style="fill: var(--paper-2)"></rect>
+<rect x="150" y="70" width="180" height="30" style="fill: var(--paper-2)"></rect>
+<rect x="150" y="100" width="180" height="30" style="fill: var(--paper); stroke: var(--plum)"></rect>
+<rect x="150" y="130" width="180" height="30" style="fill: var(--paper)"></rect>
+<rect x="150" y="160" width="180" height="30" style="fill: var(--paper)"></rect>
+<rect x="150" y="190" width="180" height="30" style="fill: var(--paper)"></rect>
+<rect x="150" y="220" width="180" height="30" style="fill: var(--greenbar)"></rect>
+<rect x="150" y="250" width="180" height="30" style="fill: var(--greenbar)"></rect>
+<rect x="150" y="280" width="180" height="30" style="fill: var(--paper); stroke: var(--magenta); stroke-dasharray: 4 3"></rect>
+</g>
+<g text-anchor="middle">
+<text x="240" y="30">second argument</text>
+<text x="240" y="60">first argument</text>
+<text x="240" y="90">return address</text>
+<text x="240" y="120">caller's r5</text>
+<text x="240" y="150">saved r4</text>
+<text x="240" y="180">saved r3</text>
+<text x="240" y="210">saved r2</text>
+<text x="240" y="240">first local</text>
+<text x="240" y="270">second local</text>
+<text x="240" y="300">free word</text>
+</g>
+<g text-anchor="end" style="fill: var(--muted)">
+<text x="140" y="30">6(r5)</text>
+<text x="140" y="60">4(r5)</text>
+<text x="140" y="90">2(r5)</text>
+<text x="140" y="120" style="fill: var(--plum); font-weight: 700">r5 &#8594; (r5)</text>
+<text x="140" y="150">-2(r5)</text>
+<text x="140" y="180">-4(r5)</text>
+<text x="140" y="210">-6(r5)</text>
+<text x="140" y="240">-10(r5)</text>
+<text x="140" y="270">-12(r5)</text>
+<text x="140" y="300" style="fill: var(--magenta); font-weight: 700">sp &#8594; (sp)</text>
+</g>
+</g>
+<g style="font-family: var(--f-display); font-size: 13px; fill: var(--muted)">
+<text x="345" y="45">pushed by the caller</text>
+<text x="345" y="90">pushed by jsr pc</text>
+<text x="345" y="120">pushed by jsr r5,csv</text>
+<text x="345" y="180">pushed by csv</text>
+<text x="345" y="250">allocated by csv and the function</text>
+<text x="345" y="300">always free: see below</text>
+</g>
+</svg>
+</div>
+<figcaption>A stack frame, higher addresses at the top. Offsets are octal, as in the generated code:
+<code>-10(r5)</code> is eight bytes below the frame pointer.</figcaption>
+</figure>
+
+<p>Arguments are at positive offsets from <code>r5</code>, starting at 4, and locals at negative
+offsets, starting at &minus;8. The compiler's own bookkeeping agrees: <code>blkhed</code> starts the
+parameter offset at 4 ([[c02.c:572]]), and the count of bytes used below <code>r5</code> starts at 6 for
+the three saved registers ([[c02.c:570]]), so the first local lands at &minus;8.</p>
+
+<p>The <code>tst -(sp)</code> in <code>csv</code> is not part of the save area. It reserves one word
+beyond it. The function then drops the stack pointer by the size of its locals minus that one
+word ([[c11.c:695-702]]), so that there is always exactly one unused word at the top of the
+stack. This spare word is used for the first argument of every call: rather than pushing it
+with <code>mov x,-(sp)</code> and popping it afterwards, the compiler stores it with
+<code>mov x,(sp)</code>, and there is nothing to pop. A call with one argument cleans up after
+itself for free, and a call with two needs only <code>tst (sp)+</code>, a two-byte instruction that
+pops one word. The code that exploits this is <code>comarg</code> ([[c10.c:906-922]]).</p>
+
+<h2 id="first">A first compilation</h2>
+
+<p>Here is a small program and what <code>cc -S</code> makes of it.</p>
+
+<div class="pair">
+<div><p class="lbl">sum.c</p><pre>[[include:examples/sum.c]]</pre></div>
+<div><p class="lbl">sum.s, produced by the V6 compiler</p><pre>[[include:examples/out/sum.s]]</pre></div>
+</div>
+
+<p>Reading it from the top:</p>
+
+<ul>
+<li><code>.globl _main</code> makes the name visible to the linker. C names get a leading underscore so
+they cannot clash with assembly-language names such as <code>csv</code>.</li>
+<li><code>~~main:</code>, <code>~i=177770</code> and <code>~s=177766</code> are symbols for the debugger. They record
+that <code>i</code> lives at &minus;8 and <code>s</code> at &minus;10 relative to <code>r5</code>. Pass <code>c0</code> writes one
+for every local ([[c02.c:635-659]]).</li>
+<li><code>sub $4,sp</code> makes room for the two locals. Together with the word <code>csv</code> reserved,
+that leaves the free word at <code>-14(r5)</code>.</li>
+<li>The loop test <code>i&lt;10</code> became <code>cmp $12,-10(r5)</code> followed by <code>jle L3</code>. The operands
+are the wrong way round, and the condition is reversed twice: once because the branch is taken
+when the test <em>fails</em>, and once because the compare has its operands swapped. Chapter
+<a href="11-codegen.html#branches">11</a> explains why the compiler finds it convenient to write
+it this way.</li>
+<li><code>i*i</code> is computed in <code>r1</code>, not <code>r0</code>, because <code>mul</code> needs an odd register to leave
+a single-word product.</li>
+<li>The loop's increment, <code>i++</code>, has its own label <code>L4</code>, the target of
+<code>continue</code>. It is compiled after the body even though it appears before it in the source.
+Chapter <a href="08-statements.html#for">8</a> shows how.</li>
+<li><code>s</code> is passed to <code>printf</code> with <code>mov -12(r5),(sp)</code>: that is the free word. Only the
+format string is pushed, so only one word is popped afterwards.</li>
+<li>The string itself is placed at the end, in the data segment, as a list of octal bytes. Strings
+are written to their own temporary file by <code>c0</code> and copied to the end of the output by
+<code>c1</code> ([[c10.c:58-64]]).</li>
+</ul>
+
+<p>The same program compiled with <code>-O</code> is shown in <a href="13-c2.html">chapter 13</a>.</p>
+
+<h2 id="map">A map of the source</h2>
+
+<p>The listing is arranged in the order the passes run.</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Files</th><th>Program</th><th>Contents</th><th>Chapters</th></tr></thead>
+<tbody>
+<tr><td><a href="source/cc.c.html"><code>cc.c</code></a></td><td><code>cc</code></td><td>runs the passes; the preprocessor</td><td><a href="02-cc.html">2</a></td></tr>
+<tr><td><a href="source/c0h.c.html"><code>c0h.c</code></a></td><td rowspan="1"><code>c0</code></td><td>structures, globals, operator and type numbers</td><td><a href="03-c0.html">3</a></td></tr>
+<tr><td><a href="source/c00.c.html"><code>c00.c</code></a></td><td><code>c0</code></td><td><code>main</code>, symbol lookup, lexer, expression parser</td><td><a href="04-lexer.html">4</a>, <a href="05-expressions.html">5</a></td></tr>
+<tr><td><a href="source/c01.c.html"><code>c01.c</code></a></td><td><code>c0</code></td><td>building tree nodes, types and conversions</td><td><a href="06-types.html">6</a></td></tr>
+<tr><td><a href="source/c02.c.html"><code>c02.c</code></a></td><td><code>c0</code></td><td>external definitions, functions, statements</td><td><a href="08-statements.html">8</a></td></tr>
+<tr><td><a href="source/c03.c.html"><code>c03.c</code></a></td><td><code>c0</code></td><td>declarations</td><td><a href="07-declarations.html">7</a></td></tr>
+<tr><td><a href="source/c04.c.html"><code>c04.c</code></a></td><td><code>c0</code></td><td>utilities; writing the intermediate file</td><td><a href="03-c0.html">3</a>, <a href="06-types.html">6</a></td></tr>
+<tr><td><a href="source/c05.c.html"><code>c05.c</code></a></td><td><code>c0</code></td><td>operator properties, conversion and character tables</td><td><a href="04-lexer.html">4</a>, <a href="05-expressions.html">5</a></td></tr>
+<tr><td><a href="source/c0t.s.html"><code>c0t.s</code></a></td><td><code>c0</code></td><td>number scanner, in assembly language</td><td><a href="04-lexer.html">4</a></td></tr>
+<tr><td><a href="source/c1h.c.html"><code>c1h.c</code></a></td><td><code>c1</code></td><td>structures and operator numbers</td><td><a href="09-c1-trees.html">9</a></td></tr>
+<tr><td><a href="source/c10.c.html"><code>c10.c</code></a></td><td><code>c1</code></td><td>the code generator proper</td><td><a href="11-codegen.html">11</a></td></tr>
+<tr><td><a href="source/c11.c.html"><code>c11.c</code></a></td><td><code>c1</code></td><td>operands, switches, branches, reading the trees</td><td><a href="09-c1-trees.html">9</a>&ndash;<a href="12-switch.html">12</a></td></tr>
+<tr><td><a href="source/c12.c.html"><code>c12.c</code></a></td><td><code>c1</code></td><td>tree optimizer</td><td><a href="09-c1-trees.html">9</a></td></tr>
+<tr><td><a href="source/c13.c.html"><code>c13.c</code></a>, <a href="source/c1t.s.html"><code>c1t.s</code></a></td><td><code>c1</code></td><td>operator tables; instruction names</td><td><a href="10-tables.html">10</a></td></tr>
+<tr><td><a href="source/table.s.html"><code>table.s</code></a>, <a href="source/cvopt.c.html"><code>cvopt.c</code></a></td><td><code>c1</code></td><td>the code tables, and the program that translates them</td><td><a href="10-tables.html">10</a></td></tr>
+<tr><td><a href="source/c2h.c.html"><code>c2h.c</code></a>, <a href="source/c20.c.html"><code>c20.c</code></a>, <a href="source/c21.c.html"><code>c21.c</code></a></td><td><code>c2</code></td><td>the assembly-language optimizer</td><td><a href="13-c2.html">13</a></td></tr>
+<tr><td><a href="source/csv.s.html"><code>csv.s</code></a></td><td>library</td><td>function entry and exit</td><td>1</td></tr>
+<tr><td><a href="source/run.html"><code>run</code></a></td><td>shell script</td><td>builds and installs the compiler</td><td><a href="04-lexer.html#numbers">4</a></td></tr>
+</tbody></table></div>
