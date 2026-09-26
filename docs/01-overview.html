@@ -348,11 +348,12 @@ parameter offset at 4 (<a class="lref" data-file="c02.c" data-line="3221" href="
 the three saved registers (<a class="lref" data-file="c02.c" data-line="3219" href="source/c02.c.html#L3219">3219</a>), so the first local lands at &minus;8.</p>
 
 <p>The <code>tst -(sp)</code> in <code>csv</code> is not part of the save area. It reserves one word
-beyond it. The function then drops the stack pointer by the size of its locals minus that one
-word (<a class="lref" data-file="c11.c" data-line="6494" href="source/c11.c.html#L6494">6494&ndash;6501</a>), so that there is always exactly one unused word at the top of the
-stack. This spare word is used for the first argument of every call: rather than pushing it
-with <code>mov x,-(sp)</code> and popping it afterwards, the compiler stores it with
-<code>mov x,(sp)</code>, and there is nothing to pop. A call with one argument cleans up after
+beyond it. The function then drops the stack pointer by the full size of its locals
+(<a class="lref" data-file="c11.c" data-line="6494" href="source/c11.c.html#L6494">6494&ndash;6501</a>), so that there is always exactly one unused word at the top of the stack.
+This spare word is used for an argument of every call. Arguments are evaluated from right to left,
+and the first one evaluated, the last in the source, is stored with <code>mov x,(sp)</code> instead of
+being pushed with <code>mov x,-(sp)</code> and popped afterwards, so there is nothing to pop for it
+(unless it is a <code>long</code> or floating value, which needs more than one word). A call with one argument cleans up after
 itself for free, and a call with two needs only <code>tst (sp)+</code>, a two-byte instruction that
 pops one word. The code that exploits this is <code>comarg</code> (<a class="lref" data-file="c10.c" data-line="5755" href="source/c10.c.html#L5755">5755&ndash;5771</a>).</p>
 
@@ -417,7 +418,8 @@ a single-word product.</li>
 <li>The loop's increment, <code>i++</code>, has its own label <code>L4</code>, the target of
 <code>continue</code>. It is compiled after the body even though it appears before it in the source.
 Chapter <a href="08-statements.html#for">8</a> shows how.</li>
-<li><code>s</code> is passed to <code>printf</code> with <code>mov -12(r5),(sp)</code>: that is the free word. Only the
+<li><code>s</code>, the last argument and so the first evaluated, is passed to <code>printf</code> with
+<code>mov -12(r5),(sp)</code>: that is the free word. Only the
 format string is pushed, so only one word is popped afterwards.</li>
 <li>The string itself is placed at the end, in the data segment, as a list of octal bytes. Strings
 are written to their own temporary file by <code>c0</code> and copied to the end of the output by

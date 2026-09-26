@@ -17,7 +17,10 @@ inside a structure with <code>MOS</code>, &ldquo;member of structure&rdquo;. It 
 of what it declared, which is only interesting for a structure.</p>
 
 <p>Each declaration begins with keywords, read by <code>getkeywords</code> ([[c03.c:33-97]]). A storage
-class keyword replaces the default, and conflicting ones are an error. A type keyword sets the
+class keyword sets the class if the caller's default is 0, as it is inside a function body; if the
+caller supplied a class, any different one is a &ldquo;Conflict in storage class&rdquo;
+([[c03.c:49-56]]). At the outer level the default is <code>EXTERN</code>, so <code>static</code> is not
+accepted there. A type keyword sets the
 type, and a second one is a &ldquo;Type clash&rdquo;. <code>long</code> is not a type but a modifier,
 counted in <code>longf</code>, which turns <code>int</code> into <code>long</code> and <code>float</code> into
 <code>double</code> ([[c03.c:83-90]]). So <code>long float</code> is a legal way of writing <code>double</code>.</p>
@@ -95,8 +98,9 @@ figure.</p>
 <div><p class="lbl">a.out</p><pre>[[include:examples/out/dims.run]]</pre>
 <p class="small muted"><code>p</code> is three pointers, 6 bytes; <code>q</code> is one, 2 bytes, and what it points
 to is 8. After a parenthesised declarator, the loop that multiplies earlier bounds
-uses the local <code>ds</code>, which that invocation of <code>getype</code> never set, so the bound
-<code>[4]</code> is simply recorded. For these declarations that happens to be the right answer.</p></div>
+uses the local <code>ds</code>, which that invocation of <code>getype</code> never set, so what it does
+depends on whatever that register happened to hold. Here it evidently multiplied nothing, and
+the answer came out right.</p></div>
 </div>
 
 <h2 id="decl1">Allocating storage</h2>

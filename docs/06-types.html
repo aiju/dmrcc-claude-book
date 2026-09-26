@@ -52,7 +52,7 @@ simpler operations. This chapter describes the type representation first and the
 3 and 4 is the outermost modifier, the one you meet first when using the object. So a pointer to
 <code>char</code> is <code>010|1</code>, 011 octal; an array of pointers to <code>char</code>, such as
 <code>argv</code>, has <code>ARRAY</code> in bits 3 and 4 and <code>PTR</code> in bits 5 and 6, making 071; and
-a function returning a pointer to <code>char</code> is 0121. Six modifiers fit, which is more than
+a function returning a pointer to <code>char</code> is 061. Six modifiers fit, which is more than
 anyone needed.</p>
 
 <p>With this layout, the two operations that the compiler needs most are shifts.
@@ -115,7 +115,8 @@ turns an operand whose type is an array into a pointer to its first element, by 
 node's type to the element type and applying <code>&amp;</code>. <code>chkfun</code> (<a class="lref" data-file="c01.c" data-line="2397" href="source/c01.c.html#L2397">2397&ndash;2407</a>) does
 the same for a function name, which becomes a pointer to the function. These two rules are why an
 array name, used in an expression, is a pointer. The exceptions are the operand of
-<code>&amp;</code>, and the function of a call, which must stay a function.</p>
+<code>sizeof</code>, which is dealt with before this point, the operand of <code>&amp;</code>, a structure
+member name, and the function of a call, which must stay a function.</p>
 
 <p><code>sizeof</code> is resolved here too, simply by replacing the operand with a constant equal
 to its length (<a class="lref" data-file="c01.c" data-line="2136" href="source/c01.c.html#L2136">2136&ndash;2149</a>). The comment admits a bug. When the member of a structure is an array,
@@ -204,8 +205,9 @@ which the second pass will turn into a shift when the size is a power of two. A 
 assignment of an integer to a pointer, or the reverse, is accepted with no conversion at all.</li>
 <li>Pointer and pointer (<code>PTI</code>): allowed for subtraction, which gives an <code>int</code> that is
 then divided by the object size, and for comparison, which uses the unsigned comparison operators
-<code>LESSP</code> and so on. Other operations are illegal, except, oddly, between two <code>char</code>
-pointers.</li>
+<code>LESSP</code> and so on. Plain assignment of one pointer to another is accepted with no
+conversion whatever the pointers point to, and so are the two arms of <code>?:</code> when their types
+are identical. Other operations are illegal, except, oddly, between two <code>char</code> pointers.</li>
 <li>Pointer and floating or <code>long</code> (<code>XX</code>): &ldquo;Illegal conversion&rdquo;.</li>
 </ul>
 

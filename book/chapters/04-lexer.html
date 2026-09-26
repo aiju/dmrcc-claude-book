@@ -188,8 +188,8 @@ parser immediately writes its four words to the data segment under a new label
 symbol <code>fpp</code> ([[c0t.s:8]]), and the script that builds the compiler, <code>run</code>, edits it
 ([[run:9-25]]). It sets <code>fpp</code> to 0 and builds <code>/lib/c0</code>, then sets it to 1 and builds
 <code>/lib/fc0</code> with <code>cc -f</code>, which links in a program that simulates the floating-point
-unit when the hardware is absent. The standard first pass therefore contains no floating-point
-instructions and runs on any PDP-11, while the one that understands floating constants is used
+unit when the hardware is absent. The standard first pass therefore never reaches a floating-point
+instruction and runs on any PDP-11, while the one that understands floating constants is used
 only with <code>cc -f</code>.</p>
 
 <p>On the distribution tape used for this book the result is exactly what the script says. The

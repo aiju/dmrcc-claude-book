@@ -86,6 +86,12 @@
       case 41:
         if (!andflg) {
           var nx = symbol(); peeksym = nx;
+          if (nx.t === 23 || nx.t === 24) {
+            // c00.c: a minus in front of a floating constant is folded into it
+            nx.f = -nx.f;
+            snap(tok, 'Unary minus before a floating constant: negate the constant itself, no NEG node.', 'push');
+            continue advanc;
+          }
           o = 37;
         }
         andflg = 0;

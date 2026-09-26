@@ -94,7 +94,7 @@
     // length()
     var tt = type, n = 1, size;
     while ((tt & 030) === 030) { tt = decref(tt); n = dimtab[ssp]; }
-    if ((tt & 030) === 020) size = 0;
+    if ((tt & ~7) === 020) size = 0;   // as length(): (t&~TYPE)==FUNC
     else if (tt >= 010) size = 2 * n;
     else size = n * [2, 1, 4, 8, 0, 0, 4][tt & 7];
     return {name: name, raw: t1, type: type, base: base, dimtab: dimtab, ssp: ssp, size: size, log: log};

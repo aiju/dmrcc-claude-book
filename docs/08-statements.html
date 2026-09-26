@@ -96,7 +96,8 @@ is applied to it, and the result is wrapped in a <code>JUMP</code> node, which <
 <code>jmp</code> instruction. Since a label is an array, <code>*label</code> is the code at the label. But
 the operand can be any expression that yields an address, so a variable can hold the address of a
 label, obtained just by naming it, and <code>goto</code> can jump to it. The Sixth Edition had
-computed <code>goto</code> without ever mentioning it.</p>
+computed <code>goto</code>, which the reference manual of the time allows in a single sentence: the
+operand of <code>goto</code> may be a label or an expression of type pointer to <code>int</code>.</p>
 
 <div class="pair">
 <div><p class="lbl">cgoto.c</p><pre>main()
@@ -121,7 +122,9 @@ one
 two</pre>
 <p class="small muted">Both <code>goto where</code> statements compile to <code>jmp *-10(r5)</code>: jump to the
 address held in <code>where</code>. Note that <code>two</code> is used before it is defined, and that
-<code>where</code> is declared as <code>int *</code>; any pointer would do.</p></div>
+<code>where</code> is declared as <code>int *</code>. A pointer to <code>char</code> or to another pointer would
+also do, but not one to <code>float</code>, <code>double</code>, <code>long</code> or a structure, which
+<code>chkw</code> rejects as &ldquo;Integer operand required&rdquo;.</p></div>
 </div>
 
 <h2 id="control">The control statements</h2>

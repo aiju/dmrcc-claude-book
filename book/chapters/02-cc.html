@@ -66,7 +66,8 @@ again, since the user presumably wanted only <code>a.out</code>.</p>
 
 <p><code>callsys</code> ([[cc.c:617-637]]) runs one program. It is a textbook fork, exec and wait. The
 low byte of the status returned by <code>wait</code> is the number of the signal that killed the child,
-if any. For an interrupt it quietly cleans up; for any other signal it reports a &ldquo;Fatal
+if any. For an interrupt it quietly cleans up; for any other signal except 14, which it ignores for a reason the
+source does not record, it reports a &ldquo;Fatal
 error&rdquo; in that pass, which in practice meant that the compiler had run out of memory or
 had a bug. Otherwise it returns the child's exit status, and each pass exits with a non-zero
 status if it reported any errors ([[c00.c:99]]).</p>
@@ -75,8 +76,8 @@ status if it reported any errors ([[c00.c:99]]).</p>
 
 <p>The preprocessor is invoked by <code>expand</code> ([[cc.c:235-290]]). It opens the source file and
 reads its first character. If that is not <code>#</code>, the file needs no preprocessing and
-<code>expand</code> returns the file's own name, so <code>c0</code> reads the original. This is why each
-source file of the compiler starts with a line holding only <code>#</code>: without it, the
+<code>expand</code> returns the file's own name, so <code>c0</code> reads the original. This is why most
+source files of the compiler start with a line holding only <code>#</code>: without it, the
 <code>#include</code> lines would reach <code>c0</code>, which would reject them.</p>
 
 <p>If the first character is <code>#</code>, it must be put back. There is no <code>ungetc</code> for the

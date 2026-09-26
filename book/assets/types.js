@@ -29,7 +29,7 @@
   }
   function size(t) {
     if ((t & 030) === ARRAY) return null;
-    if ((t & 030) === FUNC) return 0;
+    if ((t & ~7) === FUNC) return 0;   // length(): only a function returning a basic type
     if (t >= PTR) return 2;
     return [2, 1, 4, 8, null, null, 4][t & 7];
   }
@@ -110,7 +110,7 @@
     t = leftc ? t2 : t1;
     if (dope & 010) {
       t = t1;
-      if (op === 80 && (cvn === ITP || cvn === PTI)) { cvn = leftc = 0; lines.push('Plain assignment between pointer and integer: no conversion, no complaint.'); }
+      if (op === 80 && (cvn === ITP || cvn === PTI)) { cvn = leftc = 0; lines.push('Plain assignment involving a pointer: no conversion, no complaint.'); }
       if (leftc) { cvn = leftc; lines.push('An assignment cannot convert its left side, so the left-hand conversion ' + CVNAME[cvn] + ' is applied to the right instead.'); }
       leftc = 0;
     } else if (dope & 04) {
