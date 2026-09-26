@@ -1,0 +1,240 @@
+<!-- title: Lexical Analysis -->
+<!-- number: 4 -->
+<!-- short: Lexer -->
+<!-- scripts: lexer.js -->
+<!-- blurb: How symbol() turns characters into tokens, why x=-1 draws a warning, and the number scanner written in assembly language. -->
+
+<p>The lexical analyser of <code>c0</code> is one routine, <code>symbol</code> ([[c00.c:185-318]]), with a
+few helpers. Each call returns the next token as a small integer. Tokens that carry a value leave
+it in a global: <code>cval</code> for an integer constant, a keyword number or a string's label,
+<code>fcval</code> for a floating constant, and <code>csym</code> for the symbol-table entry of a name.</p>
+
+<p>The token numbers are the same numbers used for operators throughout the compiler
+([[c0h.c:143-230]]). The <code>+</code> token is 40, and so is the <code>PLUS</code> operator in a tree
+and in the intermediate file. This lets the parser push tokens straight onto its operator
+stack.</p>
+
+<h2 id="pushback">Looking ahead</h2>
+
+<p>C cannot be tokenized without looking ahead one character: <code>+</code> might be followed by
+another <code>+</code>, and a name ends only when a character that is not part of it has been read.
+The parser, in turn, sometimes needs to look ahead one token. Both are handled with a single slot
+of pushback each: <code>peekc</code> holds a character that has been read but not used, and
+<code>peeksym</code> a token. <code>symbol</code> returns <code>peeksym</code> if there is one
+([[c00.c:189-195]]), and otherwise starts from <code>peekc</code> if that is set, and only then reads
+the input.</p>
+
+<p>Pushing back a token is as simple as assigning to <code>peeksym</code>, and the parser does it
+constantly. A typical pattern, which appears dozens of times in <code>c02.c</code> and <code>c03.c</code>,
+is</p>
+
+<pre>if ((o=symbol()) != SEMI) {
+	peeksym = o;
+	...</pre>
+
+<p>which tests the next token and puts it back if it is not the one wanted.</p>
+
+<p><code>peekc</code> is also used by the helpers <code>spnextchar</code> and <code>nextchar</code>
+([[c04.c:229-248]] and [[c04.c:218-223]]), which look at the next character without consuming it.
+The parser uses <code>nextchar</code> in a few places where a character is more informative than a
+token. For example, a name followed by <code>(</code> is a function even if it has never been
+declared ([[c00.c:490-494]]), and a name followed by <code>:</code> at the start of a statement is a
+label ([[c02.c:428-442]]).</p>
+
+<h2 id="classes">Character classes</h2>
+
+<p>The first thing <code>symbol</code> does with a character is look it up in <code>ctab</code>
+([[c05.c:159-176]]), which maps each of the 128 ASCII characters to a class. Many classes are
+tokens in their own right: <code>;</code> maps to <code>SEMI</code>, <code>(</code> to <code>LPARN</code>, <code>*</code> to
+<code>TIMES</code>. For these, <code>symbol</code> just returns the class ([[c00.c:317]]). Others are
+classes that need further work: <code>LETTER</code>, <code>DIGIT</code>, <code>SPACE</code>, <code>NEWLN</code>, the two
+quotes, and <code>UNKN</code> for characters that cannot appear in C, such as <code>$</code> and
+<code>@</code>. The underscore is a letter. The class numbers of this second group are from 119
+up ([[c0h.c:283-293]]), above every operator, so that they cannot be confused with a token.</p>
+
+<p>The character with code 1, the SOH that <code>cc</code> places before each line of an included
+file, has a class of its own, <code>INSERT</code>. It is skipped like a space, but it sets the flag
+<code>inhdr</code> so that the next newline does not advance the line count
+([[c00.c:207-219]]). <a href="02-cc.html#cpp">Chapter 2</a> explains why.</p>
+
+<h2 id="operators">Operators</h2>
+
+<p>Two-character operators are recognised with <code>subseq</code> ([[c00.c:324-330]]), which takes a
+character and two tokens. If the next input character is the one given, it is consumed and the
+second token is returned; otherwise it is left in <code>peekc</code> and the first is returned. So
+<code>+</code> is handled by</p>
+
+<pre>case PLUS:
+	return(subseq(c,PLUS,INCBEF));</pre>
+
+<p>and <code>-</code> by a nested call ([[c00.c:228-229]]):</p>
+
+<pre>return(subseq(c,subseq('&gt;',MINUS,ARROW),DECBEF));</pre>
+
+<p>The inner call runs first, since it is an argument of the outer one. If the next character is
+<code>&gt;</code> it returns <code>ARROW</code>, having consumed the <code>&gt;</code>; otherwise it returns
+<code>MINUS</code>, and the outer call checks for a second <code>-</code>.</p>
+
+<p>The lexer does not know whether <code>++</code> is a prefix or postfix operator, or whether
+<code>*</code> means multiplication or indirection. It returns <code>INCBEF</code> for every <code>++</code> and
+<code>TIMES</code> for every <code>*</code>, and the parser decides, from whether it has just seen an
+operand, which one was meant (<a href="05-expressions.html">chapter 5</a>).</p>
+
+<h3>Assignment operators</h3>
+
+<p>The case for <code>=</code> is the most complicated ([[c00.c:231-245]]):</p>
+
+[[src:c00.c:231-245]]
+
+<p>If <code>=</code> is followed by a blank, it is a plain assignment. Otherwise <code>symbol</code> calls
+itself to read the following token. If that is one of the binary operators from <code>PLUS</code> to
+<code>EXOR</code>, the two together form an assignment operator such as <code>=+</code>, and since the
+assignment operators are numbered in the same order ([[c0h.c:207-217]]), its number is found by
+adding a constant. If it is another <code>=</code>, the pair is <code>==</code>. Otherwise the token is
+pushed back and the <code>=</code> stands alone.</p>
+
+<p>Reading a whole token after the <code>=</code>, rather than a character, has a pleasant
+consequence: <code>=&lt;&lt;</code> and <code>=&gt;&gt;</code> need no special code, because <code>&lt;&lt;</code> and
+<code>&gt;&gt;</code> come back as single tokens.</p>
+
+<p>It also makes the famous ambiguity concrete. <code>x=-1</code> is read as <code>x =- 1</code>, which
+subtracts one from <code>x</code>. If you meant <code>x = -1</code> you had to write a space after the
+<code>=</code>. The compiler cannot know which was intended, so when the operator is <code>-</code>,
+<code>&amp;</code> or <code>*</code> (all of which also have a unary meaning) and it is followed immediately by
+something other than a blank, it assumes the assignment operator and warns
+([[c00.c:235-239]]). This is the only warning in the compiler. It is implemented as an error
+that then decrements the error count.</p>
+
+<div class="pair">
+<div><p class="lbl">warn.c</p><pre>[[include:examples/warn.c]]</pre></div>
+<div><p class="lbl">cc warn.c; a.out</p><pre>[[include:examples/out/warn.err]]
+[[include:examples/out/warn.run]]</pre></div>
+</div>
+
+<p>Both statements subtract one from <code>x</code> and <code>y</code>, but only the first draws the warning.
+(Both variables happen to start at zero here because the stack below <code>main</code> was clean.)
+Complaints like this one led to the operators being turned round, to <code>-=</code> and so on,
+by the time of the Seventh Edition and the first edition of Kernighan and Ritchie's book. This
+compiler accepts only the old forms.</p>
+
+<h2 id="names">Names and keywords</h2>
+
+<p>A letter starts a name ([[c00.c:288-303]]). Characters are collected into <code>symbuf</code> up to
+eight of them, and any more are read and ignored. The buffer is padded with zero bytes, so that
+names can be compared eight bytes at a time, and <code>lookup</code> is called. If the name is a
+keyword <code>lookup</code> returns <code>KEYW</code> with the keyword's number in <code>cval</code>; otherwise
+it returns <code>NAME</code> with the entry in <code>csym</code>. <code>sizeof</code> is looked up as a keyword but
+returned as an operator token, <code>SIZEOF</code>, since that is how the expression parser treats it.</p>
+
+<p>If <code>mosflg</code> is set, a <code>.</code> is put in front of the name, putting it in the name space of
+structure members. The parser sets the flag when it reads <code>.</code> or <code>-&gt;</code>
+([[c00.c:589-592]]) and while it reads the declarations inside a structure.</p>
+
+<h2 id="strings">Strings and characters</h2>
+
+<p>A double quote starts a string, which <code>getstr</code> ([[c00.c:336-354]]) reads into
+<code>savstr</code>. Each string is given a new label number from <code>isn</code>, the compiler's counter for
+generated labels, and that number is the value of the token. The characters themselves are not
+written out until the parser decides what to do with the string: in an expression it becomes a
+static array of <code>char</code> at that label, written to the string file by <code>putstr</code>
+([[c00.c:361-374]]); as the initializer of a <code>char</code> array it is written in place.
+<code>nchstr</code> counts the characters including the terminating null, so that the initializer
+code knows how many bytes it has.</p>
+
+<p>Character constants are read by <code>getcc</code> ([[c00.c:381-395]]), which stores the characters
+directly into the bytes of the integer <code>cval</code>, through a <code>char</code> pointer. Up to two are
+allowed, so <code>'ab'</code> is a legal constant whose value has <code>a</code> in the low byte and
+<code>b</code> in the high one. As the comment says, this depends on the layout of characters in a
+word.</p>
+
+<p>Both use <code>mapch</code> ([[c00.c:402-459]]) to read a character and interpret escapes. The escapes
+are <code>\n</code>, <code>\t</code>, <code>\b</code>, <code>\r</code> and up to three octal digits. Any other character
+after a backslash stands for itself, which is how <code>\\</code>, <code>\'</code> and <code>\"</code> work. A
+backslash before a newline continues the string on the next line. The octal case reads one
+character too many and has to keep it; since <code>peekc</code> may already be in use, <code>mapch</code> has
+a private pushback of its own, the static variable <code>mpeek</code>.</p>
+
+<h2 id="numbers">Numbers, in assembly language</h2>
+
+<p>A digit, or a <code>.</code>, sends <code>symbol</code> to <code>getnum</code> ([[c00.c:275-280]]), with base 8 if the
+first digit is zero and 10 otherwise. <code>getnum</code> is not in C. It is in
+<a href="source/c0t.s.html"><code>c0t.s</code></a>, written in assembly language, because it uses the
+floating-point unit directly to accumulate the value of a floating constant.</p>
+
+<p>It reads digits, accumulating the integer value in <code>_cval</code> with a <code>mul</code> instruction
+([[c0t.s:133-153]]) and, in parallel, the floating value in <code>fr0</code>. The digit routine accepts
+any decimal digit, so <code>09</code> is a legal octal constant with the value nine. A <code>.</code> or an
+<code>e</code> marks the number as floating, and the floating value is then scaled by the right power
+of ten ([[c0t.s:84-107]]).</p>
+
+<p>The return value is a token. A plain integer returns <code>CON</code> ([[c0t.s:87]]). If there
+were no digits at all, the <code>.</code> was not part of a number, and <code>getnum</code> returns 39, the
+number of the <code>.</code> operator ([[c0t.s:78-80]]). That is how <code>s.x</code> is recognised: the
+dot goes to <code>getnum</code> because it might start <code>.5</code>, and comes back as an operator.</p>
+
+<p>A floating constant returns one of two tokens. If only the first of its four words is non-zero,
+it is a <code>SFCON</code>, a &ldquo;short&rdquo; floating constant, and its first word is put in
+<code>cval</code> ([[c0t.s:108-122]]). The PDP-11's floating-point instructions can take an immediate
+operand, but only one word of it, the high word, which holds the sign, the exponent and the top
+seven bits of the fraction. So constants such as 1.0, 2.5 or 0.75, which need no more than eight
+significant bits, can be written into the instruction. Anything else is a <code>FCON</code>, and the
+parser immediately writes its four words to the data segment under a new label
+([[c00.c:506-509]]). In the listing of <code>fl.c</code> below, <code>2.5</code> becomes the immediate
+<code>$40440</code>.</p>
+
+<p>All of this is between <code>.if fpp</code> and <code>.endif</code>. The other branch,
+<code>.if 1-fpp</code> ([[c0t.s:124-131]]), replaces the whole floating part with the message
+&ldquo;No floating point!&rdquo; and returns <code>CON</code>. Which branch is assembled depends on the
+symbol <code>fpp</code> ([[c0t.s:8]]), and the script that builds the compiler, <code>run</code>, edits it
+([[run:9-25]]). It sets <code>fpp</code> to 0 and builds <code>/lib/c0</code>, then sets it to 1 and builds
+<code>/lib/fc0</code> with <code>cc -f</code>, which links in a program that simulates the floating-point
+unit when the hardware is absent. The standard first pass therefore never reaches a floating-point
+instruction and runs on any PDP-11, while the one that understands floating constants is used
+only with <code>cc -f</code>.</p>
+
+<p>On the distribution tape used for this book the result is exactly what the script says. The
+plain compiler rejects every floating constant:</p>
+
+<pre>% cc fl.c
+[[include:examples/extra/fl.err]]</pre>
+
+<p>and <code>cc -f</code> compiles the same file:</p>
+
+<div class="pair">
+<div><p class="lbl">fl.c</p><pre>[[include:examples/fl.c]]</pre></div>
+<div><p class="lbl">cc -f -S fl.c</p><pre>[[include:examples/out/fl.s]]</pre></div>
+</div>
+
+<p>The first line of <code>c0t.s</code> is related: <code>fltused = 0</code> defines the symbol that would
+otherwise pull the floating-point conversion code of <code>printf</code> into <code>c0</code> when it is
+linked. <code>c1</code> does the opposite, emitting <code>.globl fltused</code> into any program that uses
+floating point ([[c10.c:48-54]]), which you can see near the end of the listing above.</p>
+
+<h2 id="try">Try it</h2>
+
+<p>The following is a JavaScript version of <code>symbol</code>, <code>subseq</code>, <code>mapch</code>,
+<code>getnum</code> and the character table, following the originals closely. Each token is shown
+with its spelling above and its name and number below. Edit the text to see how it is
+tokenized; floating constants are handled as by <code>fc0</code>.</p>
+
+<div class="widget" data-widget="lexer">
+<div class="wbar"><span class="wt">symbol() in the browser</span>
+<span class="row">
+<button type="button" class="btn" data-sample="x=-1;\nx= -1;\nx =- 1;\ny=*p;\nz=&amp;w;\na=&lt;&lt;2;">Assignments</button>
+<button type="button" class="btn" data-sample="p-&gt;next.val\ns.x = .5 + 1.e2 + 2.5;\nc = 'ab' + 017 + 09;">Numbers and members</button>
+<button type="button" class="btn" data-sample="main()\n{\n\tprintf(&quot;hi\\tthere\\n&quot;);\t/* a comment */\n\tif (a&lt;=b &amp;&amp; c!=d || !e)\n\t\ti++;\n}">A function</button>
+</span></div>
+<div class="wbody">
+<label for="lexin">Source</label>
+<textarea id="lexin" rows="6" spellcheck="false">x=-1;
+if (a&lt;=b &amp;&amp; p-&gt;next)
+	s =+ 'ab' + 017 + 2.5;
+printf("%d\n", sizeof x);</textarea>
+<p class="small muted lexmsg" style="margin:.6rem 0 .3rem"></p>
+<div class="lexout"></div>
+</div>
+</div>
+
+<p>A few things to try: remove the space in <code>x =- 1</code>; put a space in <code>x=-1</code>; write
+<code>a==b</code> and <code>a= =b</code>; write a string that runs off the end of a line; and notice that
+<code>i++</code> comes out as <code>INCBEF</code>, the same token as <code>++i</code>.</p>

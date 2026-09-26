@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>c20.c · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>c20.c</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 190 &middot; lines 9500&ndash;10172</p>
+<h1><code>c20.c</code></h1>
+<p class="desc">Pass 2: the object code improver</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L9500" class="s0"><td class="ln"><a href="#L9500">9500</a></td><td class="code"><span class="pp">#</span></td></tr>
+<tr id="L9501" class="s0"><td class="ln"><a href="#L9501">9501</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L9502" class="s0"><td class="ln"><a href="#L9502">9502</a></td><td class="code"><span class="cm"> *       C object code improver</span></td></tr>
+<tr id="L9503" class="s0"><td class="ln"><a href="#L9503">9503</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L9504" class="s0"><td class="ln"><a href="#L9504">9504</a></td><td class="code"> </td></tr>
+<tr id="L9505" class="s0"><td class="ln"><a href="#L9505">9505</a></td><td class="code"><span class="pp">#include "c2h.c"</span></td></tr>
+<tr id="L9506" class="s0"><td class="ln"><a href="#L9506">9506</a></td><td class="code"> </td></tr>
+<tr id="L9507" class="s0"><td class="ln"><a href="#L9507">9507</a></td><td class="code"><span class="kw">struct</span> optab optab[] {</td></tr>
+<tr id="L9508" class="s0"><td class="ln"><a href="#L9508">9508</a></td><td class="code">        <span class="st">"jbr"</span>,  JBR,</td></tr>
+<tr id="L9509" class="s0"><td class="ln"><a href="#L9509">9509</a></td><td class="code">        <span class="st">"jeq"</span>,  CBR | JEQ&lt;&lt;<span class="nu">8</span>,</td></tr>
+<tr id="L9510" class="s0"><td class="ln"><a href="#L9510">9510</a></td><td class="code">        <span class="st">"jne"</span>,  CBR | JNE&lt;&lt;<span class="nu">8</span>,</td></tr>
+<tr id="L9511" class="s0"><td class="ln"><a href="#L9511">9511</a></td><td class="code">        <span class="st">"jle"</span>,  CBR | JLE&lt;&lt;<span class="nu">8</span>,</td></tr>
+<tr id="L9512" class="s0"><td class="ln"><a href="#L9512">9512</a></td><td class="code">        <span class="st">"jge"</span>,  CBR | JGE&lt;&lt;<span class="nu">8</span>,</td></tr>
+<tr id="L9513" class="s0"><td class="ln"><a href="#L9513">9513</a></td><td class="code">        <span class="st">"jlt"</span>,  CBR | JLT&lt;&lt;<span class="nu">8</span>,</td></tr>
+<tr id="L9514" class="s0"><td class="ln"><a href="#L9514">9514</a></td><td class="code">        <span class="st">"jgt"</span>,  CBR | JGT&lt;&lt;<span class="nu">8</span>,</td></tr>
+<tr id="L9515" class="s0"><td class="ln"><a href="#L9515">9515</a></td><td class="code">        <span class="st">"jlo"</span>,  CBR | JLO&lt;&lt;<span class="nu">8</span>,</td></tr>
+<tr id="L9516" class="s0"><td class="ln"><a href="#L9516">9516</a></td><td class="code">        <span class="st">"jhi"</span>,  CBR | JHI&lt;&lt;<span class="nu">8</span>,</td></tr>
+<tr id="L9517" class="s0"><td class="ln"><a href="#L9517">9517</a></td><td class="code">        <span class="st">"jlos"</span>, CBR | JLOS&lt;&lt;<span class="nu">8</span>,</td></tr>
+<tr id="L9518" class="s0"><td class="ln"><a href="#L9518">9518</a></td><td class="code">        <span class="st">"jhis"</span>, CBR | JHIS&lt;&lt;<span class="nu">8</span>,</td></tr>
+<tr id="L9519" class="s0"><td class="ln"><a href="#L9519">9519</a></td><td class="code">        <span class="st">"jmp"</span>,  JMP,</td></tr>
+<tr id="L9520" class="s0"><td class="ln"><a href="#L9520">9520</a></td><td class="code">        <span class="st">".globl"</span>,EROU,</td></tr>
+<tr id="L9521" class="s0"><td class="ln"><a href="#L9521">9521</a></td><td class="code">        <span class="st">"mov"</span>,  MOV,</td></tr>
+<tr id="L9522" class="s0"><td class="ln"><a href="#L9522">9522</a></td><td class="code">        <span class="st">"clr"</span>,  CLR,</td></tr>
+<tr id="L9523" class="s0"><td class="ln"><a href="#L9523">9523</a></td><td class="code">        <span class="st">"com"</span>,  COM,</td></tr>
+<tr id="L9524" class="s0"><td class="ln"><a href="#L9524">9524</a></td><td class="code">        <span class="st">"inc"</span>,  INC,</td></tr>
+<tr id="L9525" class="s0"><td class="ln"><a href="#L9525">9525</a></td><td class="code">        <span class="st">"dec"</span>,  DEC,</td></tr>
+<tr id="L9526" class="s0"><td class="ln"><a href="#L9526">9526</a></td><td class="code">        <span class="st">"neg"</span>,  NEG,</td></tr>
+<tr id="L9527" class="s0"><td class="ln"><a href="#L9527">9527</a></td><td class="code">        <span class="st">"tst"</span>,  TST,</td></tr>
+<tr id="L9528" class="s0"><td class="ln"><a href="#L9528">9528</a></td><td class="code">        <span class="st">"asr"</span>,  ASR,</td></tr>
+<tr id="L9529" class="s0"><td class="ln"><a href="#L9529">9529</a></td><td class="code">        <span class="st">"asl"</span>,  ASL,</td></tr>
+<tr id="L9530" class="s0"><td class="ln"><a href="#L9530">9530</a></td><td class="code">        <span class="st">"sxt"</span>,  SXT,</td></tr>
+<tr id="L9531" class="s0"><td class="ln"><a href="#L9531">9531</a></td><td class="code">        <span class="st">"cmp"</span>,  CMP,</td></tr>
+<tr id="L9532" class="s0"><td class="ln"><a href="#L9532">9532</a></td><td class="code">        <span class="st">"add"</span>,  ADD,</td></tr>
+<tr id="L9533" class="s0"><td class="ln"><a href="#L9533">9533</a></td><td class="code">        <span class="st">"sub"</span>,  SUB,</td></tr>
+<tr id="L9534" class="s0"><td class="ln"><a href="#L9534">9534</a></td><td class="code">        <span class="st">"bit"</span>,  BIT,</td></tr>
+<tr id="L9535" class="s0"><td class="ln"><a href="#L9535">9535</a></td><td class="code">        <span class="st">"bic"</span>,  BIC,</td></tr>
+<tr id="L9536" class="s0"><td class="ln"><a href="#L9536">9536</a></td><td class="code">        <span class="st">"bis"</span>,  BIS,</td></tr>
+<tr id="L9537" class="s0"><td class="ln"><a href="#L9537">9537</a></td><td class="code">        <span class="st">"mul"</span>,  MUL,</td></tr>
+<tr id="L9538" class="s0"><td class="ln"><a href="#L9538">9538</a></td><td class="code">        <span class="st">"ash"</span>,  ASH,</td></tr>
+<tr id="L9539" class="s0"><td class="ln"><a href="#L9539">9539</a></td><td class="code">        <span class="st">"xor"</span>,  XOR,</td></tr>
+<tr id="L9540" class="s0"><td class="ln"><a href="#L9540">9540</a></td><td class="code">        <span class="st">".text"</span>,TEXT,</td></tr>
+<tr id="L9541" class="s0"><td class="ln"><a href="#L9541">9541</a></td><td class="code">        <span class="st">".data"</span>,DATA,</td></tr>
+<tr id="L9542" class="s0"><td class="ln"><a href="#L9542">9542</a></td><td class="code">        <span class="st">".bss"</span>, BSS,</td></tr>
+<tr id="L9543" class="s0"><td class="ln"><a href="#L9543">9543</a></td><td class="code">        <span class="st">".even"</span>,EVEN,</td></tr>
+<tr id="L9544" class="s0"><td class="ln"><a href="#L9544">9544</a></td><td class="code">        <span class="st">"movf"</span>, MOVF,</td></tr>
+<tr id="L9545" class="s0"><td class="ln"><a href="#L9545">9545</a></td><td class="code">        <span class="st">"movof"</span>,MOVOF,</td></tr>
+<tr id="L9546" class="s0"><td class="ln"><a href="#L9546">9546</a></td><td class="code">        <span class="st">"movfo"</span>,MOVFO,</td></tr>
+<tr id="L9547" class="s0"><td class="ln"><a href="#L9547">9547</a></td><td class="code">        <span class="st">"addf"</span>, ADDF,</td></tr>
+<tr id="L9548" class="s0"><td class="ln"><a href="#L9548">9548</a></td><td class="code">        <span class="st">"subf"</span>, SUBF,</td></tr>
+<tr id="L9549" class="s0"><td class="ln"><a href="#L9549">9549</a></td><td class="code">        <span class="st">"divf"</span>, DIVF,</td></tr>
+<tr id="L9550" class="s1"><td class="ln"><a href="#L9550">9550</a></td><td class="code">        <span class="st">"mulf"</span>, MULF,</td></tr>
+<tr id="L9551" class="s1"><td class="ln"><a href="#L9551">9551</a></td><td class="code">        <span class="st">"clrf"</span>, CLRF,</td></tr>
+<tr id="L9552" class="s1"><td class="ln"><a href="#L9552">9552</a></td><td class="code">        <span class="st">"cmpf"</span>, CMPF,</td></tr>
+<tr id="L9553" class="s1"><td class="ln"><a href="#L9553">9553</a></td><td class="code">        <span class="st">"negf"</span>, NEGF,</td></tr>
+<tr id="L9554" class="s1"><td class="ln"><a href="#L9554">9554</a></td><td class="code">        <span class="st">"tstf"</span>, TSTF,</td></tr>
+<tr id="L9555" class="s1"><td class="ln"><a href="#L9555">9555</a></td><td class="code">        <span class="st">"cfcc"</span>, CFCC,</td></tr>
+<tr id="L9556" class="s1"><td class="ln"><a href="#L9556">9556</a></td><td class="code">        <span class="st">"sob"</span>,  SOB,</td></tr>
+<tr id="L9557" class="s1"><td class="ln"><a href="#L9557">9557</a></td><td class="code">        <span class="st">"jsr"</span>,  JSR,</td></tr>
+<tr id="L9558" class="s1"><td class="ln"><a href="#L9558">9558</a></td><td class="code">        <span class="st">".end"</span>, END,</td></tr>
+<tr id="L9559" class="s1"><td class="ln"><a href="#L9559">9559</a></td><td class="code">        <span class="nu">0</span>,      <span class="nu">0</span>};</td></tr>
+<tr id="L9560" class="s1"><td class="ln"><a href="#L9560">9560</a></td><td class="code"> </td></tr>
+<tr id="L9561" class="s1"><td class="ln"><a href="#L9561">9561</a></td><td class="code"><span class="kw">char</span>    revbr[] { JNE, JEQ, JGT, JLT, JGE, JLE, JHIS, JLOS, JHI, JLO };</td></tr>
+<tr id="L9562" class="s1"><td class="ln"><a href="#L9562">9562</a></td><td class="code"><span class="kw">int</span>     isn     <span class="nu">20000</span>;</td></tr>
+<tr id="L9563" class="s1"><td class="ln"><a href="#L9563">9563</a></td><td class="code"> </td></tr>
+<tr id="L9564" class="s1"><td class="ln"><a href="#L9564">9564</a></td><td class="code"><a class="id" href="../source/cc.c.html#L149">main</a>(argc, argv)</td></tr>
+<tr id="L9565" class="s1"><td class="ln"><a href="#L9565">9565</a></td><td class="code"><span class="kw">char</span> **argv;</td></tr>
+<tr id="L9566" class="s1"><td class="ln"><a href="#L9566">9566</a></td><td class="code">{</td></tr>
+<tr id="L9567" class="s1"><td class="ln"><a href="#L9567">9567</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> niter, maxiter, isend;</td></tr>
+<tr id="L9568" class="s1"><td class="ln"><a href="#L9568">9568</a></td><td class="code">        <span class="kw">extern</span> end;</td></tr>
+<tr id="L9569" class="s1"><td class="ln"><a href="#L9569">9569</a></td><td class="code">        <span class="kw">extern</span> fin, fout;</td></tr>
+<tr id="L9570" class="s1"><td class="ln"><a href="#L9570">9570</a></td><td class="code">        <span class="kw">int</span> nflag;</td></tr>
+<tr id="L9571" class="s1"><td class="ln"><a href="#L9571">9571</a></td><td class="code"> </td></tr>
+<tr id="L9572" class="s1"><td class="ln"><a href="#L9572">9572</a></td><td class="code">        <span class="kw">if</span> (argc&gt;<span class="nu">1</span> &amp;&amp; argv[<span class="nu">1</span>][<span class="nu">0</span>]==<span class="st">'+'</span>) {</td></tr>
+<tr id="L9573" class="s1"><td class="ln"><a href="#L9573">9573</a></td><td class="code">                argc--;</td></tr>
+<tr id="L9574" class="s1"><td class="ln"><a href="#L9574">9574</a></td><td class="code">                argv++;</td></tr>
+<tr id="L9575" class="s1"><td class="ln"><a href="#L9575">9575</a></td><td class="code">                debug++;</td></tr>
+<tr id="L9576" class="s1"><td class="ln"><a href="#L9576">9576</a></td><td class="code">        }</td></tr>
+<tr id="L9577" class="s1"><td class="ln"><a href="#L9577">9577</a></td><td class="code">        <span class="kw">if</span> (argc&gt;<span class="nu">1</span> &amp;&amp; argv[<span class="nu">1</span>][<span class="nu">0</span>]==<span class="st">'-'</span>) {</td></tr>
+<tr id="L9578" class="s1"><td class="ln"><a href="#L9578">9578</a></td><td class="code">                argc--;</td></tr>
+<tr id="L9579" class="s1"><td class="ln"><a href="#L9579">9579</a></td><td class="code">                argv++;</td></tr>
+<tr id="L9580" class="s1"><td class="ln"><a href="#L9580">9580</a></td><td class="code">                nflag++;</td></tr>
+<tr id="L9581" class="s1"><td class="ln"><a href="#L9581">9581</a></td><td class="code">        }</td></tr>
+<tr id="L9582" class="s1"><td class="ln"><a href="#L9582">9582</a></td><td class="code">        <span class="kw">if</span> (argc&gt;<span class="nu">1</span>) {</td></tr>
+<tr id="L9583" class="s1"><td class="ln"><a href="#L9583">9583</a></td><td class="code">                <span class="kw">if</span> ((fin = open(argv[<span class="nu">1</span>], <span class="nu">0</span>)) &lt; <span class="nu">0</span>) {</td></tr>
+<tr id="L9584" class="s1"><td class="ln"><a href="#L9584">9584</a></td><td class="code">                        printf(<span class="st">"C2: can't find %s\n"</span>, argv[<span class="nu">1</span>]);</td></tr>
+<tr id="L9585" class="s1"><td class="ln"><a href="#L9585">9585</a></td><td class="code">                        exit(<span class="nu">1</span>);</td></tr>
+<tr id="L9586" class="s1"><td class="ln"><a href="#L9586">9586</a></td><td class="code">                }</td></tr>
+<tr id="L9587" class="s1"><td class="ln"><a href="#L9587">9587</a></td><td class="code">        } <span class="kw">else</span></td></tr>
+<tr id="L9588" class="s1"><td class="ln"><a href="#L9588">9588</a></td><td class="code">                fin = dup(<span class="nu">0</span>);</td></tr>
+<tr id="L9589" class="s1"><td class="ln"><a href="#L9589">9589</a></td><td class="code">        <span class="kw">if</span> (argc&gt;<span class="nu">2</span>) {</td></tr>
+<tr id="L9590" class="s1"><td class="ln"><a href="#L9590">9590</a></td><td class="code">                <span class="kw">if</span> ((fout = creat(argv[<span class="nu">2</span>], <span class="nu">0666</span>)) &lt; <span class="nu">0</span>) {</td></tr>
+<tr id="L9591" class="s1"><td class="ln"><a href="#L9591">9591</a></td><td class="code">                        fout = <span class="nu">1</span>;</td></tr>
+<tr id="L9592" class="s1"><td class="ln"><a href="#L9592">9592</a></td><td class="code">                        printf(<span class="st">"C2: can't create %s\n"</span>, argv[<span class="nu">2</span>]);</td></tr>
+<tr id="L9593" class="s1"><td class="ln"><a href="#L9593">9593</a></td><td class="code">                        exit(<span class="nu">1</span>);</td></tr>
+<tr id="L9594" class="s1"><td class="ln"><a href="#L9594">9594</a></td><td class="code">                }</td></tr>
+<tr id="L9595" class="s1"><td class="ln"><a href="#L9595">9595</a></td><td class="code">        } <span class="kw">else</span></td></tr>
+<tr id="L9596" class="s1"><td class="ln"><a href="#L9596">9596</a></td><td class="code">                fout = dup(<span class="nu">1</span>);</td></tr>
+<tr id="L9597" class="s1"><td class="ln"><a href="#L9597">9597</a></td><td class="code">        lasta = firstr = lastr = sbrk(<span class="nu">2</span>);</td></tr>
+<tr id="L9598" class="s1"><td class="ln"><a href="#L9598">9598</a></td><td class="code">        maxiter = <span class="nu">0</span>;</td></tr>
+<tr id="L9599" class="s1"><td class="ln"><a href="#L9599">9599</a></td><td class="code">        <a class="id" href="../source/c20.c.html#L9858">opsetup</a>();</td></tr>
+<tr id="L9600" class="s0"><td class="ln"><a href="#L9600">9600</a></td><td class="code">        <span class="kw">do</span> {</td></tr>
+<tr id="L9601" class="s0"><td class="ln"><a href="#L9601">9601</a></td><td class="code">                isend = <a class="id" href="../source/c20.c.html#L9646">input</a>();</td></tr>
+<tr id="L9602" class="s0"><td class="ln"><a href="#L9602">9602</a></td><td class="code">                <a class="id" href="../source/c21.c.html#L10646">movedat</a>();</td></tr>
+<tr id="L9603" class="s0"><td class="ln"><a href="#L9603">9603</a></td><td class="code">                niter = <span class="nu">0</span>;</td></tr>
+<tr id="L9604" class="s0"><td class="ln"><a href="#L9604">9604</a></td><td class="code">                <span class="kw">do</span> {</td></tr>
+<tr id="L9605" class="s0"><td class="ln"><a href="#L9605">9605</a></td><td class="code">                        <a class="id" href="../source/c20.c.html#L9911">refcount</a>();</td></tr>
+<tr id="L9606" class="s0"><td class="ln"><a href="#L9606">9606</a></td><td class="code">                        <span class="kw">do</span> {</td></tr>
+<tr id="L9607" class="s0"><td class="ln"><a href="#L9607">9607</a></td><td class="code">                                <a class="id" href="../source/c20.c.html#L9950">iterate</a>();</td></tr>
+<tr id="L9608" class="s0"><td class="ln"><a href="#L9608">9608</a></td><td class="code">                                <a class="id" href="../source/c21.c.html#L10465">clearreg</a>();</td></tr>
+<tr id="L9609" class="s0"><td class="ln"><a href="#L9609">9609</a></td><td class="code">                                niter++;</td></tr>
+<tr id="L9610" class="s0"><td class="ln"><a href="#L9610">9610</a></td><td class="code">                        } <span class="kw">while</span> (nchange);</td></tr>
+<tr id="L9611" class="s0"><td class="ln"><a href="#L9611">9611</a></td><td class="code">                        <a class="id" href="../source/c20.c.html#L10138">comjump</a>();</td></tr>
+<tr id="L9612" class="s0"><td class="ln"><a href="#L9612">9612</a></td><td class="code">                        <a class="id" href="../source/c21.c.html#L10207">rmove</a>();</td></tr>
+<tr id="L9613" class="s0"><td class="ln"><a href="#L9613">9613</a></td><td class="code">                } <span class="kw">while</span> (nchange || <a class="id" href="../source/c21.c.html#L10346">jumpsw</a>());</td></tr>
+<tr id="L9614" class="s0"><td class="ln"><a href="#L9614">9614</a></td><td class="code">                <a class="id" href="../source/c21.c.html#L10374">addsob</a>();</td></tr>
+<tr id="L9615" class="s0"><td class="ln"><a href="#L9615">9615</a></td><td class="code">                <a class="id" href="../source/c20.c.html#L9739">output</a>();</td></tr>
+<tr id="L9616" class="s0"><td class="ln"><a href="#L9616">9616</a></td><td class="code">                <span class="kw">if</span> (niter &gt; maxiter)</td></tr>
+<tr id="L9617" class="s0"><td class="ln"><a href="#L9617">9617</a></td><td class="code">                        maxiter = niter;</td></tr>
+<tr id="L9618" class="s0"><td class="ln"><a href="#L9618">9618</a></td><td class="code">                lasta = firstr;</td></tr>
+<tr id="L9619" class="s0"><td class="ln"><a href="#L9619">9619</a></td><td class="code">        } <span class="kw">while</span> (isend);</td></tr>
+<tr id="L9620" class="s0"><td class="ln"><a href="#L9620">9620</a></td><td class="code">        flush();</td></tr>
+<tr id="L9621" class="s0"><td class="ln"><a href="#L9621">9621</a></td><td class="code">        fout = <span class="nu">2</span>;</td></tr>
+<tr id="L9622" class="s0"><td class="ln"><a href="#L9622">9622</a></td><td class="code">        <span class="kw">if</span> (nflag) {</td></tr>
+<tr id="L9623" class="s0"><td class="ln"><a href="#L9623">9623</a></td><td class="code">                printf(<span class="st">"%d iterations\n"</span>, maxiter);</td></tr>
+<tr id="L9624" class="s0"><td class="ln"><a href="#L9624">9624</a></td><td class="code">                printf(<span class="st">"%d jumps to jumps\n"</span>, nbrbr);</td></tr>
+<tr id="L9625" class="s0"><td class="ln"><a href="#L9625">9625</a></td><td class="code">                printf(<span class="st">"%d inst. after jumps\n"</span>, iaftbr);</td></tr>
+<tr id="L9626" class="s0"><td class="ln"><a href="#L9626">9626</a></td><td class="code">                printf(<span class="st">"%d jumps to .+2\n"</span>, njp1);</td></tr>
+<tr id="L9627" class="s0"><td class="ln"><a href="#L9627">9627</a></td><td class="code">                printf(<span class="st">"%d redundant labels\n"</span>, nrlab);</td></tr>
+<tr id="L9628" class="s0"><td class="ln"><a href="#L9628">9628</a></td><td class="code">                printf(<span class="st">"%d cross-jumps\n"</span>, nxjump);</td></tr>
+<tr id="L9629" class="s0"><td class="ln"><a href="#L9629">9629</a></td><td class="code">                printf(<span class="st">"%d code motions\n"</span>, ncmot);</td></tr>
+<tr id="L9630" class="s0"><td class="ln"><a href="#L9630">9630</a></td><td class="code">                printf(<span class="st">"%d branches reversed\n"</span>, nrevbr);</td></tr>
+<tr id="L9631" class="s0"><td class="ln"><a href="#L9631">9631</a></td><td class="code">                printf(<span class="st">"%d redundant moves\n"</span>, redunm);</td></tr>
+<tr id="L9632" class="s0"><td class="ln"><a href="#L9632">9632</a></td><td class="code">                printf(<span class="st">"%d simplified addresses\n"</span>, nsaddr);</td></tr>
+<tr id="L9633" class="s0"><td class="ln"><a href="#L9633">9633</a></td><td class="code">                printf(<span class="st">"%d loops inverted\n"</span>, loopiv);</td></tr>
+<tr id="L9634" class="s0"><td class="ln"><a href="#L9634">9634</a></td><td class="code">                printf(<span class="st">"%d redundant jumps\n"</span>, nredunj);</td></tr>
+<tr id="L9635" class="s0"><td class="ln"><a href="#L9635">9635</a></td><td class="code">                printf(<span class="st">"%d common seqs before jmp's\n"</span>, ncomj);</td></tr>
+<tr id="L9636" class="s0"><td class="ln"><a href="#L9636">9636</a></td><td class="code">                printf(<span class="st">"%d skips over jumps\n"</span>, nskip);</td></tr>
+<tr id="L9637" class="s0"><td class="ln"><a href="#L9637">9637</a></td><td class="code">                printf(<span class="st">"%d sob's added\n"</span>, nsob);</td></tr>
+<tr id="L9638" class="s0"><td class="ln"><a href="#L9638">9638</a></td><td class="code">                printf(<span class="st">"%d redundant tst's\n"</span>, nrtst);</td></tr>
+<tr id="L9639" class="s0"><td class="ln"><a href="#L9639">9639</a></td><td class="code">                printf(<span class="st">"%d literals eliminated\n"</span>, nlit);</td></tr>
+<tr id="L9640" class="s0"><td class="ln"><a href="#L9640">9640</a></td><td class="code">                printf(<span class="st">"%dK core\n"</span>, ((lastr+<span class="nu">01777</span>)&gt;&gt;<span class="nu">10</span>)&amp;<span class="nu">077</span>);</td></tr>
+<tr id="L9641" class="s0"><td class="ln"><a href="#L9641">9641</a></td><td class="code">                flush();</td></tr>
+<tr id="L9642" class="s0"><td class="ln"><a href="#L9642">9642</a></td><td class="code">        }</td></tr>
+<tr id="L9643" class="s0"><td class="ln"><a href="#L9643">9643</a></td><td class="code">        exit(<span class="nu">0</span>);</td></tr>
+<tr id="L9644" class="s0"><td class="ln"><a href="#L9644">9644</a></td><td class="code">}</td></tr>
+<tr id="L9645" class="s0"><td class="ln"><a href="#L9645">9645</a></td><td class="code"> </td></tr>
+<tr id="L9646" class="s0"><td class="ln"><a href="#L9646">9646</a></td><td class="code"><span class="def">input</span>()</td></tr>
+<tr id="L9647" class="s0"><td class="ln"><a href="#L9647">9647</a></td><td class="code">{</td></tr>
+<tr id="L9648" class="s0"><td class="ln"><a href="#L9648">9648</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> node *p, *lastp;</td></tr>
+<tr id="L9649" class="s0"><td class="ln"><a href="#L9649">9649</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> op;</td></tr>
+<tr id="L9650" class="s1"><td class="ln"><a href="#L9650">9650</a></td><td class="code"> </td></tr>
+<tr id="L9651" class="s1"><td class="ln"><a href="#L9651">9651</a></td><td class="code">        lastp = &amp;first;</td></tr>
+<tr id="L9652" class="s1"><td class="ln"><a href="#L9652">9652</a></td><td class="code">        <span class="kw">for</span> (;;) {</td></tr>
+<tr id="L9653" class="s1"><td class="ln"><a href="#L9653">9653</a></td><td class="code">                op = <a class="id" href="../source/cc.c.html#L391">getline</a>();</td></tr>
+<tr id="L9654" class="s1"><td class="ln"><a href="#L9654">9654</a></td><td class="code">                <span class="kw">switch</span> (op.op) {</td></tr>
+<tr id="L9655" class="s1"><td class="ln"><a href="#L9655">9655</a></td><td class="code">        </td></tr>
+<tr id="L9656" class="s1"><td class="ln"><a href="#L9656">9656</a></td><td class="code">                <span class="kw">case</span> LABEL:</td></tr>
+<tr id="L9657" class="s1"><td class="ln"><a href="#L9657">9657</a></td><td class="code">                        p = <a class="id" href="../source/c21.c.html#L10445">alloc</a>(<span class="kw">sizeof</span> first);</td></tr>
+<tr id="L9658" class="s1"><td class="ln"><a href="#L9658">9658</a></td><td class="code">                        <span class="kw">if</span> (line[<span class="nu">0</span>] == <span class="st">'L'</span>) {</td></tr>
+<tr id="L9659" class="s1"><td class="ln"><a href="#L9659">9659</a></td><td class="code">                                p-&gt;combop = LABEL;</td></tr>
+<tr id="L9660" class="s1"><td class="ln"><a href="#L9660">9660</a></td><td class="code">                                p-&gt;labno = <a class="id" href="../source/c20.c.html#L9724">getnum</a>(line+<span class="nu">1</span>);</td></tr>
+<tr id="L9661" class="s1"><td class="ln"><a href="#L9661">9661</a></td><td class="code">                                p-&gt;code = <span class="nu">0</span>;</td></tr>
+<tr id="L9662" class="s1"><td class="ln"><a href="#L9662">9662</a></td><td class="code">                        } <span class="kw">else</span> {</td></tr>
+<tr id="L9663" class="s1"><td class="ln"><a href="#L9663">9663</a></td><td class="code">                                p-&gt;combop = DLABEL;</td></tr>
+<tr id="L9664" class="s1"><td class="ln"><a href="#L9664">9664</a></td><td class="code">                                p-&gt;labno = <span class="nu">0</span>;</td></tr>
+<tr id="L9665" class="s1"><td class="ln"><a href="#L9665">9665</a></td><td class="code">                                p-&gt;code = <a class="id" href="../source/cc.c.html#L738">copy</a>(line);</td></tr>
+<tr id="L9666" class="s1"><td class="ln"><a href="#L9666">9666</a></td><td class="code">                        }</td></tr>
+<tr id="L9667" class="s1"><td class="ln"><a href="#L9667">9667</a></td><td class="code">                        <span class="kw">break</span>;</td></tr>
+<tr id="L9668" class="s1"><td class="ln"><a href="#L9668">9668</a></td><td class="code">        </td></tr>
+<tr id="L9669" class="s1"><td class="ln"><a href="#L9669">9669</a></td><td class="code">                <span class="kw">case</span> JBR:</td></tr>
+<tr id="L9670" class="s1"><td class="ln"><a href="#L9670">9670</a></td><td class="code">                <span class="kw">case</span> CBR:</td></tr>
+<tr id="L9671" class="s1"><td class="ln"><a href="#L9671">9671</a></td><td class="code">                <span class="kw">case</span> JMP:</td></tr>
+<tr id="L9672" class="s1"><td class="ln"><a href="#L9672">9672</a></td><td class="code">                <span class="kw">case</span> JSW:</td></tr>
+<tr id="L9673" class="s1"><td class="ln"><a href="#L9673">9673</a></td><td class="code">                        p = <a class="id" href="../source/c21.c.html#L10445">alloc</a>(<span class="kw">sizeof</span> first);</td></tr>
+<tr id="L9674" class="s1"><td class="ln"><a href="#L9674">9674</a></td><td class="code">                        p-&gt;combop = op;</td></tr>
+<tr id="L9675" class="s1"><td class="ln"><a href="#L9675">9675</a></td><td class="code">                        <span class="kw">if</span> (*curlp==<span class="st">'L'</span> &amp;&amp; (p-&gt;labno = <a class="id" href="../source/c20.c.html#L9724">getnum</a>(curlp+<span class="nu">1</span>)))</td></tr>
+<tr id="L9676" class="s1"><td class="ln"><a href="#L9676">9676</a></td><td class="code">                                p-&gt;code = <span class="nu">0</span>;</td></tr>
+<tr id="L9677" class="s1"><td class="ln"><a href="#L9677">9677</a></td><td class="code">                        <span class="kw">else</span> {</td></tr>
+<tr id="L9678" class="s1"><td class="ln"><a href="#L9678">9678</a></td><td class="code">                                p-&gt;labno = <span class="nu">0</span>;</td></tr>
+<tr id="L9679" class="s1"><td class="ln"><a href="#L9679">9679</a></td><td class="code">                                p-&gt;code = <a class="id" href="../source/cc.c.html#L738">copy</a>(curlp);</td></tr>
+<tr id="L9680" class="s1"><td class="ln"><a href="#L9680">9680</a></td><td class="code">                        }</td></tr>
+<tr id="L9681" class="s1"><td class="ln"><a href="#L9681">9681</a></td><td class="code">                        <span class="kw">break</span>;</td></tr>
+<tr id="L9682" class="s1"><td class="ln"><a href="#L9682">9682</a></td><td class="code"> </td></tr>
+<tr id="L9683" class="s1"><td class="ln"><a href="#L9683">9683</a></td><td class="code">                <span class="kw">default</span>:</td></tr>
+<tr id="L9684" class="s1"><td class="ln"><a href="#L9684">9684</a></td><td class="code">                        p = <a class="id" href="../source/c21.c.html#L10445">alloc</a>(<span class="kw">sizeof</span> first);</td></tr>
+<tr id="L9685" class="s1"><td class="ln"><a href="#L9685">9685</a></td><td class="code">                        p-&gt;combop = op;</td></tr>
+<tr id="L9686" class="s1"><td class="ln"><a href="#L9686">9686</a></td><td class="code">                        p-&gt;labno = <span class="nu">0</span>;</td></tr>
+<tr id="L9687" class="s1"><td class="ln"><a href="#L9687">9687</a></td><td class="code">                        p-&gt;code = <a class="id" href="../source/cc.c.html#L738">copy</a>(curlp);</td></tr>
+<tr id="L9688" class="s1"><td class="ln"><a href="#L9688">9688</a></td><td class="code">                        <span class="kw">break</span>;</td></tr>
+<tr id="L9689" class="s1"><td class="ln"><a href="#L9689">9689</a></td><td class="code"> </td></tr>
+<tr id="L9690" class="s1"><td class="ln"><a href="#L9690">9690</a></td><td class="code">                }</td></tr>
+<tr id="L9691" class="s1"><td class="ln"><a href="#L9691">9691</a></td><td class="code">                p-&gt;forw = <span class="nu">0</span>;</td></tr>
+<tr id="L9692" class="s1"><td class="ln"><a href="#L9692">9692</a></td><td class="code">                p-&gt;back = lastp;</td></tr>
+<tr id="L9693" class="s1"><td class="ln"><a href="#L9693">9693</a></td><td class="code">                lastp-&gt;forw = p;</td></tr>
+<tr id="L9694" class="s1"><td class="ln"><a href="#L9694">9694</a></td><td class="code">                lastp = p;</td></tr>
+<tr id="L9695" class="s1"><td class="ln"><a href="#L9695">9695</a></td><td class="code">                p-&gt;ref = <span class="nu">0</span>;</td></tr>
+<tr id="L9696" class="s1"><td class="ln"><a href="#L9696">9696</a></td><td class="code">                <span class="kw">if</span> (op==EROU)</td></tr>
+<tr id="L9697" class="s1"><td class="ln"><a href="#L9697">9697</a></td><td class="code">                        <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L9698" class="s1"><td class="ln"><a href="#L9698">9698</a></td><td class="code">                <span class="kw">if</span> (op==END)</td></tr>
+<tr id="L9699" class="s1"><td class="ln"><a href="#L9699">9699</a></td><td class="code">                        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L9700" class="s0"><td class="ln"><a href="#L9700">9700</a></td><td class="code">        }</td></tr>
+<tr id="L9701" class="s0"><td class="ln"><a href="#L9701">9701</a></td><td class="code">}</td></tr>
+<tr id="L9702" class="s0"><td class="ln"><a href="#L9702">9702</a></td><td class="code"> </td></tr>
+<tr id="L9703" class="s0"><td class="ln"><a href="#L9703">9703</a></td><td class="code"><a class="id" href="../source/cc.c.html#L391">getline</a>()</td></tr>
+<tr id="L9704" class="s0"><td class="ln"><a href="#L9704">9704</a></td><td class="code">{</td></tr>
+<tr id="L9705" class="s0"><td class="ln"><a href="#L9705">9705</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *lp;</td></tr>
+<tr id="L9706" class="s0"><td class="ln"><a href="#L9706">9706</a></td><td class="code">        <span class="kw">register</span> c;</td></tr>
+<tr id="L9707" class="s0"><td class="ln"><a href="#L9707">9707</a></td><td class="code"> </td></tr>
+<tr id="L9708" class="s0"><td class="ln"><a href="#L9708">9708</a></td><td class="code">        lp = line;</td></tr>
+<tr id="L9709" class="s0"><td class="ln"><a href="#L9709">9709</a></td><td class="code">        <span class="kw">while</span> (c = getchar()) {</td></tr>
+<tr id="L9710" class="s0"><td class="ln"><a href="#L9710">9710</a></td><td class="code">                <span class="kw">if</span> (c==<span class="st">':'</span>) {</td></tr>
+<tr id="L9711" class="s0"><td class="ln"><a href="#L9711">9711</a></td><td class="code">                        *lp++ = <span class="nu">0</span>;</td></tr>
+<tr id="L9712" class="s0"><td class="ln"><a href="#L9712">9712</a></td><td class="code">                        <span class="kw">return</span>(LABEL);</td></tr>
+<tr id="L9713" class="s0"><td class="ln"><a href="#L9713">9713</a></td><td class="code">                }</td></tr>
+<tr id="L9714" class="s0"><td class="ln"><a href="#L9714">9714</a></td><td class="code">                <span class="kw">if</span> (c==<span class="st">'\n'</span>) {</td></tr>
+<tr id="L9715" class="s0"><td class="ln"><a href="#L9715">9715</a></td><td class="code">                        *lp++ = <span class="nu">0</span>;</td></tr>
+<tr id="L9716" class="s0"><td class="ln"><a href="#L9716">9716</a></td><td class="code">                        <span class="kw">return</span>(<a class="id" href="../source/c20.c.html#L9872">oplook</a>());</td></tr>
+<tr id="L9717" class="s0"><td class="ln"><a href="#L9717">9717</a></td><td class="code">                }</td></tr>
+<tr id="L9718" class="s0"><td class="ln"><a href="#L9718">9718</a></td><td class="code">                *lp++ = c;</td></tr>
+<tr id="L9719" class="s0"><td class="ln"><a href="#L9719">9719</a></td><td class="code">        }</td></tr>
+<tr id="L9720" class="s0"><td class="ln"><a href="#L9720">9720</a></td><td class="code">        *lp++ = <span class="nu">0</span>;</td></tr>
+<tr id="L9721" class="s0"><td class="ln"><a href="#L9721">9721</a></td><td class="code">        <span class="kw">return</span>(END);</td></tr>
+<tr id="L9722" class="s0"><td class="ln"><a href="#L9722">9722</a></td><td class="code">}</td></tr>
+<tr id="L9723" class="s0"><td class="ln"><a href="#L9723">9723</a></td><td class="code"> </td></tr>
+<tr id="L9724" class="s0"><td class="ln"><a href="#L9724">9724</a></td><td class="code"><span class="def">getnum</span>(ap)</td></tr>
+<tr id="L9725" class="s0"><td class="ln"><a href="#L9725">9725</a></td><td class="code"><span class="kw">char</span> *ap;</td></tr>
+<tr id="L9726" class="s0"><td class="ln"><a href="#L9726">9726</a></td><td class="code">{</td></tr>
+<tr id="L9727" class="s0"><td class="ln"><a href="#L9727">9727</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *p;</td></tr>
+<tr id="L9728" class="s0"><td class="ln"><a href="#L9728">9728</a></td><td class="code">        <span class="kw">register</span> n, c;</td></tr>
+<tr id="L9729" class="s0"><td class="ln"><a href="#L9729">9729</a></td><td class="code"> </td></tr>
+<tr id="L9730" class="s0"><td class="ln"><a href="#L9730">9730</a></td><td class="code">        p = ap;</td></tr>
+<tr id="L9731" class="s0"><td class="ln"><a href="#L9731">9731</a></td><td class="code">        n = <span class="nu">0</span>;</td></tr>
+<tr id="L9732" class="s0"><td class="ln"><a href="#L9732">9732</a></td><td class="code">        <span class="kw">while</span> ((c = *p++) &gt;= <span class="st">'0'</span> &amp;&amp; c &lt;= <span class="st">'9'</span>)</td></tr>
+<tr id="L9733" class="s0"><td class="ln"><a href="#L9733">9733</a></td><td class="code">                n = n*<span class="nu">10</span> + c - <span class="st">'0'</span>;</td></tr>
+<tr id="L9734" class="s0"><td class="ln"><a href="#L9734">9734</a></td><td class="code">        <span class="kw">if</span> (*--p != <span class="nu">0</span>)</td></tr>
+<tr id="L9735" class="s0"><td class="ln"><a href="#L9735">9735</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L9736" class="s0"><td class="ln"><a href="#L9736">9736</a></td><td class="code">        <span class="kw">return</span>(n);</td></tr>
+<tr id="L9737" class="s0"><td class="ln"><a href="#L9737">9737</a></td><td class="code">}</td></tr>
+<tr id="L9738" class="s0"><td class="ln"><a href="#L9738">9738</a></td><td class="code"> </td></tr>
+<tr id="L9739" class="s0"><td class="ln"><a href="#L9739">9739</a></td><td class="code"><span class="def">output</span>()</td></tr>
+<tr id="L9740" class="s0"><td class="ln"><a href="#L9740">9740</a></td><td class="code">{</td></tr>
+<tr id="L9741" class="s0"><td class="ln"><a href="#L9741">9741</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> node *t;</td></tr>
+<tr id="L9742" class="s0"><td class="ln"><a href="#L9742">9742</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> optab *op;</td></tr>
+<tr id="L9743" class="s0"><td class="ln"><a href="#L9743">9743</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> byte;</td></tr>
+<tr id="L9744" class="s0"><td class="ln"><a href="#L9744">9744</a></td><td class="code"> </td></tr>
+<tr id="L9745" class="s0"><td class="ln"><a href="#L9745">9745</a></td><td class="code">        t = &amp;first;</td></tr>
+<tr id="L9746" class="s0"><td class="ln"><a href="#L9746">9746</a></td><td class="code">        <span class="kw">while</span> (t = t-&gt;forw) <span class="kw">switch</span> (t-&gt;op) {</td></tr>
+<tr id="L9747" class="s0"><td class="ln"><a href="#L9747">9747</a></td><td class="code"> </td></tr>
+<tr id="L9748" class="s0"><td class="ln"><a href="#L9748">9748</a></td><td class="code">        <span class="kw">case</span> END:</td></tr>
+<tr id="L9749" class="s0"><td class="ln"><a href="#L9749">9749</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L9750" class="s1"><td class="ln"><a href="#L9750">9750</a></td><td class="code"> </td></tr>
+<tr id="L9751" class="s1"><td class="ln"><a href="#L9751">9751</a></td><td class="code">        <span class="kw">case</span> LABEL:</td></tr>
+<tr id="L9752" class="s1"><td class="ln"><a href="#L9752">9752</a></td><td class="code">                printf(<span class="st">"L%d:"</span>, t-&gt;labno);</td></tr>
+<tr id="L9753" class="s1"><td class="ln"><a href="#L9753">9753</a></td><td class="code">                <span class="kw">continue</span>;</td></tr>
+<tr id="L9754" class="s1"><td class="ln"><a href="#L9754">9754</a></td><td class="code"> </td></tr>
+<tr id="L9755" class="s1"><td class="ln"><a href="#L9755">9755</a></td><td class="code">        <span class="kw">case</span> DLABEL:</td></tr>
+<tr id="L9756" class="s1"><td class="ln"><a href="#L9756">9756</a></td><td class="code">                printf(<span class="st">"%s:"</span>, t-&gt;code);</td></tr>
+<tr id="L9757" class="s1"><td class="ln"><a href="#L9757">9757</a></td><td class="code">                <span class="kw">continue</span>;</td></tr>
+<tr id="L9758" class="s1"><td class="ln"><a href="#L9758">9758</a></td><td class="code"> </td></tr>
+<tr id="L9759" class="s1"><td class="ln"><a href="#L9759">9759</a></td><td class="code">        <span class="kw">default</span>:</td></tr>
+<tr id="L9760" class="s1"><td class="ln"><a href="#L9760">9760</a></td><td class="code">                <span class="kw">if</span> ((byte = t-&gt;subop) == BYTE)</td></tr>
+<tr id="L9761" class="s1"><td class="ln"><a href="#L9761">9761</a></td><td class="code">                        t-&gt;subop = <span class="nu">0</span>;</td></tr>
+<tr id="L9762" class="s1"><td class="ln"><a href="#L9762">9762</a></td><td class="code">                <span class="kw">for</span> (op = optab; op-&gt;opstring!=<span class="nu">0</span>; op++) </td></tr>
+<tr id="L9763" class="s1"><td class="ln"><a href="#L9763">9763</a></td><td class="code">                        <span class="kw">if</span> (op-&gt;opcode == t-&gt;combop) {</td></tr>
+<tr id="L9764" class="s1"><td class="ln"><a href="#L9764">9764</a></td><td class="code">                                printf(<span class="st">"%s"</span>, op-&gt;opstring);</td></tr>
+<tr id="L9765" class="s1"><td class="ln"><a href="#L9765">9765</a></td><td class="code">                                <span class="kw">if</span> (byte==BYTE)</td></tr>
+<tr id="L9766" class="s1"><td class="ln"><a href="#L9766">9766</a></td><td class="code">                                        printf(<span class="st">"b"</span>);</td></tr>
+<tr id="L9767" class="s1"><td class="ln"><a href="#L9767">9767</a></td><td class="code">                                <span class="kw">break</span>;</td></tr>
+<tr id="L9768" class="s1"><td class="ln"><a href="#L9768">9768</a></td><td class="code">                        }</td></tr>
+<tr id="L9769" class="s1"><td class="ln"><a href="#L9769">9769</a></td><td class="code">                <span class="kw">if</span> (t-&gt;code) {</td></tr>
+<tr id="L9770" class="s1"><td class="ln"><a href="#L9770">9770</a></td><td class="code">                        <a class="id" href="../source/c20.c.html#L9800">reducelit</a>(t);</td></tr>
+<tr id="L9771" class="s1"><td class="ln"><a href="#L9771">9771</a></td><td class="code">                        printf(<span class="st">"\t%s\n"</span>, t-&gt;code);</td></tr>
+<tr id="L9772" class="s1"><td class="ln"><a href="#L9772">9772</a></td><td class="code">                } <span class="kw">else</span> <span class="kw">if</span> (t-&gt;op==JBR || t-&gt;op==CBR)</td></tr>
+<tr id="L9773" class="s1"><td class="ln"><a href="#L9773">9773</a></td><td class="code">                        printf(<span class="st">"\tL%d\n"</span>, t-&gt;labno);</td></tr>
+<tr id="L9774" class="s1"><td class="ln"><a href="#L9774">9774</a></td><td class="code">                <span class="kw">else</span></td></tr>
+<tr id="L9775" class="s1"><td class="ln"><a href="#L9775">9775</a></td><td class="code">                        printf(<span class="st">"\n"</span>);</td></tr>
+<tr id="L9776" class="s1"><td class="ln"><a href="#L9776">9776</a></td><td class="code">                <span class="kw">continue</span>;</td></tr>
+<tr id="L9777" class="s1"><td class="ln"><a href="#L9777">9777</a></td><td class="code"> </td></tr>
+<tr id="L9778" class="s1"><td class="ln"><a href="#L9778">9778</a></td><td class="code">        <span class="kw">case</span> JSW:</td></tr>
+<tr id="L9779" class="s1"><td class="ln"><a href="#L9779">9779</a></td><td class="code">                printf(<span class="st">"L%d\n"</span>, t-&gt;labno);</td></tr>
+<tr id="L9780" class="s1"><td class="ln"><a href="#L9780">9780</a></td><td class="code">                <span class="kw">continue</span>;</td></tr>
+<tr id="L9781" class="s1"><td class="ln"><a href="#L9781">9781</a></td><td class="code"> </td></tr>
+<tr id="L9782" class="s1"><td class="ln"><a href="#L9782">9782</a></td><td class="code">        <span class="kw">case</span> SOB:</td></tr>
+<tr id="L9783" class="s1"><td class="ln"><a href="#L9783">9783</a></td><td class="code">                printf(<span class="st">"sob     %s,L%d\n"</span>, t-&gt;code, t-&gt;labno);</td></tr>
+<tr id="L9784" class="s1"><td class="ln"><a href="#L9784">9784</a></td><td class="code">                <span class="kw">continue</span>;</td></tr>
+<tr id="L9785" class="s1"><td class="ln"><a href="#L9785">9785</a></td><td class="code"> </td></tr>
+<tr id="L9786" class="s1"><td class="ln"><a href="#L9786">9786</a></td><td class="code">        <span class="kw">case</span> <span class="nu">0</span>:</td></tr>
+<tr id="L9787" class="s1"><td class="ln"><a href="#L9787">9787</a></td><td class="code">                <span class="kw">if</span> (t-&gt;code)</td></tr>
+<tr id="L9788" class="s1"><td class="ln"><a href="#L9788">9788</a></td><td class="code">                        printf(<span class="st">"%s"</span>, t-&gt;code);</td></tr>
+<tr id="L9789" class="s1"><td class="ln"><a href="#L9789">9789</a></td><td class="code">                printf(<span class="st">"\n"</span>);</td></tr>
+<tr id="L9790" class="s1"><td class="ln"><a href="#L9790">9790</a></td><td class="code">                <span class="kw">continue</span>;</td></tr>
+<tr id="L9791" class="s1"><td class="ln"><a href="#L9791">9791</a></td><td class="code">        }</td></tr>
+<tr id="L9792" class="s1"><td class="ln"><a href="#L9792">9792</a></td><td class="code">}</td></tr>
+<tr id="L9793" class="s1"><td class="ln"><a href="#L9793">9793</a></td><td class="code"> </td></tr>
+<tr id="L9794" class="s1"><td class="ln"><a href="#L9794">9794</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L9795" class="s1"><td class="ln"><a href="#L9795">9795</a></td><td class="code"><span class="cm"> * Notice addresses of the form</span></td></tr>
+<tr id="L9796" class="s1"><td class="ln"><a href="#L9796">9796</a></td><td class="code"><span class="cm"> * $xx,xx(r)</span></td></tr>
+<tr id="L9797" class="s1"><td class="ln"><a href="#L9797">9797</a></td><td class="code"><span class="cm"> * and replace them with (pc),xx(r)</span></td></tr>
+<tr id="L9798" class="s1"><td class="ln"><a href="#L9798">9798</a></td><td class="code"><span class="cm"> *     -- Thanx and a tip of the Hatlo hat to Bliss-11.</span></td></tr>
+<tr id="L9799" class="s1"><td class="ln"><a href="#L9799">9799</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L9800" class="s0"><td class="ln"><a href="#L9800">9800</a></td><td class="code"><span class="def">reducelit</span>(at)</td></tr>
+<tr id="L9801" class="s0"><td class="ln"><a href="#L9801">9801</a></td><td class="code"><span class="kw">struct</span> node *at;</td></tr>
+<tr id="L9802" class="s0"><td class="ln"><a href="#L9802">9802</a></td><td class="code">{</td></tr>
+<tr id="L9803" class="s0"><td class="ln"><a href="#L9803">9803</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *c1, *c2;</td></tr>
+<tr id="L9804" class="s0"><td class="ln"><a href="#L9804">9804</a></td><td class="code">        <span class="kw">char</span> *c2s;</td></tr>
+<tr id="L9805" class="s0"><td class="ln"><a href="#L9805">9805</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> node *t;</td></tr>
+<tr id="L9806" class="s0"><td class="ln"><a href="#L9806">9806</a></td><td class="code"> </td></tr>
+<tr id="L9807" class="s0"><td class="ln"><a href="#L9807">9807</a></td><td class="code">        t = at;</td></tr>
+<tr id="L9808" class="s0"><td class="ln"><a href="#L9808">9808</a></td><td class="code">        <span class="kw">if</span> (*t-&gt;code != <span class="st">'$'</span>)</td></tr>
+<tr id="L9809" class="s0"><td class="ln"><a href="#L9809">9809</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L9810" class="s0"><td class="ln"><a href="#L9810">9810</a></td><td class="code">        c1 = t-&gt;code;</td></tr>
+<tr id="L9811" class="s0"><td class="ln"><a href="#L9811">9811</a></td><td class="code">        <span class="kw">while</span> (*c1 != <span class="st">','</span>)</td></tr>
+<tr id="L9812" class="s0"><td class="ln"><a href="#L9812">9812</a></td><td class="code">                <span class="kw">if</span> (*c1++ == <span class="st">'\0'</span>)</td></tr>
+<tr id="L9813" class="s0"><td class="ln"><a href="#L9813">9813</a></td><td class="code">                        <span class="kw">return</span>;</td></tr>
+<tr id="L9814" class="s0"><td class="ln"><a href="#L9814">9814</a></td><td class="code">        c2s = c1;</td></tr>
+<tr id="L9815" class="s0"><td class="ln"><a href="#L9815">9815</a></td><td class="code">        c1++;</td></tr>
+<tr id="L9816" class="s0"><td class="ln"><a href="#L9816">9816</a></td><td class="code">        <span class="kw">if</span> (*c1==<span class="st">'*'</span>)</td></tr>
+<tr id="L9817" class="s0"><td class="ln"><a href="#L9817">9817</a></td><td class="code">                c1++;</td></tr>
+<tr id="L9818" class="s0"><td class="ln"><a href="#L9818">9818</a></td><td class="code">        c2 = t-&gt;code+<span class="nu">1</span>;</td></tr>
+<tr id="L9819" class="s0"><td class="ln"><a href="#L9819">9819</a></td><td class="code">        <span class="kw">while</span> (*c1++ == *c2++);</td></tr>
+<tr id="L9820" class="s0"><td class="ln"><a href="#L9820">9820</a></td><td class="code">        <span class="kw">if</span> (*--c1!=<span class="st">'('</span> || *--c2!=<span class="st">','</span>)</td></tr>
+<tr id="L9821" class="s0"><td class="ln"><a href="#L9821">9821</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L9822" class="s0"><td class="ln"><a href="#L9822">9822</a></td><td class="code">        t-&gt;code = <a class="id" href="../source/cc.c.html#L738">copy</a>(<span class="st">"(pc)"</span>, c2s);</td></tr>
+<tr id="L9823" class="s0"><td class="ln"><a href="#L9823">9823</a></td><td class="code">        nlit++;</td></tr>
+<tr id="L9824" class="s0"><td class="ln"><a href="#L9824">9824</a></td><td class="code">}</td></tr>
+<tr id="L9825" class="s0"><td class="ln"><a href="#L9825">9825</a></td><td class="code"> </td></tr>
+<tr id="L9826" class="s0"><td class="ln"><a href="#L9826">9826</a></td><td class="code"><a class="id" href="../source/cc.c.html#L738">copy</a>(ap)</td></tr>
+<tr id="L9827" class="s0"><td class="ln"><a href="#L9827">9827</a></td><td class="code"><span class="kw">char</span> *ap;</td></tr>
+<tr id="L9828" class="s0"><td class="ln"><a href="#L9828">9828</a></td><td class="code">{</td></tr>
+<tr id="L9829" class="s0"><td class="ln"><a href="#L9829">9829</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *p, *np;</td></tr>
+<tr id="L9830" class="s0"><td class="ln"><a href="#L9830">9830</a></td><td class="code">        <span class="kw">char</span> *onp;</td></tr>
+<tr id="L9831" class="s0"><td class="ln"><a href="#L9831">9831</a></td><td class="code">        <span class="kw">register</span> n;</td></tr>
+<tr id="L9832" class="s0"><td class="ln"><a href="#L9832">9832</a></td><td class="code">        <span class="kw">int</span> na;</td></tr>
+<tr id="L9833" class="s0"><td class="ln"><a href="#L9833">9833</a></td><td class="code"> </td></tr>
+<tr id="L9834" class="s0"><td class="ln"><a href="#L9834">9834</a></td><td class="code">        na = nargs();</td></tr>
+<tr id="L9835" class="s0"><td class="ln"><a href="#L9835">9835</a></td><td class="code">        p = ap;</td></tr>
+<tr id="L9836" class="s0"><td class="ln"><a href="#L9836">9836</a></td><td class="code">        n = <span class="nu">0</span>;</td></tr>
+<tr id="L9837" class="s0"><td class="ln"><a href="#L9837">9837</a></td><td class="code">        <span class="kw">if</span> (*p==<span class="nu">0</span>)</td></tr>
+<tr id="L9838" class="s0"><td class="ln"><a href="#L9838">9838</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L9839" class="s0"><td class="ln"><a href="#L9839">9839</a></td><td class="code">        <span class="kw">do</span></td></tr>
+<tr id="L9840" class="s0"><td class="ln"><a href="#L9840">9840</a></td><td class="code">                n++;</td></tr>
+<tr id="L9841" class="s0"><td class="ln"><a href="#L9841">9841</a></td><td class="code">        <span class="kw">while</span> (*p++);</td></tr>
+<tr id="L9842" class="s0"><td class="ln"><a href="#L9842">9842</a></td><td class="code">        <span class="kw">if</span> (na&gt;<span class="nu">1</span>) {</td></tr>
+<tr id="L9843" class="s0"><td class="ln"><a href="#L9843">9843</a></td><td class="code">                p = (&amp;ap)[<span class="nu">1</span>];</td></tr>
+<tr id="L9844" class="s0"><td class="ln"><a href="#L9844">9844</a></td><td class="code">                <span class="kw">while</span> (*p++)</td></tr>
+<tr id="L9845" class="s0"><td class="ln"><a href="#L9845">9845</a></td><td class="code">                        n++;</td></tr>
+<tr id="L9846" class="s0"><td class="ln"><a href="#L9846">9846</a></td><td class="code">        }</td></tr>
+<tr id="L9847" class="s0"><td class="ln"><a href="#L9847">9847</a></td><td class="code">        onp = np = <a class="id" href="../source/c21.c.html#L10445">alloc</a>(n);</td></tr>
+<tr id="L9848" class="s0"><td class="ln"><a href="#L9848">9848</a></td><td class="code">        p = ap;</td></tr>
+<tr id="L9849" class="s0"><td class="ln"><a href="#L9849">9849</a></td><td class="code">        <span class="kw">while</span> (*np++ = *p++);</td></tr>
+<tr id="L9850" class="s1"><td class="ln"><a href="#L9850">9850</a></td><td class="code">        <span class="kw">if</span> (na&gt;<span class="nu">1</span>) {</td></tr>
+<tr id="L9851" class="s1"><td class="ln"><a href="#L9851">9851</a></td><td class="code">                p = (&amp;ap)[<span class="nu">1</span>];</td></tr>
+<tr id="L9852" class="s1"><td class="ln"><a href="#L9852">9852</a></td><td class="code">                np--;</td></tr>
+<tr id="L9853" class="s1"><td class="ln"><a href="#L9853">9853</a></td><td class="code">                <span class="kw">while</span> (*np++ = *p++);</td></tr>
+<tr id="L9854" class="s1"><td class="ln"><a href="#L9854">9854</a></td><td class="code">        }</td></tr>
+<tr id="L9855" class="s1"><td class="ln"><a href="#L9855">9855</a></td><td class="code">        <span class="kw">return</span>(onp);</td></tr>
+<tr id="L9856" class="s1"><td class="ln"><a href="#L9856">9856</a></td><td class="code">}</td></tr>
+<tr id="L9857" class="s1"><td class="ln"><a href="#L9857">9857</a></td><td class="code"> </td></tr>
+<tr id="L9858" class="s1"><td class="ln"><a href="#L9858">9858</a></td><td class="code"><span class="def">opsetup</span>()</td></tr>
+<tr id="L9859" class="s1"><td class="ln"><a href="#L9859">9859</a></td><td class="code">{</td></tr>
+<tr id="L9860" class="s1"><td class="ln"><a href="#L9860">9860</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> optab *optp, **ophp;</td></tr>
+<tr id="L9861" class="s1"><td class="ln"><a href="#L9861">9861</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *p;</td></tr>
+<tr id="L9862" class="s1"><td class="ln"><a href="#L9862">9862</a></td><td class="code"> </td></tr>
+<tr id="L9863" class="s1"><td class="ln"><a href="#L9863">9863</a></td><td class="code">        <span class="kw">for</span> (optp = optab; p = optp-&gt;opstring; optp++) {</td></tr>
+<tr id="L9864" class="s1"><td class="ln"><a href="#L9864">9864</a></td><td class="code">                ophp = &amp;ophash[(((p[<span class="nu">0</span>]&lt;&lt;<span class="nu">3</span>)+(p[<span class="nu">1</span>]&lt;&lt;<span class="nu">1</span>)+p[<span class="nu">2</span>])&amp;<span class="nu">077777</span>) % OPHS];</td></tr>
+<tr id="L9865" class="s1"><td class="ln"><a href="#L9865">9865</a></td><td class="code">                <span class="kw">while</span> (*ophp++)</td></tr>
+<tr id="L9866" class="s1"><td class="ln"><a href="#L9866">9866</a></td><td class="code">                        <span class="kw">if</span> (ophp &gt; &amp;ophash[OPHS])</td></tr>
+<tr id="L9867" class="s1"><td class="ln"><a href="#L9867">9867</a></td><td class="code">                                ophp = ophash;</td></tr>
+<tr id="L9868" class="s1"><td class="ln"><a href="#L9868">9868</a></td><td class="code">                *--ophp = optp;</td></tr>
+<tr id="L9869" class="s1"><td class="ln"><a href="#L9869">9869</a></td><td class="code">        }</td></tr>
+<tr id="L9870" class="s1"><td class="ln"><a href="#L9870">9870</a></td><td class="code">}</td></tr>
+<tr id="L9871" class="s1"><td class="ln"><a href="#L9871">9871</a></td><td class="code"> </td></tr>
+<tr id="L9872" class="s1"><td class="ln"><a href="#L9872">9872</a></td><td class="code"><span class="def">oplook</span>()</td></tr>
+<tr id="L9873" class="s1"><td class="ln"><a href="#L9873">9873</a></td><td class="code">{</td></tr>
+<tr id="L9874" class="s1"><td class="ln"><a href="#L9874">9874</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> optab *optp;</td></tr>
+<tr id="L9875" class="s1"><td class="ln"><a href="#L9875">9875</a></td><td class="code">        <span class="kw">register</span> <span class="kw">char</span> *lp, *op;</td></tr>
+<tr id="L9876" class="s1"><td class="ln"><a href="#L9876">9876</a></td><td class="code">        <span class="kw">static</span> <span class="kw">char</span> tmpop[<span class="nu">32</span>];</td></tr>
+<tr id="L9877" class="s1"><td class="ln"><a href="#L9877">9877</a></td><td class="code">        <span class="kw">struct</span> optab **ophp;</td></tr>
+<tr id="L9878" class="s1"><td class="ln"><a href="#L9878">9878</a></td><td class="code"> </td></tr>
+<tr id="L9879" class="s1"><td class="ln"><a href="#L9879">9879</a></td><td class="code">        op = tmpop;</td></tr>
+<tr id="L9880" class="s1"><td class="ln"><a href="#L9880">9880</a></td><td class="code">        <span class="kw">for</span> (lp = line; *lp &amp;&amp; *lp!=<span class="st">' '</span> &amp;&amp; *lp!=<span class="st">'\t'</span>;)</td></tr>
+<tr id="L9881" class="s1"><td class="ln"><a href="#L9881">9881</a></td><td class="code">                *op++ = *lp++;</td></tr>
+<tr id="L9882" class="s1"><td class="ln"><a href="#L9882">9882</a></td><td class="code">        *op++ = <span class="nu">0</span>;</td></tr>
+<tr id="L9883" class="s1"><td class="ln"><a href="#L9883">9883</a></td><td class="code">        <span class="kw">while</span> (*lp==<span class="st">'\t'</span> || *lp==<span class="st">' '</span>)</td></tr>
+<tr id="L9884" class="s1"><td class="ln"><a href="#L9884">9884</a></td><td class="code">                lp++;</td></tr>
+<tr id="L9885" class="s1"><td class="ln"><a href="#L9885">9885</a></td><td class="code">        curlp = lp;</td></tr>
+<tr id="L9886" class="s1"><td class="ln"><a href="#L9886">9886</a></td><td class="code">        ophp = &amp;ophash[(((tmpop[<span class="nu">0</span>]&lt;&lt;<span class="nu">3</span>)+(tmpop[<span class="nu">1</span>]&lt;&lt;<span class="nu">1</span>)+tmpop[<span class="nu">2</span>])&amp;<span class="nu">077777</span>) % OPHS];</td></tr>
+<tr id="L9887" class="s1"><td class="ln"><a href="#L9887">9887</a></td><td class="code">        <span class="kw">while</span> (optp = *ophp) {</td></tr>
+<tr id="L9888" class="s1"><td class="ln"><a href="#L9888">9888</a></td><td class="code">                op = optp-&gt;opstring;</td></tr>
+<tr id="L9889" class="s1"><td class="ln"><a href="#L9889">9889</a></td><td class="code">                lp = tmpop;</td></tr>
+<tr id="L9890" class="s1"><td class="ln"><a href="#L9890">9890</a></td><td class="code">                <span class="kw">while</span> (*lp == *op++)</td></tr>
+<tr id="L9891" class="s1"><td class="ln"><a href="#L9891">9891</a></td><td class="code">                        <span class="kw">if</span> (*lp++ == <span class="nu">0</span>)</td></tr>
+<tr id="L9892" class="s1"><td class="ln"><a href="#L9892">9892</a></td><td class="code">                                <span class="kw">return</span>(optp-&gt;opcode);</td></tr>
+<tr id="L9893" class="s1"><td class="ln"><a href="#L9893">9893</a></td><td class="code">                <span class="kw">if</span> (*lp++==<span class="st">'b'</span> &amp;&amp; *lp++==<span class="nu">0</span> &amp;&amp; *--op==<span class="nu">0</span>)</td></tr>
+<tr id="L9894" class="s1"><td class="ln"><a href="#L9894">9894</a></td><td class="code">                        <span class="kw">return</span>(optp-&gt;opcode + (BYTE&lt;&lt;<span class="nu">8</span>));</td></tr>
+<tr id="L9895" class="s1"><td class="ln"><a href="#L9895">9895</a></td><td class="code">                ophp++;</td></tr>
+<tr id="L9896" class="s1"><td class="ln"><a href="#L9896">9896</a></td><td class="code">                <span class="kw">if</span> (ophp &gt;= &amp;ophash[OPHS])</td></tr>
+<tr id="L9897" class="s1"><td class="ln"><a href="#L9897">9897</a></td><td class="code">                        ophp = ophash;</td></tr>
+<tr id="L9898" class="s1"><td class="ln"><a href="#L9898">9898</a></td><td class="code">        }</td></tr>
+<tr id="L9899" class="s1"><td class="ln"><a href="#L9899">9899</a></td><td class="code">        <span class="kw">if</span> (line[<span class="nu">0</span>]==<span class="st">'L'</span>) {</td></tr>
+<tr id="L9900" class="s0"><td class="ln"><a href="#L9900">9900</a></td><td class="code">                lp = &amp;line[<span class="nu">1</span>];</td></tr>
+<tr id="L9901" class="s0"><td class="ln"><a href="#L9901">9901</a></td><td class="code">                <span class="kw">while</span> (*lp)</td></tr>
+<tr id="L9902" class="s0"><td class="ln"><a href="#L9902">9902</a></td><td class="code">                        <span class="kw">if</span> (*lp&lt;<span class="st">'0'</span> || *lp++&gt;<span class="st">'9'</span>)</td></tr>
+<tr id="L9903" class="s0"><td class="ln"><a href="#L9903">9903</a></td><td class="code">                                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L9904" class="s0"><td class="ln"><a href="#L9904">9904</a></td><td class="code">                curlp = line;</td></tr>
+<tr id="L9905" class="s0"><td class="ln"><a href="#L9905">9905</a></td><td class="code">                <span class="kw">return</span>(JSW);</td></tr>
+<tr id="L9906" class="s0"><td class="ln"><a href="#L9906">9906</a></td><td class="code">        }</td></tr>
+<tr id="L9907" class="s0"><td class="ln"><a href="#L9907">9907</a></td><td class="code">        curlp = line;</td></tr>
+<tr id="L9908" class="s0"><td class="ln"><a href="#L9908">9908</a></td><td class="code">        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L9909" class="s0"><td class="ln"><a href="#L9909">9909</a></td><td class="code">}</td></tr>
+<tr id="L9910" class="s0"><td class="ln"><a href="#L9910">9910</a></td><td class="code"> </td></tr>
+<tr id="L9911" class="s0"><td class="ln"><a href="#L9911">9911</a></td><td class="code"><span class="def">refcount</span>()</td></tr>
+<tr id="L9912" class="s0"><td class="ln"><a href="#L9912">9912</a></td><td class="code">{</td></tr>
+<tr id="L9913" class="s0"><td class="ln"><a href="#L9913">9913</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> node *p, *lp;</td></tr>
+<tr id="L9914" class="s0"><td class="ln"><a href="#L9914">9914</a></td><td class="code">        <span class="kw">static</span> <span class="kw">struct</span> node *labhash[LABHS];</td></tr>
+<tr id="L9915" class="s0"><td class="ln"><a href="#L9915">9915</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> node **hp;</td></tr>
+<tr id="L9916" class="s0"><td class="ln"><a href="#L9916">9916</a></td><td class="code"> </td></tr>
+<tr id="L9917" class="s0"><td class="ln"><a href="#L9917">9917</a></td><td class="code">        <span class="kw">for</span> (hp = labhash; hp &lt; &amp;labhash[LABHS];)</td></tr>
+<tr id="L9918" class="s0"><td class="ln"><a href="#L9918">9918</a></td><td class="code">                *hp++ = <span class="nu">0</span>;</td></tr>
+<tr id="L9919" class="s0"><td class="ln"><a href="#L9919">9919</a></td><td class="code">        <span class="kw">for</span> (p = first.forw; p!=<span class="nu">0</span>; p = p-&gt;forw)</td></tr>
+<tr id="L9920" class="s0"><td class="ln"><a href="#L9920">9920</a></td><td class="code">                <span class="kw">if</span> (p-&gt;op==LABEL) {</td></tr>
+<tr id="L9921" class="s0"><td class="ln"><a href="#L9921">9921</a></td><td class="code">                        labhash[p-&gt;labno % LABHS] = p;</td></tr>
+<tr id="L9922" class="s0"><td class="ln"><a href="#L9922">9922</a></td><td class="code">                        p-&gt;refc = <span class="nu">0</span>;</td></tr>
+<tr id="L9923" class="s0"><td class="ln"><a href="#L9923">9923</a></td><td class="code">                }</td></tr>
+<tr id="L9924" class="s0"><td class="ln"><a href="#L9924">9924</a></td><td class="code">        <span class="kw">for</span> (p = first.forw; p!=<span class="nu">0</span>; p = p-&gt;forw) {</td></tr>
+<tr id="L9925" class="s0"><td class="ln"><a href="#L9925">9925</a></td><td class="code">                <span class="kw">if</span> (p-&gt;op==JBR || p-&gt;op==CBR || p-&gt;op==JSW) {</td></tr>
+<tr id="L9926" class="s0"><td class="ln"><a href="#L9926">9926</a></td><td class="code">                        p-&gt;ref = <span class="nu">0</span>;</td></tr>
+<tr id="L9927" class="s0"><td class="ln"><a href="#L9927">9927</a></td><td class="code">                        lp = labhash[p-&gt;labno % LABHS];</td></tr>
+<tr id="L9928" class="s0"><td class="ln"><a href="#L9928">9928</a></td><td class="code">                        <span class="kw">if</span> (lp==<span class="nu">0</span> || p-&gt;labno!=lp-&gt;labno)</td></tr>
+<tr id="L9929" class="s0"><td class="ln"><a href="#L9929">9929</a></td><td class="code">                        <span class="kw">for</span> (lp = first.forw; lp!=<span class="nu">0</span>; lp = lp-&gt;forw) {</td></tr>
+<tr id="L9930" class="s0"><td class="ln"><a href="#L9930">9930</a></td><td class="code">                                <span class="kw">if</span> (lp-&gt;op==LABEL &amp;&amp; p-&gt;labno==lp-&gt;labno)</td></tr>
+<tr id="L9931" class="s0"><td class="ln"><a href="#L9931">9931</a></td><td class="code">                                        <span class="kw">break</span>;</td></tr>
+<tr id="L9932" class="s0"><td class="ln"><a href="#L9932">9932</a></td><td class="code">                        }</td></tr>
+<tr id="L9933" class="s0"><td class="ln"><a href="#L9933">9933</a></td><td class="code">                        <span class="kw">if</span> (lp) {</td></tr>
+<tr id="L9934" class="s0"><td class="ln"><a href="#L9934">9934</a></td><td class="code">                                hp = <a class="id" href="../source/c21.c.html#L10434">nonlab</a>(lp)-&gt;back;</td></tr>
+<tr id="L9935" class="s0"><td class="ln"><a href="#L9935">9935</a></td><td class="code">                                <span class="kw">if</span> (hp!=lp) {</td></tr>
+<tr id="L9936" class="s0"><td class="ln"><a href="#L9936">9936</a></td><td class="code">                                        p-&gt;labno = hp-&gt;labno;</td></tr>
+<tr id="L9937" class="s0"><td class="ln"><a href="#L9937">9937</a></td><td class="code">                                        lp = hp;</td></tr>
+<tr id="L9938" class="s0"><td class="ln"><a href="#L9938">9938</a></td><td class="code">                                }</td></tr>
+<tr id="L9939" class="s0"><td class="ln"><a href="#L9939">9939</a></td><td class="code">                                p-&gt;ref = lp;</td></tr>
+<tr id="L9940" class="s0"><td class="ln"><a href="#L9940">9940</a></td><td class="code">                                lp-&gt;refc++;</td></tr>
+<tr id="L9941" class="s0"><td class="ln"><a href="#L9941">9941</a></td><td class="code">                        }</td></tr>
+<tr id="L9942" class="s0"><td class="ln"><a href="#L9942">9942</a></td><td class="code">                }</td></tr>
+<tr id="L9943" class="s0"><td class="ln"><a href="#L9943">9943</a></td><td class="code">        }</td></tr>
+<tr id="L9944" class="s0"><td class="ln"><a href="#L9944">9944</a></td><td class="code">        <span class="kw">for</span> (p = first.forw; p!=<span class="nu">0</span>; p = p-&gt;forw)</td></tr>
+<tr id="L9945" class="s0"><td class="ln"><a href="#L9945">9945</a></td><td class="code">                <span class="kw">if</span> (p-&gt;op==LABEL &amp;&amp; p-&gt;refc==<span class="nu">0</span></td></tr>
+<tr id="L9946" class="s0"><td class="ln"><a href="#L9946">9946</a></td><td class="code">                 &amp;&amp; (lp = <a class="id" href="../source/c21.c.html#L10434">nonlab</a>(p))-&gt;op &amp;&amp; lp-&gt;op!=JSW)</td></tr>
+<tr id="L9947" class="s0"><td class="ln"><a href="#L9947">9947</a></td><td class="code">                        <a class="id" href="../source/c04.c.html#L3813">decref</a>(p);</td></tr>
+<tr id="L9948" class="s0"><td class="ln"><a href="#L9948">9948</a></td><td class="code">}</td></tr>
+<tr id="L9949" class="s0"><td class="ln"><a href="#L9949">9949</a></td><td class="code"> </td></tr>
+<tr id="L9950" class="s1"><td class="ln"><a href="#L9950">9950</a></td><td class="code"><span class="def">iterate</span>()</td></tr>
+<tr id="L9951" class="s1"><td class="ln"><a href="#L9951">9951</a></td><td class="code">{</td></tr>
+<tr id="L9952" class="s1"><td class="ln"><a href="#L9952">9952</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> node *p, *rp, *p1;</td></tr>
+<tr id="L9953" class="s1"><td class="ln"><a href="#L9953">9953</a></td><td class="code"> </td></tr>
+<tr id="L9954" class="s1"><td class="ln"><a href="#L9954">9954</a></td><td class="code">        nchange = <span class="nu">0</span>;</td></tr>
+<tr id="L9955" class="s1"><td class="ln"><a href="#L9955">9955</a></td><td class="code">        <span class="kw">for</span> (p = first.forw; p!=<span class="nu">0</span>; p = p-&gt;forw) {</td></tr>
+<tr id="L9956" class="s1"><td class="ln"><a href="#L9956">9956</a></td><td class="code">                <span class="kw">if</span> ((p-&gt;op==JBR||p-&gt;op==CBR||p-&gt;op==JSW) &amp;&amp; p-&gt;ref) {</td></tr>
+<tr id="L9957" class="s1"><td class="ln"><a href="#L9957">9957</a></td><td class="code">                        rp = <a class="id" href="../source/c21.c.html#L10434">nonlab</a>(p-&gt;ref);</td></tr>
+<tr id="L9958" class="s1"><td class="ln"><a href="#L9958">9958</a></td><td class="code">                        <span class="kw">if</span> (rp-&gt;op==JBR &amp;&amp; rp-&gt;labno &amp;&amp; p!=rp) {</td></tr>
+<tr id="L9959" class="s1"><td class="ln"><a href="#L9959">9959</a></td><td class="code">                                nbrbr++;</td></tr>
+<tr id="L9960" class="s1"><td class="ln"><a href="#L9960">9960</a></td><td class="code">                                p-&gt;labno = rp-&gt;labno;</td></tr>
+<tr id="L9961" class="s1"><td class="ln"><a href="#L9961">9961</a></td><td class="code">                                <a class="id" href="../source/c04.c.html#L3813">decref</a>(p-&gt;ref);</td></tr>
+<tr id="L9962" class="s1"><td class="ln"><a href="#L9962">9962</a></td><td class="code">                                rp-&gt;ref-&gt;refc++;</td></tr>
+<tr id="L9963" class="s1"><td class="ln"><a href="#L9963">9963</a></td><td class="code">                                p-&gt;ref = rp-&gt;ref;</td></tr>
+<tr id="L9964" class="s1"><td class="ln"><a href="#L9964">9964</a></td><td class="code">                                nchange++;</td></tr>
+<tr id="L9965" class="s1"><td class="ln"><a href="#L9965">9965</a></td><td class="code">                        }</td></tr>
+<tr id="L9966" class="s1"><td class="ln"><a href="#L9966">9966</a></td><td class="code">                }</td></tr>
+<tr id="L9967" class="s1"><td class="ln"><a href="#L9967">9967</a></td><td class="code">                <span class="kw">if</span> (p-&gt;op==CBR &amp;&amp; (p1 = p-&gt;forw)-&gt;op==JBR) {</td></tr>
+<tr id="L9968" class="s1"><td class="ln"><a href="#L9968">9968</a></td><td class="code">                        rp = p-&gt;ref;</td></tr>
+<tr id="L9969" class="s1"><td class="ln"><a href="#L9969">9969</a></td><td class="code">                        <span class="kw">do</span></td></tr>
+<tr id="L9970" class="s1"><td class="ln"><a href="#L9970">9970</a></td><td class="code">                                rp = rp-&gt;back;</td></tr>
+<tr id="L9971" class="s1"><td class="ln"><a href="#L9971">9971</a></td><td class="code">                        <span class="kw">while</span> (rp-&gt;op==LABEL);</td></tr>
+<tr id="L9972" class="s1"><td class="ln"><a href="#L9972">9972</a></td><td class="code">                        <span class="kw">if</span> (rp==p1) {</td></tr>
+<tr id="L9973" class="s1"><td class="ln"><a href="#L9973">9973</a></td><td class="code">                                <a class="id" href="../source/c04.c.html#L3813">decref</a>(p-&gt;ref);</td></tr>
+<tr id="L9974" class="s1"><td class="ln"><a href="#L9974">9974</a></td><td class="code">                                p-&gt;ref = p1-&gt;ref;</td></tr>
+<tr id="L9975" class="s1"><td class="ln"><a href="#L9975">9975</a></td><td class="code">                                p-&gt;labno = p1-&gt;labno;</td></tr>
+<tr id="L9976" class="s1"><td class="ln"><a href="#L9976">9976</a></td><td class="code">                                p1-&gt;forw-&gt;back = p;</td></tr>
+<tr id="L9977" class="s1"><td class="ln"><a href="#L9977">9977</a></td><td class="code">                                p-&gt;forw = p1-&gt;forw;</td></tr>
+<tr id="L9978" class="s1"><td class="ln"><a href="#L9978">9978</a></td><td class="code">                                p-&gt;subop = revbr[p-&gt;subop];</td></tr>
+<tr id="L9979" class="s1"><td class="ln"><a href="#L9979">9979</a></td><td class="code">                                nchange++;</td></tr>
+<tr id="L9980" class="s1"><td class="ln"><a href="#L9980">9980</a></td><td class="code">                                nskip++;</td></tr>
+<tr id="L9981" class="s1"><td class="ln"><a href="#L9981">9981</a></td><td class="code">                        }</td></tr>
+<tr id="L9982" class="s1"><td class="ln"><a href="#L9982">9982</a></td><td class="code">                }</td></tr>
+<tr id="L9983" class="s1"><td class="ln"><a href="#L9983">9983</a></td><td class="code">                <span class="kw">if</span> (p-&gt;op==JBR || p-&gt;op==JMP) {</td></tr>
+<tr id="L9984" class="s1"><td class="ln"><a href="#L9984">9984</a></td><td class="code">                        <span class="kw">while</span> (p-&gt;forw &amp;&amp; p-&gt;forw-&gt;op!=LABEL</td></tr>
+<tr id="L9985" class="s1"><td class="ln"><a href="#L9985">9985</a></td><td class="code">                                &amp;&amp; p-&gt;forw-&gt;op!=EROU &amp;&amp; p-&gt;forw-&gt;op!=END) {</td></tr>
+<tr id="L9986" class="s1"><td class="ln"><a href="#L9986">9986</a></td><td class="code">                                nchange++;</td></tr>
+<tr id="L9987" class="s1"><td class="ln"><a href="#L9987">9987</a></td><td class="code">                                iaftbr++;</td></tr>
+<tr id="L9988" class="s1"><td class="ln"><a href="#L9988">9988</a></td><td class="code">                                <span class="kw">if</span> (p-&gt;forw-&gt;ref)</td></tr>
+<tr id="L9989" class="s1"><td class="ln"><a href="#L9989">9989</a></td><td class="code">                                        <a class="id" href="../source/c04.c.html#L3813">decref</a>(p-&gt;forw-&gt;ref);</td></tr>
+<tr id="L9990" class="s1"><td class="ln"><a href="#L9990">9990</a></td><td class="code">                                p-&gt;forw = p-&gt;forw-&gt;forw;</td></tr>
+<tr id="L9991" class="s1"><td class="ln"><a href="#L9991">9991</a></td><td class="code">                                p-&gt;forw-&gt;back = p;</td></tr>
+<tr id="L9992" class="s1"><td class="ln"><a href="#L9992">9992</a></td><td class="code">                        }</td></tr>
+<tr id="L9993" class="s1"><td class="ln"><a href="#L9993">9993</a></td><td class="code">                        rp = p-&gt;forw;</td></tr>
+<tr id="L9994" class="s1"><td class="ln"><a href="#L9994">9994</a></td><td class="code">                        <span class="kw">while</span> (rp &amp;&amp; rp-&gt;op==LABEL) {</td></tr>
+<tr id="L9995" class="s1"><td class="ln"><a href="#L9995">9995</a></td><td class="code">                                <span class="kw">if</span> (p-&gt;ref == rp) {</td></tr>
+<tr id="L9996" class="s1"><td class="ln"><a href="#L9996">9996</a></td><td class="code">                                        p-&gt;back-&gt;forw = p-&gt;forw;</td></tr>
+<tr id="L9997" class="s1"><td class="ln"><a href="#L9997">9997</a></td><td class="code">                                        p-&gt;forw-&gt;back = p-&gt;back;</td></tr>
+<tr id="L9998" class="s1"><td class="ln"><a href="#L9998">9998</a></td><td class="code">                                        p = p-&gt;back;</td></tr>
+<tr id="L9999" class="s1"><td class="ln"><a href="#L9999">9999</a></td><td class="code">                                        <a class="id" href="../source/c04.c.html#L3813">decref</a>(rp);</td></tr>
+<tr id="L10000" class="s0"><td class="ln"><a href="#L10000">10000</a></td><td class="code">                                        nchange++;</td></tr>
+<tr id="L10001" class="s0"><td class="ln"><a href="#L10001">10001</a></td><td class="code">                                        njp1++;</td></tr>
+<tr id="L10002" class="s0"><td class="ln"><a href="#L10002">10002</a></td><td class="code">                                        <span class="kw">break</span>;</td></tr>
+<tr id="L10003" class="s0"><td class="ln"><a href="#L10003">10003</a></td><td class="code">                                }</td></tr>
+<tr id="L10004" class="s0"><td class="ln"><a href="#L10004">10004</a></td><td class="code">                                rp = rp-&gt;forw;</td></tr>
+<tr id="L10005" class="s0"><td class="ln"><a href="#L10005">10005</a></td><td class="code">                        }</td></tr>
+<tr id="L10006" class="s0"><td class="ln"><a href="#L10006">10006</a></td><td class="code">                        <a class="id" href="../source/c20.c.html#L10012">xjump</a>(p);</td></tr>
+<tr id="L10007" class="s0"><td class="ln"><a href="#L10007">10007</a></td><td class="code">                        p = <a class="id" href="../source/c20.c.html#L10065">codemove</a>(p);</td></tr>
+<tr id="L10008" class="s0"><td class="ln"><a href="#L10008">10008</a></td><td class="code">                }</td></tr>
+<tr id="L10009" class="s0"><td class="ln"><a href="#L10009">10009</a></td><td class="code">        }</td></tr>
+<tr id="L10010" class="s0"><td class="ln"><a href="#L10010">10010</a></td><td class="code">}</td></tr>
+<tr id="L10011" class="s0"><td class="ln"><a href="#L10011">10011</a></td><td class="code"> </td></tr>
+<tr id="L10012" class="s0"><td class="ln"><a href="#L10012">10012</a></td><td class="code"><span class="def">xjump</span>(ap)</td></tr>
+<tr id="L10013" class="s0"><td class="ln"><a href="#L10013">10013</a></td><td class="code">{</td></tr>
+<tr id="L10014" class="s0"><td class="ln"><a href="#L10014">10014</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> *p1, *p2, *p3;</td></tr>
+<tr id="L10015" class="s0"><td class="ln"><a href="#L10015">10015</a></td><td class="code">        <span class="kw">int</span> nxj;</td></tr>
+<tr id="L10016" class="s0"><td class="ln"><a href="#L10016">10016</a></td><td class="code"> </td></tr>
+<tr id="L10017" class="s0"><td class="ln"><a href="#L10017">10017</a></td><td class="code">        nxj = <span class="nu">0</span>;</td></tr>
+<tr id="L10018" class="s0"><td class="ln"><a href="#L10018">10018</a></td><td class="code">        p1 = ap;</td></tr>
+<tr id="L10019" class="s0"><td class="ln"><a href="#L10019">10019</a></td><td class="code">        <span class="kw">if</span> ((p2 = p1-&gt;ref)==<span class="nu">0</span>)</td></tr>
+<tr id="L10020" class="s0"><td class="ln"><a href="#L10020">10020</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L10021" class="s0"><td class="ln"><a href="#L10021">10021</a></td><td class="code">        <span class="kw">for</span> (;;) {</td></tr>
+<tr id="L10022" class="s0"><td class="ln"><a href="#L10022">10022</a></td><td class="code">                <span class="kw">while</span> ((p1 = p1-&gt;back) &amp;&amp; p1-&gt;op==LABEL);</td></tr>
+<tr id="L10023" class="s0"><td class="ln"><a href="#L10023">10023</a></td><td class="code">                <span class="kw">while</span> ((p2 = p2-&gt;back) &amp;&amp; p2-&gt;op==LABEL);</td></tr>
+<tr id="L10024" class="s0"><td class="ln"><a href="#L10024">10024</a></td><td class="code">                <span class="kw">if</span> (!<a class="id" href="../source/c21.c.html#L10399">equop</a>(p1, p2) || p1==p2)</td></tr>
+<tr id="L10025" class="s0"><td class="ln"><a href="#L10025">10025</a></td><td class="code">                        <span class="kw">return</span>(nxj);</td></tr>
+<tr id="L10026" class="s0"><td class="ln"><a href="#L10026">10026</a></td><td class="code">                p3 = <a class="id" href="../source/c20.c.html#L10037">insertl</a>(p2);</td></tr>
+<tr id="L10027" class="s0"><td class="ln"><a href="#L10027">10027</a></td><td class="code">                p1-&gt;combop = JBR;</td></tr>
+<tr id="L10028" class="s0"><td class="ln"><a href="#L10028">10028</a></td><td class="code">                p1-&gt;ref = p3;</td></tr>
+<tr id="L10029" class="s0"><td class="ln"><a href="#L10029">10029</a></td><td class="code">                p1-&gt;labno = p3-&gt;labno;</td></tr>
+<tr id="L10030" class="s0"><td class="ln"><a href="#L10030">10030</a></td><td class="code">                p1-&gt;code = <span class="nu">0</span>;</td></tr>
+<tr id="L10031" class="s0"><td class="ln"><a href="#L10031">10031</a></td><td class="code">                nxj++;</td></tr>
+<tr id="L10032" class="s0"><td class="ln"><a href="#L10032">10032</a></td><td class="code">                nxjump++;</td></tr>
+<tr id="L10033" class="s0"><td class="ln"><a href="#L10033">10033</a></td><td class="code">                nchange++;</td></tr>
+<tr id="L10034" class="s0"><td class="ln"><a href="#L10034">10034</a></td><td class="code">        }</td></tr>
+<tr id="L10035" class="s0"><td class="ln"><a href="#L10035">10035</a></td><td class="code">}</td></tr>
+<tr id="L10036" class="s0"><td class="ln"><a href="#L10036">10036</a></td><td class="code"> </td></tr>
+<tr id="L10037" class="s0"><td class="ln"><a href="#L10037">10037</a></td><td class="code"><span class="def">insertl</span>(ap)</td></tr>
+<tr id="L10038" class="s0"><td class="ln"><a href="#L10038">10038</a></td><td class="code"><span class="kw">struct</span> node *ap;</td></tr>
+<tr id="L10039" class="s0"><td class="ln"><a href="#L10039">10039</a></td><td class="code">{</td></tr>
+<tr id="L10040" class="s0"><td class="ln"><a href="#L10040">10040</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> node *lp, *op;</td></tr>
+<tr id="L10041" class="s0"><td class="ln"><a href="#L10041">10041</a></td><td class="code"> </td></tr>
+<tr id="L10042" class="s0"><td class="ln"><a href="#L10042">10042</a></td><td class="code">        op = ap;</td></tr>
+<tr id="L10043" class="s0"><td class="ln"><a href="#L10043">10043</a></td><td class="code">        <span class="kw">if</span> (op-&gt;op == LABEL) {</td></tr>
+<tr id="L10044" class="s0"><td class="ln"><a href="#L10044">10044</a></td><td class="code">                op-&gt;refc++;</td></tr>
+<tr id="L10045" class="s0"><td class="ln"><a href="#L10045">10045</a></td><td class="code">                <span class="kw">return</span>(op);</td></tr>
+<tr id="L10046" class="s0"><td class="ln"><a href="#L10046">10046</a></td><td class="code">        }</td></tr>
+<tr id="L10047" class="s0"><td class="ln"><a href="#L10047">10047</a></td><td class="code">        <span class="kw">if</span> (op-&gt;back-&gt;op == LABEL) {</td></tr>
+<tr id="L10048" class="s0"><td class="ln"><a href="#L10048">10048</a></td><td class="code">                op = op-&gt;back;</td></tr>
+<tr id="L10049" class="s0"><td class="ln"><a href="#L10049">10049</a></td><td class="code">                op-&gt;refc++;</td></tr>
+<tr id="L10050" class="s1"><td class="ln"><a href="#L10050">10050</a></td><td class="code">                <span class="kw">return</span>(op);</td></tr>
+<tr id="L10051" class="s1"><td class="ln"><a href="#L10051">10051</a></td><td class="code">        }</td></tr>
+<tr id="L10052" class="s1"><td class="ln"><a href="#L10052">10052</a></td><td class="code">        lp = <a class="id" href="../source/c21.c.html#L10445">alloc</a>(<span class="kw">sizeof</span> first);</td></tr>
+<tr id="L10053" class="s1"><td class="ln"><a href="#L10053">10053</a></td><td class="code">        lp-&gt;combop = LABEL;</td></tr>
+<tr id="L10054" class="s1"><td class="ln"><a href="#L10054">10054</a></td><td class="code">        lp-&gt;labno = isn++;</td></tr>
+<tr id="L10055" class="s1"><td class="ln"><a href="#L10055">10055</a></td><td class="code">        lp-&gt;ref = <span class="nu">0</span>;</td></tr>
+<tr id="L10056" class="s1"><td class="ln"><a href="#L10056">10056</a></td><td class="code">        lp-&gt;code = <span class="nu">0</span>;</td></tr>
+<tr id="L10057" class="s1"><td class="ln"><a href="#L10057">10057</a></td><td class="code">        lp-&gt;refc = <span class="nu">1</span>;</td></tr>
+<tr id="L10058" class="s1"><td class="ln"><a href="#L10058">10058</a></td><td class="code">        lp-&gt;back = op-&gt;back;</td></tr>
+<tr id="L10059" class="s1"><td class="ln"><a href="#L10059">10059</a></td><td class="code">        lp-&gt;forw = op;</td></tr>
+<tr id="L10060" class="s1"><td class="ln"><a href="#L10060">10060</a></td><td class="code">        op-&gt;back-&gt;forw = lp;</td></tr>
+<tr id="L10061" class="s1"><td class="ln"><a href="#L10061">10061</a></td><td class="code">        op-&gt;back = lp;</td></tr>
+<tr id="L10062" class="s1"><td class="ln"><a href="#L10062">10062</a></td><td class="code">        <span class="kw">return</span>(lp);</td></tr>
+<tr id="L10063" class="s1"><td class="ln"><a href="#L10063">10063</a></td><td class="code">}</td></tr>
+<tr id="L10064" class="s1"><td class="ln"><a href="#L10064">10064</a></td><td class="code"> </td></tr>
+<tr id="L10065" class="s1"><td class="ln"><a href="#L10065">10065</a></td><td class="code"><span class="def">codemove</span>(ap)</td></tr>
+<tr id="L10066" class="s1"><td class="ln"><a href="#L10066">10066</a></td><td class="code"><span class="kw">struct</span> node *ap;</td></tr>
+<tr id="L10067" class="s1"><td class="ln"><a href="#L10067">10067</a></td><td class="code">{</td></tr>
+<tr id="L10068" class="s1"><td class="ln"><a href="#L10068">10068</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> node *p1, *p2, *p3;</td></tr>
+<tr id="L10069" class="s1"><td class="ln"><a href="#L10069">10069</a></td><td class="code">        <span class="kw">struct</span> node *t, *tl;</td></tr>
+<tr id="L10070" class="s1"><td class="ln"><a href="#L10070">10070</a></td><td class="code">        <span class="kw">int</span> n;</td></tr>
+<tr id="L10071" class="s1"><td class="ln"><a href="#L10071">10071</a></td><td class="code"> </td></tr>
+<tr id="L10072" class="s1"><td class="ln"><a href="#L10072">10072</a></td><td class="code">        p1 = ap;</td></tr>
+<tr id="L10073" class="s1"><td class="ln"><a href="#L10073">10073</a></td><td class="code">        <span class="kw">if</span> (p1-&gt;op!=JBR || (p2 = p1-&gt;ref)==<span class="nu">0</span>)</td></tr>
+<tr id="L10074" class="s1"><td class="ln"><a href="#L10074">10074</a></td><td class="code">                <span class="kw">return</span>(p1);</td></tr>
+<tr id="L10075" class="s1"><td class="ln"><a href="#L10075">10075</a></td><td class="code">        <span class="kw">while</span> (p2-&gt;op == LABEL)</td></tr>
+<tr id="L10076" class="s1"><td class="ln"><a href="#L10076">10076</a></td><td class="code">                <span class="kw">if</span> ((p2 = p2-&gt;back) == <span class="nu">0</span>)</td></tr>
+<tr id="L10077" class="s1"><td class="ln"><a href="#L10077">10077</a></td><td class="code">                        <span class="kw">return</span>(p1);</td></tr>
+<tr id="L10078" class="s1"><td class="ln"><a href="#L10078">10078</a></td><td class="code">        <span class="kw">if</span> (p2-&gt;op!=JBR &amp;&amp; p2-&gt;op!=JMP)</td></tr>
+<tr id="L10079" class="s1"><td class="ln"><a href="#L10079">10079</a></td><td class="code">                <span class="kw">goto</span> ivloop;</td></tr>
+<tr id="L10080" class="s1"><td class="ln"><a href="#L10080">10080</a></td><td class="code">        p2 = p2-&gt;forw;</td></tr>
+<tr id="L10081" class="s1"><td class="ln"><a href="#L10081">10081</a></td><td class="code">        p3 = p1-&gt;ref;</td></tr>
+<tr id="L10082" class="s1"><td class="ln"><a href="#L10082">10082</a></td><td class="code">        <span class="kw">while</span> (p3) {</td></tr>
+<tr id="L10083" class="s1"><td class="ln"><a href="#L10083">10083</a></td><td class="code">                <span class="kw">if</span> (p3-&gt;op==JBR || p3-&gt;op==JMP) {</td></tr>
+<tr id="L10084" class="s1"><td class="ln"><a href="#L10084">10084</a></td><td class="code">                        <span class="kw">if</span> (p1==p3)</td></tr>
+<tr id="L10085" class="s1"><td class="ln"><a href="#L10085">10085</a></td><td class="code">                                <span class="kw">return</span>(p1);</td></tr>
+<tr id="L10086" class="s1"><td class="ln"><a href="#L10086">10086</a></td><td class="code">                        ncmot++;</td></tr>
+<tr id="L10087" class="s1"><td class="ln"><a href="#L10087">10087</a></td><td class="code">                        nchange++;</td></tr>
+<tr id="L10088" class="s1"><td class="ln"><a href="#L10088">10088</a></td><td class="code">                        p1-&gt;back-&gt;forw = p2;</td></tr>
+<tr id="L10089" class="s1"><td class="ln"><a href="#L10089">10089</a></td><td class="code">                        p1-&gt;forw-&gt;back = p3;</td></tr>
+<tr id="L10090" class="s1"><td class="ln"><a href="#L10090">10090</a></td><td class="code">                        p2-&gt;back-&gt;forw = p3-&gt;forw;</td></tr>
+<tr id="L10091" class="s1"><td class="ln"><a href="#L10091">10091</a></td><td class="code">                        p3-&gt;forw-&gt;back = p2-&gt;back;</td></tr>
+<tr id="L10092" class="s1"><td class="ln"><a href="#L10092">10092</a></td><td class="code">                        p2-&gt;back = p1-&gt;back;</td></tr>
+<tr id="L10093" class="s1"><td class="ln"><a href="#L10093">10093</a></td><td class="code">                        p3-&gt;forw = p1-&gt;forw;</td></tr>
+<tr id="L10094" class="s1"><td class="ln"><a href="#L10094">10094</a></td><td class="code">                        <a class="id" href="../source/c04.c.html#L3813">decref</a>(p1-&gt;ref);</td></tr>
+<tr id="L10095" class="s1"><td class="ln"><a href="#L10095">10095</a></td><td class="code">                        <span class="kw">return</span>(p2);</td></tr>
+<tr id="L10096" class="s1"><td class="ln"><a href="#L10096">10096</a></td><td class="code">                } <span class="kw">else</span></td></tr>
+<tr id="L10097" class="s1"><td class="ln"><a href="#L10097">10097</a></td><td class="code">                        p3 = p3-&gt;forw;</td></tr>
+<tr id="L10098" class="s1"><td class="ln"><a href="#L10098">10098</a></td><td class="code">        }</td></tr>
+<tr id="L10099" class="s1"><td class="ln"><a href="#L10099">10099</a></td><td class="code">        <span class="kw">return</span>(p1);</td></tr>
+<tr id="L10100" class="s0"><td class="ln"><a href="#L10100">10100</a></td><td class="code">ivloop:</td></tr>
+<tr id="L10101" class="s0"><td class="ln"><a href="#L10101">10101</a></td><td class="code">        <span class="kw">if</span> (p1-&gt;forw-&gt;op!=LABEL)</td></tr>
+<tr id="L10102" class="s0"><td class="ln"><a href="#L10102">10102</a></td><td class="code">                <span class="kw">return</span>(p1);</td></tr>
+<tr id="L10103" class="s0"><td class="ln"><a href="#L10103">10103</a></td><td class="code">        p3 = p2 = p2-&gt;forw;</td></tr>
+<tr id="L10104" class="s0"><td class="ln"><a href="#L10104">10104</a></td><td class="code">        n = <span class="nu">16</span>;</td></tr>
+<tr id="L10105" class="s0"><td class="ln"><a href="#L10105">10105</a></td><td class="code">        <span class="kw">do</span> {</td></tr>
+<tr id="L10106" class="s0"><td class="ln"><a href="#L10106">10106</a></td><td class="code">                <span class="kw">if</span> ((p3 = p3-&gt;forw) == <span class="nu">0</span> || p3==p1 || --n==<span class="nu">0</span>)</td></tr>
+<tr id="L10107" class="s0"><td class="ln"><a href="#L10107">10107</a></td><td class="code">                        <span class="kw">return</span>(p1);</td></tr>
+<tr id="L10108" class="s0"><td class="ln"><a href="#L10108">10108</a></td><td class="code">        } <span class="kw">while</span> (p3-&gt;op!=CBR || p3-&gt;labno!=p1-&gt;forw-&gt;labno);</td></tr>
+<tr id="L10109" class="s0"><td class="ln"><a href="#L10109">10109</a></td><td class="code">        <span class="kw">do</span> </td></tr>
+<tr id="L10110" class="s0"><td class="ln"><a href="#L10110">10110</a></td><td class="code">                <span class="kw">if</span> ((p1 = p1-&gt;back) == <span class="nu">0</span>)</td></tr>
+<tr id="L10111" class="s0"><td class="ln"><a href="#L10111">10111</a></td><td class="code">                        <span class="kw">return</span>(ap);</td></tr>
+<tr id="L10112" class="s0"><td class="ln"><a href="#L10112">10112</a></td><td class="code">        <span class="kw">while</span> (p1!=p3);</td></tr>
+<tr id="L10113" class="s0"><td class="ln"><a href="#L10113">10113</a></td><td class="code">        p1 = ap;</td></tr>
+<tr id="L10114" class="s0"><td class="ln"><a href="#L10114">10114</a></td><td class="code">        tl = <a class="id" href="../source/c20.c.html#L10037">insertl</a>(p1);</td></tr>
+<tr id="L10115" class="s0"><td class="ln"><a href="#L10115">10115</a></td><td class="code">        p3-&gt;subop = revbr[p3-&gt;subop];</td></tr>
+<tr id="L10116" class="s0"><td class="ln"><a href="#L10116">10116</a></td><td class="code">        <a class="id" href="../source/c04.c.html#L3813">decref</a>(p3-&gt;ref);</td></tr>
+<tr id="L10117" class="s0"><td class="ln"><a href="#L10117">10117</a></td><td class="code">        p2-&gt;back-&gt;forw = p1;</td></tr>
+<tr id="L10118" class="s0"><td class="ln"><a href="#L10118">10118</a></td><td class="code">        p3-&gt;forw-&gt;back = p1;</td></tr>
+<tr id="L10119" class="s0"><td class="ln"><a href="#L10119">10119</a></td><td class="code">        p1-&gt;back-&gt;forw = p2;</td></tr>
+<tr id="L10120" class="s0"><td class="ln"><a href="#L10120">10120</a></td><td class="code">        p1-&gt;forw-&gt;back = p3;</td></tr>
+<tr id="L10121" class="s0"><td class="ln"><a href="#L10121">10121</a></td><td class="code">        t = p1-&gt;back;</td></tr>
+<tr id="L10122" class="s0"><td class="ln"><a href="#L10122">10122</a></td><td class="code">        p1-&gt;back = p2-&gt;back;</td></tr>
+<tr id="L10123" class="s0"><td class="ln"><a href="#L10123">10123</a></td><td class="code">        p2-&gt;back = t;</td></tr>
+<tr id="L10124" class="s0"><td class="ln"><a href="#L10124">10124</a></td><td class="code">        t = p1-&gt;forw;</td></tr>
+<tr id="L10125" class="s0"><td class="ln"><a href="#L10125">10125</a></td><td class="code">        p1-&gt;forw = p3-&gt;forw;</td></tr>
+<tr id="L10126" class="s0"><td class="ln"><a href="#L10126">10126</a></td><td class="code">        p3-&gt;forw = t;</td></tr>
+<tr id="L10127" class="s0"><td class="ln"><a href="#L10127">10127</a></td><td class="code">        p2 = <a class="id" href="../source/c20.c.html#L10037">insertl</a>(p1-&gt;forw);</td></tr>
+<tr id="L10128" class="s0"><td class="ln"><a href="#L10128">10128</a></td><td class="code">        p3-&gt;labno = p2-&gt;labno;</td></tr>
+<tr id="L10129" class="s0"><td class="ln"><a href="#L10129">10129</a></td><td class="code">        p3-&gt;ref = p2;</td></tr>
+<tr id="L10130" class="s0"><td class="ln"><a href="#L10130">10130</a></td><td class="code">        <a class="id" href="../source/c04.c.html#L3813">decref</a>(tl);</td></tr>
+<tr id="L10131" class="s0"><td class="ln"><a href="#L10131">10131</a></td><td class="code">        <span class="kw">if</span> (tl-&gt;refc&lt;=<span class="nu">0</span>)</td></tr>
+<tr id="L10132" class="s0"><td class="ln"><a href="#L10132">10132</a></td><td class="code">                nrlab--;</td></tr>
+<tr id="L10133" class="s0"><td class="ln"><a href="#L10133">10133</a></td><td class="code">        loopiv++;</td></tr>
+<tr id="L10134" class="s0"><td class="ln"><a href="#L10134">10134</a></td><td class="code">        nchange++;</td></tr>
+<tr id="L10135" class="s0"><td class="ln"><a href="#L10135">10135</a></td><td class="code">        <span class="kw">return</span>(p3);</td></tr>
+<tr id="L10136" class="s0"><td class="ln"><a href="#L10136">10136</a></td><td class="code">}</td></tr>
+<tr id="L10137" class="s0"><td class="ln"><a href="#L10137">10137</a></td><td class="code"> </td></tr>
+<tr id="L10138" class="s0"><td class="ln"><a href="#L10138">10138</a></td><td class="code"><span class="def">comjump</span>()</td></tr>
+<tr id="L10139" class="s0"><td class="ln"><a href="#L10139">10139</a></td><td class="code">{</td></tr>
+<tr id="L10140" class="s0"><td class="ln"><a href="#L10140">10140</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> node *p1, *p2, *p3;</td></tr>
+<tr id="L10141" class="s0"><td class="ln"><a href="#L10141">10141</a></td><td class="code"> </td></tr>
+<tr id="L10142" class="s0"><td class="ln"><a href="#L10142">10142</a></td><td class="code">        <span class="kw">for</span> (p1 = first.forw; p1!=<span class="nu">0</span>; p1 = p1-&gt;forw)</td></tr>
+<tr id="L10143" class="s0"><td class="ln"><a href="#L10143">10143</a></td><td class="code">                <span class="kw">if</span> (p1-&gt;op==JBR &amp;&amp; (p2 = p1-&gt;ref) &amp;&amp; p2-&gt;refc &gt; <span class="nu">1</span>)</td></tr>
+<tr id="L10144" class="s0"><td class="ln"><a href="#L10144">10144</a></td><td class="code">                        <span class="kw">for</span> (p3 = p1-&gt;forw; p3!=<span class="nu">0</span>; p3 = p3-&gt;forw)</td></tr>
+<tr id="L10145" class="s0"><td class="ln"><a href="#L10145">10145</a></td><td class="code">                                <span class="kw">if</span> (p3-&gt;op==JBR &amp;&amp; p3-&gt;ref == p2)</td></tr>
+<tr id="L10146" class="s0"><td class="ln"><a href="#L10146">10146</a></td><td class="code">                                        <a class="id" href="../source/c20.c.html#L10149">backjmp</a>(p1, p3);</td></tr>
+<tr id="L10147" class="s0"><td class="ln"><a href="#L10147">10147</a></td><td class="code">}</td></tr>
+<tr id="L10148" class="s0"><td class="ln"><a href="#L10148">10148</a></td><td class="code"> </td></tr>
+<tr id="L10149" class="s0"><td class="ln"><a href="#L10149">10149</a></td><td class="code"><span class="def">backjmp</span>(ap1, ap2)</td></tr>
+<tr id="L10150" class="s1"><td class="ln"><a href="#L10150">10150</a></td><td class="code"><span class="kw">struct</span> node *ap1, *ap2;</td></tr>
+<tr id="L10151" class="s1"><td class="ln"><a href="#L10151">10151</a></td><td class="code">{</td></tr>
+<tr id="L10152" class="s1"><td class="ln"><a href="#L10152">10152</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> node *p1, *p2, *p3;</td></tr>
+<tr id="L10153" class="s1"><td class="ln"><a href="#L10153">10153</a></td><td class="code"> </td></tr>
+<tr id="L10154" class="s1"><td class="ln"><a href="#L10154">10154</a></td><td class="code">        p1 = ap1;</td></tr>
+<tr id="L10155" class="s1"><td class="ln"><a href="#L10155">10155</a></td><td class="code">        p2 = ap2;</td></tr>
+<tr id="L10156" class="s1"><td class="ln"><a href="#L10156">10156</a></td><td class="code">        <span class="kw">for</span>(;;) {</td></tr>
+<tr id="L10157" class="s1"><td class="ln"><a href="#L10157">10157</a></td><td class="code">                <span class="kw">while</span> ((p1 = p1-&gt;back) &amp;&amp; p1-&gt;op==LABEL);</td></tr>
+<tr id="L10158" class="s1"><td class="ln"><a href="#L10158">10158</a></td><td class="code">                p2 = p2-&gt;back;</td></tr>
+<tr id="L10159" class="s1"><td class="ln"><a href="#L10159">10159</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/c21.c.html#L10399">equop</a>(p1, p2)) {</td></tr>
+<tr id="L10160" class="s1"><td class="ln"><a href="#L10160">10160</a></td><td class="code">                        p3 = <a class="id" href="../source/c20.c.html#L10037">insertl</a>(p1);</td></tr>
+<tr id="L10161" class="s1"><td class="ln"><a href="#L10161">10161</a></td><td class="code">                        p2-&gt;back-&gt;forw = p2-&gt;forw;</td></tr>
+<tr id="L10162" class="s1"><td class="ln"><a href="#L10162">10162</a></td><td class="code">                        p2-&gt;forw-&gt;back = p2-&gt;back;</td></tr>
+<tr id="L10163" class="s1"><td class="ln"><a href="#L10163">10163</a></td><td class="code">                        p2 = p2-&gt;forw;</td></tr>
+<tr id="L10164" class="s1"><td class="ln"><a href="#L10164">10164</a></td><td class="code">                        <a class="id" href="../source/c04.c.html#L3813">decref</a>(p2-&gt;ref);</td></tr>
+<tr id="L10165" class="s1"><td class="ln"><a href="#L10165">10165</a></td><td class="code">                        p2-&gt;labno = p3-&gt;labno;</td></tr>
+<tr id="L10166" class="s1"><td class="ln"><a href="#L10166">10166</a></td><td class="code">                        p2-&gt;ref = p3;</td></tr>
+<tr id="L10167" class="s1"><td class="ln"><a href="#L10167">10167</a></td><td class="code">                        nchange++;</td></tr>
+<tr id="L10168" class="s1"><td class="ln"><a href="#L10168">10168</a></td><td class="code">                        ncomj++;</td></tr>
+<tr id="L10169" class="s1"><td class="ln"><a href="#L10169">10169</a></td><td class="code">                } <span class="kw">else</span></td></tr>
+<tr id="L10170" class="s1"><td class="ln"><a href="#L10170">10170</a></td><td class="code">                        <span class="kw">return</span>;</td></tr>
+<tr id="L10171" class="s1"><td class="ln"><a href="#L10171">10171</a></td><td class="code">        }</td></tr>
+<tr id="L10172" class="s1"><td class="ln"><a href="#L10172">10172</a></td><td class="code">}</td></tr></table></div>
+<nav class="pager"><a href="c2h.c.html">&larr; c2h.c</a><a href="c21.c.html">c21.c &rarr;</a></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>

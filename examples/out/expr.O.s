@@ -1,0 +1,60 @@
+.globl	_a
+.comm	_a,2
+.globl	_b
+.comm	_b,2
+.globl	_c
+.comm	_c,2
+.globl	_d
+.comm	_d,2
+.globl	_p
+.comm	_p,2
+.globl	_q
+.comm	_q,2
+.globl	_cp
+.comm	_cp,2
+.globl	_l
+.comm	_l,4
+.globl	_m
+.comm	_m,4
+.globl	_f
+.text
+_f:
+~~f:
+jsr	r5,csv
+mov	_c,r1
+mul	_d,r1
+add	_b,r1
+mov	r1,_a
+mov	*_q,*_p
+add	$2,_p
+add	$2,_q
+mov	_b,r0
+ash	$2,r0
+mov	r0,_a
+mov	_b,r0
+ash	$-3,r0
+mov	r0,_a
+mov	_b,r1
+sxt	r0
+div	$12,r0
+mov	r1,_a
+movb	r1,*_cp
+mov	2+_l,r1
+mov	_l,r0
+add	_m,r0
+add	2+_m,r1
+adc	r0
+mov	r0,_l
+mov	r1,2+_l
+mov	_cp,r0
+add	_b,r0
+movb	(r0),r0
+mov	r0,_a
+mov	_b,(sp)
+inc	(sp)
+mov	_a,-(sp)
+jsr	pc,*$_g
+tst	(sp)+
+jmp	cret
+.globl
+.data

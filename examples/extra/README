@@ -1,0 +1,7 @@
+Examples that need more than one file or special handling, captured by hand
+with tools/v6/v6.py:
+  pp2.od   od -c of the output of "cc -P pp2.c" (with defs.h present)
+  pp2.err  output of "cc -c pp2.c"
+  fl.err   output of "cc fl.c" (without -f)
+  cgoto.O.run  output of "cc -O cgoto.c; a.out"
+  vowels.session  compiling, sizing and running vowels.c

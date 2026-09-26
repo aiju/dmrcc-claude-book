@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>c1t.s · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>c1t.s</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 151 &middot; lines 7550&ndash;7634</p>
+<h1><code>c1t.s</code></h1>
+<p class="desc">Pass 1: instruction and branch tables</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L7550" class="s1"><td class="ln"><a href="#L7550">7550</a></td><td class="code"><span class="cm">/ C operator tables</span></td></tr>
+<tr id="L7551" class="s1"><td class="ln"><a href="#L7551">7551</a></td><td class="code"> </td></tr>
+<tr id="L7552" class="s1"><td class="ln"><a href="#L7552">7552</a></td><td class="code">.globl fltused; fltused=.</td></tr>
+<tr id="L7553" class="s1"><td class="ln"><a href="#L7553">7553</a></td><td class="code">.globl  _instab</td></tr>
+<tr id="L7554" class="s1"><td class="ln"><a href="#L7554">7554</a></td><td class="code">.globl  _branchtab</td></tr>
+<tr id="L7555" class="s1"><td class="ln"><a href="#L7555">7555</a></td><td class="code"> </td></tr>
+<tr id="L7556" class="s1"><td class="ln"><a href="#L7556">7556</a></td><td class="code">.data</td></tr>
+<tr id="L7557" class="s1"><td class="ln"><a href="#L7557">7557</a></td><td class="code">_instab:</td></tr>
+<tr id="L7558" class="s1"><td class="ln"><a href="#L7558">7558</a></td><td class="code">        80.; 1f; 2f; .text; 1:<span class="st">&lt;mov\0&gt;</span>; 2:<span class="st">&lt;clr\0&gt;</span>; .data</td></tr>
+<tr id="L7559" class="s1"><td class="ln"><a href="#L7559">7559</a></td><td class="code">        60.; 1f; 2f; .text; 1: <span class="st">&lt;cmp\0&gt;</span>; 2: <span class="st">&lt;tst\0&gt;</span>; .data</td></tr>
+<tr id="L7560" class="s1"><td class="ln"><a href="#L7560">7560</a></td><td class="code">        106.; 1b; 2b</td></tr>
+<tr id="L7561" class="s1"><td class="ln"><a href="#L7561">7561</a></td><td class="code">        61.; 1b; 2b</td></tr>
+<tr id="L7562" class="s1"><td class="ln"><a href="#L7562">7562</a></td><td class="code">        62.; 1b; 2b</td></tr>
+<tr id="L7563" class="s1"><td class="ln"><a href="#L7563">7563</a></td><td class="code">        63.; 1b; 2b</td></tr>
+<tr id="L7564" class="s1"><td class="ln"><a href="#L7564">7564</a></td><td class="code">        64.; 1b; 2b</td></tr>
+<tr id="L7565" class="s1"><td class="ln"><a href="#L7565">7565</a></td><td class="code">        65.; 1b; 2b</td></tr>
+<tr id="L7566" class="s1"><td class="ln"><a href="#L7566">7566</a></td><td class="code">        66.; 1b; 2b</td></tr>
+<tr id="L7567" class="s1"><td class="ln"><a href="#L7567">7567</a></td><td class="code">        67.; 1b; 2b</td></tr>
+<tr id="L7568" class="s1"><td class="ln"><a href="#L7568">7568</a></td><td class="code">        68.; 1b; 2b</td></tr>
+<tr id="L7569" class="s1"><td class="ln"><a href="#L7569">7569</a></td><td class="code">        69.; 1b; 2b</td></tr>
+<tr id="L7570" class="s1"><td class="ln"><a href="#L7570">7570</a></td><td class="code">        40.; 1f; 3f; .text; 1:<span class="st">&lt;add\0&gt;</span>; .data</td></tr>
+<tr id="L7571" class="s1"><td class="ln"><a href="#L7571">7571</a></td><td class="code">        70.; 1b; 3f</td></tr>
+<tr id="L7572" class="s1"><td class="ln"><a href="#L7572">7572</a></td><td class="code">        41.; 2f; 4f; .text; 2:<span class="st">&lt;sub\0&gt;</span>; .data</td></tr>
+<tr id="L7573" class="s1"><td class="ln"><a href="#L7573">7573</a></td><td class="code">        71.; 2b; 4f</td></tr>
+<tr id="L7574" class="s1"><td class="ln"><a href="#L7574">7574</a></td><td class="code">        30.; 1b; 3f; .text; 3:<span class="st">&lt;inc\0&gt;</span>; .data</td></tr>
+<tr id="L7575" class="s1"><td class="ln"><a href="#L7575">7575</a></td><td class="code">        31.; 2b; 4f; .text; 4:<span class="st">&lt;dec\0&gt;</span>; .data</td></tr>
+<tr id="L7576" class="s1"><td class="ln"><a href="#L7576">7576</a></td><td class="code">        32.; 1b; 3b</td></tr>
+<tr id="L7577" class="s1"><td class="ln"><a href="#L7577">7577</a></td><td class="code">        33.; 2b; 4b</td></tr>
+<tr id="L7578" class="s1"><td class="ln"><a href="#L7578">7578</a></td><td class="code">        42.; 5f; 5f; .text; 5:<span class="st">&lt;mul&gt;</span>; .data</td></tr>
+<tr id="L7579" class="s1"><td class="ln"><a href="#L7579">7579</a></td><td class="code">        72.; 5b; 5b</td></tr>
+<tr id="L7580" class="s1"><td class="ln"><a href="#L7580">7580</a></td><td class="code">        43.; 6f; 6f; .text; 6:<span class="st">&lt;div\0&gt;</span>; .data</td></tr>
+<tr id="L7581" class="s1"><td class="ln"><a href="#L7581">7581</a></td><td class="code">        73.; 6b; 6b</td></tr>
+<tr id="L7582" class="s1"><td class="ln"><a href="#L7582">7582</a></td><td class="code">        44.; 5b; 6b</td></tr>
+<tr id="L7583" class="s1"><td class="ln"><a href="#L7583">7583</a></td><td class="code">        74.; 5b; 6b</td></tr>
+<tr id="L7584" class="s1"><td class="ln"><a href="#L7584">7584</a></td><td class="code">        45.; 5f; 6f; .text;     6:<span class="st">&lt;asr\0&gt;</span>; .data</td></tr>
+<tr id="L7585" class="s1"><td class="ln"><a href="#L7585">7585</a></td><td class="code">        75.; 5f; 6b</td></tr>
+<tr id="L7586" class="s1"><td class="ln"><a href="#L7586">7586</a></td><td class="code">        46.; 5f; 6f; .text; 5:<span class="st">&lt;ash\0&gt;</span>; 6:<span class="st">&lt;asl\0&gt;</span>; .data</td></tr>
+<tr id="L7587" class="s1"><td class="ln"><a href="#L7587">7587</a></td><td class="code">        76.; 5b; 6b</td></tr>
+<tr id="L7588" class="s1"><td class="ln"><a href="#L7588">7588</a></td><td class="code">        47.; 5f; 5f; .text; 5:<span class="st">&lt;bic\0&gt;</span>; 6:<span class="st">&lt;bic $1,\0&gt;</span>; .data</td></tr>
+<tr id="L7589" class="s1"><td class="ln"><a href="#L7589">7589</a></td><td class="code">        55.; 5b; 6b</td></tr>
+<tr id="L7590" class="s1"><td class="ln"><a href="#L7590">7590</a></td><td class="code">        85.; 5b; 6b</td></tr>
+<tr id="L7591" class="s1"><td class="ln"><a href="#L7591">7591</a></td><td class="code">        81.; 5f; 6f; .text; 5:<span class="st">&lt;bit\0&gt;</span>; 6:<span class="st">&lt;bit $1,\0&gt;</span>; .data</td></tr>
+<tr id="L7592" class="s1"><td class="ln"><a href="#L7592">7592</a></td><td class="code">        48.; 5f; 6f; .text; 5:<span class="st">&lt;bis\0&gt;</span>; 6:<span class="st">&lt;bis $1,\0&gt;</span>; .data</td></tr>
+<tr id="L7593" class="s1"><td class="ln"><a href="#L7593">7593</a></td><td class="code">        78.; 5b; 6b</td></tr>
+<tr id="L7594" class="s1"><td class="ln"><a href="#L7594">7594</a></td><td class="code">        49.; 5f; 5f; .text; 5:<span class="st">&lt;xor\0&gt;</span>; .data</td></tr>
+<tr id="L7595" class="s1"><td class="ln"><a href="#L7595">7595</a></td><td class="code">        79.; 5b; 5b</td></tr>
+<tr id="L7596" class="s1"><td class="ln"><a href="#L7596">7596</a></td><td class="code">        37.; 1f; 1f; .text; 1:<span class="st">&lt;neg\0&gt;</span>; .data</td></tr>
+<tr id="L7597" class="s1"><td class="ln"><a href="#L7597">7597</a></td><td class="code">        38.; 1f; 1f; .text; 1:<span class="st">&lt;com\0&gt;</span>; .data</td></tr>
+<tr id="L7598" class="s1"><td class="ln"><a href="#L7598">7598</a></td><td class="code"> </td></tr>
+<tr id="L7599" class="s1"><td class="ln"><a href="#L7599">7599</a></td><td class="code">        98.; 1f; 1f; .text; 1:<span class="st">&lt;*$\0&gt;</span>; .data</td></tr>
+<tr id="L7600" class="s0"><td class="ln"><a href="#L7600">7600</a></td><td class="code">        99.; 1b+2; 1b+2</td></tr>
+<tr id="L7601" class="s0"><td class="ln"><a href="#L7601">7601</a></td><td class="code">        91.; 1f; 1f; .text; 1: <span class="st">&lt;ashc\0&gt;</span>; .data</td></tr>
+<tr id="L7602" class="s0"><td class="ln"><a href="#L7602">7602</a></td><td class="code">        92.; 1b; 1b</td></tr>
+<tr id="L7603" class="s0"><td class="ln"><a href="#L7603">7603</a></td><td class="code">        82.; 1f; 1f; .text; 1:<span class="st">&lt;lmul\0&gt;</span>; .data</td></tr>
+<tr id="L7604" class="s0"><td class="ln"><a href="#L7604">7604</a></td><td class="code">        83.; 1f; 1f; .text; 1:<span class="st">&lt;ldiv\0&gt;</span>; .data</td></tr>
+<tr id="L7605" class="s0"><td class="ln"><a href="#L7605">7605</a></td><td class="code">        84.; 1f; 1f; .text; 1:<span class="st">&lt;lrem\0&gt;</span>; .data</td></tr>
+<tr id="L7606" class="s0"><td class="ln"><a href="#L7606">7606</a></td><td class="code">        86.; 1f; 1f; .text; 1:<span class="st">&lt;almul\0&gt;</span>; .data</td></tr>
+<tr id="L7607" class="s0"><td class="ln"><a href="#L7607">7607</a></td><td class="code">        87.; 1f; 1f; .text; 1:<span class="st">&lt;aldiv\0&gt;</span>; .data</td></tr>
+<tr id="L7608" class="s0"><td class="ln"><a href="#L7608">7608</a></td><td class="code">        88.; 1f; 1f; .text; 1:<span class="st">&lt;alrem\0&gt;</span>; .data</td></tr>
+<tr id="L7609" class="s0"><td class="ln"><a href="#L7609">7609</a></td><td class="code">        0</td></tr>
+<tr id="L7610" class="s0"><td class="ln"><a href="#L7610">7610</a></td><td class="code"> </td></tr>
+<tr id="L7611" class="s0"><td class="ln"><a href="#L7611">7611</a></td><td class="code">.data</td></tr>
+<tr id="L7612" class="s0"><td class="ln"><a href="#L7612">7612</a></td><td class="code">_branchtab:</td></tr>
+<tr id="L7613" class="s0"><td class="ln"><a href="#L7613">7613</a></td><td class="code">        60.; 0f; 1f; .text; 0:<span class="st">&lt;jeq\0&gt;</span>; 1:<span class="st">&lt;jne\0&gt;</span>; .data</td></tr>
+<tr id="L7614" class="s0"><td class="ln"><a href="#L7614">7614</a></td><td class="code">        61.; 1b; 0b</td></tr>
+<tr id="L7615" class="s0"><td class="ln"><a href="#L7615">7615</a></td><td class="code">        62.; 2f; 5f; .text; 2:<span class="st">&lt;jle\0&gt;</span>; 5:<span class="st">&lt;jgt\0&gt;</span>; .data</td></tr>
+<tr id="L7616" class="s0"><td class="ln"><a href="#L7616">7616</a></td><td class="code">        63.; 3f; 4f; .text; 3:<span class="st">&lt;jlt\0&gt;</span>; 4:<span class="st">&lt;jge\0&gt;</span>; .data</td></tr>
+<tr id="L7617" class="s0"><td class="ln"><a href="#L7617">7617</a></td><td class="code">        64.; 4b; 3b</td></tr>
+<tr id="L7618" class="s0"><td class="ln"><a href="#L7618">7618</a></td><td class="code">        65.; 5b; 2b</td></tr>
+<tr id="L7619" class="s0"><td class="ln"><a href="#L7619">7619</a></td><td class="code">        66.; 6f; 9f; .text; 6:<span class="st">&lt;jlos\0&gt;</span>; 9:<span class="st">&lt;jhi\0&gt;</span>; .data</td></tr>
+<tr id="L7620" class="s0"><td class="ln"><a href="#L7620">7620</a></td><td class="code">        67.; 7f; 8f; .text; 7:<span class="st">&lt;jlo\0&gt;</span>; 8:<span class="st">&lt;jhis\0&gt;</span>; .data</td></tr>
+<tr id="L7621" class="s0"><td class="ln"><a href="#L7621">7621</a></td><td class="code">        68.; 8b; 7b</td></tr>
+<tr id="L7622" class="s0"><td class="ln"><a href="#L7622">7622</a></td><td class="code">        69.; 9b; 6b</td></tr>
+<tr id="L7623" class="s0"><td class="ln"><a href="#L7623">7623</a></td><td class="code"> </td></tr>
+<tr id="L7624" class="s0"><td class="ln"><a href="#L7624">7624</a></td><td class="code">        260.; 0b; 1b</td></tr>
+<tr id="L7625" class="s0"><td class="ln"><a href="#L7625">7625</a></td><td class="code">        261.; 1b; 0b</td></tr>
+<tr id="L7626" class="s0"><td class="ln"><a href="#L7626">7626</a></td><td class="code">        262.; 2b; 5b</td></tr>
+<tr id="L7627" class="s0"><td class="ln"><a href="#L7627">7627</a></td><td class="code">        263.; 3b; 4b</td></tr>
+<tr id="L7628" class="s0"><td class="ln"><a href="#L7628">7628</a></td><td class="code">        264.; 4b; 3b</td></tr>
+<tr id="L7629" class="s0"><td class="ln"><a href="#L7629">7629</a></td><td class="code">        265.; 5b; 2b</td></tr>
+<tr id="L7630" class="s0"><td class="ln"><a href="#L7630">7630</a></td><td class="code">        266.; 0b; 1b</td></tr>
+<tr id="L7631" class="s0"><td class="ln"><a href="#L7631">7631</a></td><td class="code">        267.; 7f; 8f; .text; 7:<span class="st">&lt;/nop\0&gt;</span>; 8:<span class="st">&lt;jbr\0&gt;</span>; .data</td></tr>
+<tr id="L7632" class="s0"><td class="ln"><a href="#L7632">7632</a></td><td class="code">        268.; 8b; 7b</td></tr>
+<tr id="L7633" class="s0"><td class="ln"><a href="#L7633">7633</a></td><td class="code">        269.; 1b; 0b</td></tr>
+<tr id="L7634" class="s0"><td class="ln"><a href="#L7634">7634</a></td><td class="code">        0</td></tr></table></div>
+<nav class="pager"><a href="c13.c.html">&larr; c13.c</a><a href="table.s.html">table.s &rarr;</a></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>

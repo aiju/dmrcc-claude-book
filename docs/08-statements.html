@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Functions and Statements · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="chpage">
+<header class="topbar"><nav><a class="home" href="index.html">The Sixth Edition C Compiler</a><span class="sep">/</span>Chapter 8</nav><div class="tools"><a href="contents.html">Contents</a><a href="source/index.html">Listing</a><a href="xref.html">Index</a></div></header>
+<div class="reader">
+<main class="prose chapter">
+<header class="chead">
+<p class="eyebrow">Chapter 8</p>
+<h1>Functions and Statements</h1>
+<nav class="local"><ol><li><a href="#functions">A function</a></li><li><a href="#labels">Labels</a></li><li><a href="#control">The control statements</a></li><li><a href="#for">The <code>for</code> statement</a></li><li><a href="#switch">The <code>switch</code> statement</a></li><li><a href="#return">Expressions and <code>return</code></a></li></ol></nav>
+</header>
+<!-- title: Functions and Statements -->
+<!-- number: 8 -->
+<!-- short: Statements -->
+<!-- blurb: How c0 lays out each kind of statement as labels, jumps and conditional branches, including the trick that moves a for loop's increment after its body. -->
+
+<p>Statements are the easy part of <code>c0</code>. Every control structure in C can be expressed
+with three things: labels, unconditional jumps, and jumps that happen if an expression is true or
+false. <code>c0</code> writes all three to the intermediate file as it reads each statement, using the
+records <code>LABEL</code>, <code>BRANCH</code> and <code>CBRANCH</code>, and leaves it to <code>c1</code> to decide
+how to evaluate the conditions. This chapter goes through <a href="source/c02.c.html"><code>c02.c</code></a>
+from a function's first line to its last.</p>
+
+<h2 id="functions">A function</h2>
+
+<p>When <code>extdef</code> finds a function definition, it records the function's return type in the
+global node <code>funcblk</code> and calls <code>cfunc</code> (<a class="lref" data-file="c02.c" data-line="2711" href="source/c02.c.html#L2711">2711&ndash;2726</a>):</p>
+
+<pre class="excerpt"><span class="xf">c02.c</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2711" href="source/c02.c.html#L2711"> 2711</a>  <span class="def">cfunc</span>(cs)</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2712" href="source/c02.c.html#L2712"> 2712</a>  <span class="kw">char</span> *cs;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2713" href="source/c02.c.html#L2713"> 2713</a>  {</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2714" href="source/c02.c.html#L2714"> 2714</a>          <span class="kw">register</span> savdimp;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2715" href="source/c02.c.html#L2715"> 2715</a>  </span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2716" href="source/c02.c.html#L2716"> 2716</a>          savdimp = dimp;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2717" href="source/c02.c.html#L2717"> 2717</a>          <a class="id" href="source/c04.c.html#L4100">outcode</a>(<span class="st">"BBS"</span>, PROG, RLABEL, cs);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2718" href="source/c02.c.html#L2718"> 2718</a>          <a class="id" href="source/c03.c.html#L3365">declist</a>(ARG);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2719" href="source/c02.c.html#L2719"> 2719</a>          regvar = <span class="nu">5</span>;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2720" href="source/c02.c.html#L2720"> 2720</a>          retlab = isn++;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2721" href="source/c02.c.html#L2721"> 2721</a>          <span class="kw">if</span> ((peeksym = <a class="id" href="source/c00.c.html#L1534">symbol</a>()) != LBRACE)</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2722" href="source/c02.c.html#L2722"> 2722</a>                  <a class="id" href="source/cc.c.html#L510">error</a>(<span class="st">"Compound statement required"</span>);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2723" href="source/c02.c.html#L2723"> 2723</a>          <a class="id" href="source/c02.c.html#L2889">statement</a>(<span class="nu">1</span>);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2724" href="source/c02.c.html#L2724"> 2724</a>          <a class="id" href="source/c04.c.html#L4100">outcode</a>(<span class="st">"BNB"</span>, LABEL, retlab, RETRN);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2725" href="source/c02.c.html#L2725"> 2725</a>          dimp = savdimp;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2726" href="source/c02.c.html#L2726"> 2726</a>  }</span></pre>
+
+<p><code>PROG</code> switches to the text segment, and <code>RLABEL</code> makes <code>c1</code> print the function's
+name as a label, twice: once as <code>_f:</code> for the linker and once as <code>~~f:</code> for the
+debugger. Then the parameter declarations are read, <code>regvar</code> is reset to 5 so that
+register variables will start at <code>r4</code>, and a label is allocated for the function's exit.
+The body is then compiled as an ordinary compound statement, with the argument 1 to say that it is
+the outermost one, and finally the exit label is written, followed by <code>RETRN</code>, which
+becomes <code>jmp cret</code>.</p>
+
+<p>Every <code>return</code> jumps to that one exit label rather than returning directly, so every
+function has exactly one <code>jmp cret</code>. When the body's last statement is a <code>return</code>,
+the result is a jump to the very next instruction, visible at the end of <code>sum</code> in
+<code>loop.s</code> below. <code>c2</code> removes these.</p>
+
+<p>The outermost block is where storage is set up (<a class="lref" data-file="c02.c" data-line="2903" href="source/c02.c.html#L2903">2903&ndash;2908</a>). If profiling was asked for,
+a <code>PROFIL</code> record goes out first. Then <code>blkhed</code> reads the local declarations, assigns
+the parameter offsets and returns the number of bytes used below <code>r5</code>, which becomes the
+argument of <code>SAVE</code>, from which <code>c1</code> generates <code>jsr r5,csv</code> and the stack adjustment.
+<code>blkhed</code> also writes <code>SETREG</code>, telling <code>c1</code> how many registers the register
+variables have left for it to use.</p>
+
+<p>Nested blocks have no declarations of their own in this C. Only the outermost block of a
+function reads any: an inner <code>{</code> goes straight to reading statements
+(<a class="lref" data-file="c02.c" data-line="2909" href="source/c02.c.html#L2909">2909&ndash;2916</a>).</p>
+
+<h2 id="labels">Labels</h2>
+
+<p>Labels generated by the compiler are numbers taken from the counter <code>isn</code>, which also
+numbers strings and floating constants. They come out as <code>L1</code>, <code>L2</code>, and so on.
+<code>c1</code> starts its own counter at 10000 (<a class="lref" data-file="c10.c" data-line="4875" href="source/c10.c.html#L4875">4875</a>) and <code>c2</code> at 20000, so that the
+labels each pass invents never collide with those of the pass before. That is why the labels in
+the generated code are in three ranges.</p>
+
+<p>A label written by the programmer is a name followed by a colon (<a class="lref" data-file="c02.c" data-line="3077" href="source/c02.c.html#L3077">3077&ndash;3091</a>). It is
+given the class <code>STATIC</code> and the type <code>ARRAY</code>, and a label number, and from then on it is
+treated much like a static array: its name used in an expression is the address of the code at
+that point. A label used before it is defined is created the same way by <code>tree</code>
+(<a href="05-expressions.html#walk">chapter 5</a>).</p>
+
+<p>That treatment makes <code>goto</code> interesting. <code>goto x;</code> with a plain label is recognised
+by <code>simplegoto</code> (<a class="lref" data-file="c04.c" data-line="3994" href="source/c04.c.html#L3994">3994&ndash;4012</a>) and becomes a <code>BRANCH</code>. Anything else is compiled by
+<code>dogoto</code> (<a class="lref" data-file="c04.c" data-line="4061" href="source/c04.c.html#L4061">4061&ndash;4069</a>) as an expression: the operand is read with <code>tree</code>, <code>*</code>
+is applied to it, and the result is wrapped in a <code>JUMP</code> node, which <code>c1</code> turns into a
+<code>jmp</code> instruction. Since a label is an array, <code>*label</code> is the code at the label. But
+the operand can be any expression that yields an address, so a variable can hold the address of a
+label, obtained just by naming it, and <code>goto</code> can jump to it. The Sixth Edition had
+computed <code>goto</code>, which the reference manual of the time allows in a single sentence: the
+operand of <code>goto</code> may be a label or an expression of type pointer to <code>int</code>.</p>
+
+<div class="pair">
+<div><p class="lbl">cgoto.c</p><pre>main()
+{
+        int *where, n;
+
+        n = 0;
+        where = two;
+        goto where;
+one:
+        printf("one\n");
+        n++;
+two:
+        printf("two\n");
+        if (n == 0) {
+                where = one;
+                goto where;
+        }
+}</pre></div>
+<div><p class="lbl">a.out</p><pre>two
+one
+two</pre>
+<p class="small muted">Both <code>goto where</code> statements compile to <code>jmp *-10(r5)</code>: jump to the
+address held in <code>where</code>. Note that <code>two</code> is used before it is defined, and that
+<code>where</code> is declared as <code>int *</code>. A pointer to <code>char</code> or to another pointer would
+also do, but not one to <code>float</code>, <code>double</code>, <code>long</code> or a structure, which
+<code>chkw</code> rejects as &ldquo;Integer operand required&rdquo;.</p></div>
+</div>
+
+<h2 id="control">The control statements</h2>
+
+<p><code>statement</code> (<a class="lref" data-file="c02.c" data-line="2889" href="source/c02.c.html#L2889">2889&ndash;3102</a>) reads one statement. After a keyword it switches on which
+keyword it was. The labels needed for <code>break</code> and <code>continue</code> are kept in the globals
+<code>brklab</code> and <code>contlab</code>, and each loop saves the old values in local variables and
+restores them at the end, so that loops nest. <code>chconbrk</code> complains if a <code>break</code> or
+<code>continue</code> appears where its label is zero.</p>
+
+<p>The layouts are these. <code>c</code> is the controlling expression, and &ldquo;branch if false
+<code>c</code>&rdquo; is a <code>CBRANCH</code> record whose third field is 0.</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Statement</th><th>Code</th><th>Lines</th></tr></thead>
+<tbody>
+<tr><td><code>if (c) s1 else s2</code></td><td><pre style="margin:0">      branch if false c to L1
+      s1
+      jump L2
+L1:   s2
+L2:</pre></td><td><a class="lref" data-file="c02.c" data-line="2972" href="source/c02.c.html#L2972">2972&ndash;2985</a></td></tr>
+<tr><td><code>while (c) s</code></td><td><pre style="margin:0">L1:   branch if false c to L2      <span class="cm">continue: L1</span>
+      s
+      jump L1
+L2:                                <span class="cm">break: L2</span></pre></td><td><a class="lref" data-file="c02.c" data-line="2987" href="source/c02.c.html#L2987">2987&ndash;2997</a></td></tr>
+<tr><td><code>do s while (c);</code></td><td><pre style="margin:0">L3:   s
+L1:   branch if true c to L3       <span class="cm">continue: L1</span>
+L2:                                <span class="cm">break: L2</span></pre></td><td><a class="lref" data-file="c02.c" data-line="3009" href="source/c02.c.html#L3009">3009&ndash;3024</a></td></tr>
+<tr><td><code>for (i; c; n) s</code></td><td><pre style="margin:0">      i
+L1:   branch if false c to L2
+      s
+L3:   n                            <span class="cm">continue: L3</span>
+      jump L1
+L2:                                <span class="cm">break: L2</span></pre></td><td><a class="lref" data-file="c02.c" data-line="3107" href="source/c02.c.html#L3107">3107&ndash;3151</a></td></tr>
+<tr><td><code>switch (c) s</code></td><td><pre style="margin:0">      r0 = c
+      jump L1
+      s                            <span class="cm">with case labels inside</span>
+      jump L2
+L1:   switch table
+L2:                                <span class="cm">break: L2</span></pre></td><td><a class="lref" data-file="c02.c" data-line="3043" href="source/c02.c.html#L3043">3043&ndash;3051</a>, <a class="lref" data-file="c02.c" data-line="3177" href="source/c02.c.html#L3177">3177&ndash;3200</a></td></tr>
+</tbody></table></div>
+
+<p>The <code>while</code> loop tests at the top and jumps back at the bottom, so each iteration costs a
+conditional branch and a jump. A loop that tested at the bottom would save the jump, and
+<code>c2</code> rewrites loops that way (<a href="13-c2.html">chapter 13</a>); <code>c0</code> keeps things
+simple.</p>
+
+<p><code>if</code> has special cases for the commonest bodies that are a single jump
+(<a class="lref" data-file="c02.c" data-line="2932" href="source/c02.c.html#L2932">2932&ndash;2971</a>). <code>if (c) goto L;</code>, <code>if (c) break;</code>, <code>if (c) continue;</code> and
+<code>if (c) return;</code> are each compiled into one conditional branch to the target, &ldquo;branch
+if true <code>c</code>&rdquo;, instead of a branch around an unconditional jump.</p>
+
+<h2 id="for">The <code>for</code> statement</h2>
+
+<p>The layout of <code>for</code> in the table has a problem: the increment expression <code>n</code> is
+written in the source before the body <code>s</code>, but its code has to come after. The compiler
+reads the source only once, and does not store statements, so how does the increment end up in
+the right place? <code>forstmt</code> (<a class="lref" data-file="c02.c" data-line="3107" href="source/c02.c.html#L3107">3107&ndash;3151</a>) solves this neatly.</p>
+
+<pre class="excerpt"><span class="xf">c02.c</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3134" href="source/c02.c.html#L3134"> 3134</a>          l = contlab;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3135" href="source/c02.c.html#L3135"> 3135</a>          contlab = isn++;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3136" href="source/c02.c.html#L3136"> 3136</a>          st = <a class="id" href="source/c00.c.html#L1817">tree</a>();</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3137" href="source/c02.c.html#L3137"> 3137</a>          sline = line;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3138" href="source/c02.c.html#L3138"> 3138</a>          <span class="kw">if</span> ((o=<a class="id" href="source/c00.c.html#L1534">symbol</a>()) != RPARN)</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3139" href="source/c02.c.html#L3139"> 3139</a>                  <span class="kw">return</span>(o);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3140" href="source/c02.c.html#L3140"> 3140</a>          ss = treespace;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3141" href="source/c02.c.html#L3141"> 3141</a>          treespace = space;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3142" href="source/c02.c.html#L3142"> 3142</a>          <a class="id" href="source/c02.c.html#L2889">statement</a>(<span class="nu">0</span>);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3143" href="source/c02.c.html#L3143"> 3143</a>          sline1 = line;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3144" href="source/c02.c.html#L3144"> 3144</a>          line = sline;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3145" href="source/c02.c.html#L3145"> 3145</a>          <a class="id" href="source/c04.c.html#L3911">label</a>(contlab);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3146" href="source/c02.c.html#L3146"> 3146</a>          <a class="id" href="source/c04.c.html#L3847">rcexpr</a>(st);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3147" href="source/c02.c.html#L3147"> 3147</a>          line = sline1;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3148" href="source/c02.c.html#L3148"> 3148</a>          treespace = ss;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3149" href="source/c02.c.html#L3149"> 3149</a>          <a class="id" href="source/c04.c.html#L3904">branch</a>(l);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="3150" href="source/c02.c.html#L3150"> 3150</a>          <span class="kw">return</span>(<span class="nu">0</span>);</span></pre>
+
+<p>The increment is parsed with <code>tree</code> as usual, but not written out: the pointer to its tree
+is kept in <code>st</code>. The tree lives in the expression space <code>osspace</code>, and the next call to
+<code>tree</code>, for the first expression of the body, would normally start allocating from the
+beginning of that space again and overwrite it. So <code>forstmt</code> moves the start of the space,
+<code>treespace</code>, up to the current allocation point, <code>space</code>. The body's expressions are then
+built above the increment's tree. After the body, the increment is written out with
+<code>rcexpr</code>, and <code>treespace</code> is put back.</p>
+
+<p>The line number is juggled too. It is saved after the increment is read, so that an error
+found while writing it out is reported on the line of the <code>for</code>, not the end of the body.</p>
+
+<p>Nested <code>for</code> loops each set <code>treespace</code> a little higher, so a deep nest of loops
+with large increment expressions uses up the 500 words of expression space, and the result is
+&ldquo;Expression overflow&rdquo;.</p>
+
+<p>If there is no increment, none of this is needed, and the loop is closed with a jump straight
+back to the test (<a class="lref" data-file="c02.c" data-line="3128" href="source/c02.c.html#L3128">3128&ndash;3133</a>). If there is no test, there is no conditional branch, and the
+loop runs until something breaks out of it.</p>
+
+<p>Here are the two functions of <code>loop.c</code> compiled without optimization. <code>clear</code> uses
+<code>do</code>, and <code>sum</code> uses <code>for</code> with <code>if</code> and <code>else</code> inside. The labels
+<code>L6</code> to <code>L10</code> in <code>sum</code> are, in order: the test, the exit, the <code>continue</code>
+label in front of the increment, the <code>else</code>, and the end of the <code>if</code>.</p>
+
+<div class="pair">
+<div><p class="lbl">loop.c</p><pre>int v[100];
+
+clear()
+{
+        register int *p, n;
+
+        p = v;
+        n = 100;
+        do
+                *p++ = 0;
+        while (--n);
+}
+
+sum()
+{
+        register int *p, s;
+
+        s = 0;
+        for (p = v; p &lt; &amp;v[100]; p++)
+                if (*p != 0)
+                        s =+ *p;
+                else
+                        s =- 1;
+        return(s);
+}</pre></div>
+<div><p class="lbl">loop.s</p><pre>.globl  _v
+.comm   _v,310
+.globl  _clear
+.text
+_clear:
+~~clear:
+~n=r3
+~p=r4
+jsr     r5,csv
+mov     $_v,r4
+mov     $144,r3
+L4:clr  (r4)+
+L2:dec  r3
+jne     L4
+L3:L1:jmp       cret
+.globl  _sum
+.text
+_sum:
+~~sum:
+~p=r4
+~s=r3
+jsr     r5,csv
+clr     r3
+mov     $_v,r4
+L6:cmp  $310+_v,r4
+jlos    L7
+tst     (r4)
+jeq     L9
+add     (r4),r3
+jbr     L10
+L9:dec  r3
+L10:L8:add      $2,r4
+jbr     L6
+L7:mov  r3,r0
+jbr     L5
+L5:jmp  cret
+.globl
+.data</pre></div>
+</div>
+
+<p>Two things in this output come from <code>c1</code> rather than from the layout. In <code>clear</code>,
+<code>*p++ = 0</code> became the single instruction <code>clr (r4)+</code>, using the PDP-11's
+autoincrement mode. In <code>sum</code>, the loop test <code>p &lt; &amp;v[100]</code> is a pointer comparison, so
+it branches with <code>jlos</code>, the unsigned branch, and the address <code>&amp;v[100]</code> has been folded
+into the constant <code>$310+_v</code>.</p>
+
+<h2 id="switch">The <code>switch</code> statement</h2>
+
+<p><code>switch</code> evaluates its expression into <code>r0</code>, using the node <code>RFORCE</code>, and then
+calls <code>pswitch</code> (<a class="lref" data-file="c02.c" data-line="3177" href="source/c02.c.html#L3177">3177&ndash;3200</a>) to compile the body. <code>case</code> and <code>default</code> are just
+labels. When <code>statement</code> reads <code>case 3:</code> it evaluates the constant, allocates a label,
+writes it, and records the pair in the table <code>swtab</code> (<a class="lref" data-file="c02.c" data-line="3026" href="source/c02.c.html#L3026">3026&ndash;3041</a>). Since the code
+that chooses between the cases can only be written after all the cases have been seen,
+<code>pswitch</code> first writes a jump to a label <code>L1</code>, then compiles the body, then writes a jump
+past the switch for when the body falls off the end, and then, at <code>L1</code>, a <code>SWIT</code> record
+listing the default label and all the value and label pairs.</p>
+
+<p><code>swtab</code> is shared by all the switches being compiled at once. A nested switch starts its
+entries where the outer one's currently end, at <code>swp</code>, and puts <code>swp</code> back when it
+finishes, so the table behaves as a stack. Like everything else in <code>c0</code>, its size is
+fixed: 200 cases for all the active switches together.</p>
+
+<p>What <code>c1</code> does with the <code>SWIT</code> record is the subject of <a href="12-switch.html">chapter 12</a>.
+For the curious, the <code>vowels.c</code> switch appears in the intermediate file in
+<a href="03-c0.html#ifile">chapter 3</a>.</p>
+
+<h2 id="return">Expressions and <code>return</code></h2>
+
+<p>A statement that starts with anything other than a keyword or a label is an expression
+statement. It is read with <code>tree</code> and written with <code>rcexpr</code> (<a class="lref" data-file="c02.c" data-line="3093" href="source/c02.c.html#L3093">3093&ndash;3094</a>), which is
+all it takes: the expression's value is not needed, and <code>c1</code> compiles it for its side effects
+only.</p>
+
+<p><code>return</code> is compiled by <code>doret</code> (<a class="lref" data-file="c04.c" data-line="4075" href="source/c04.c.html#L4075">4075&ndash;4089</a>), with a trick. The value has to be
+converted to the function's return type, and the code to do that is in <code>build</code>. So
+<code>doret</code> pretends to assign the value to <code>funcblk</code>, a fake name node whose type is the
+function's return type and whose storage class is register 0 (<a class="lref" data-file="c00.c" data-line="1371" href="source/c00.c.html#L1371">1371</a>):</p>
+
+<pre class="excerpt"><span class="xf">c04.c</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4075" href="source/c04.c.html#L4075"> 4075</a>  <span class="def">doret</span>()</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4076" href="source/c04.c.html#L4076"> 4076</a>  {</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4077" href="source/c04.c.html#L4077"> 4077</a>          <span class="kw">register</span> <span class="kw">struct</span> tnode *t;</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4078" href="source/c04.c.html#L4078"> 4078</a>  </span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4079" href="source/c04.c.html#L4079"> 4079</a>          <span class="kw">if</span> (<a class="id" href="source/c04.c.html#L4017">nextchar</a>() != <span class="st">';'</span>) {</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4080" href="source/c04.c.html#L4080"> 4080</a>                  t = <a class="id" href="source/c00.c.html#L1817">tree</a>();</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4081" href="source/c04.c.html#L4081"> 4081</a>                  *cp++ = &amp;funcblk;</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4082" href="source/c04.c.html#L4082"> 4082</a>                  *cp++ = t;</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4083" href="source/c04.c.html#L4083"> 4083</a>                  <a class="id" href="source/c01.c.html#L2116">build</a>(ASSIGN);</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4084" href="source/c04.c.html#L4084"> 4084</a>                  cp[-<span class="nu">1</span>] = cp[-<span class="nu">1</span>]-&gt;tr2;</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4085" href="source/c04.c.html#L4085"> 4085</a>                  <a class="id" href="source/c01.c.html#L2116">build</a>(RFORCE);</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4086" href="source/c04.c.html#L4086"> 4086</a>                  <a class="id" href="source/c04.c.html#L3847">rcexpr</a>(*--cp);</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4087" href="source/c04.c.html#L4087"> 4087</a>          }</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4088" href="source/c04.c.html#L4088"> 4088</a>          <a class="id" href="source/c04.c.html#L3904">branch</a>(retlab);</span>
+<span class="xl"><a class="lref" data-file="c04.c" data-line="4089" href="source/c04.c.html#L4089"> 4089</a>  }</span></pre>
+
+<p><code>build(ASSIGN)</code> inserts whatever conversion the assignment needs. <code>doret</code> then throws
+away the assignment and keeps only its right operand, <code>cp[-1]-&gt;tr2</code>, now converted, and
+wraps it in <code>RFORCE</code>, which tells <code>c1</code> to leave the value in <code>r0</code>. A jump to the exit
+label follows. A function returning <code>double</code> gets its value converted to <code>double</code>, and one
+returning <code>char *</code> gets no conversion, all without any code specific to <code>return</code>.</p>
+
+<nav class="pager"><a href="07-declarations.html">&larr; Declarations</a><a href="09-c1-trees.html">optim &rarr;</a></nav>
+</main>
+<aside class="panel" id="panel" hidden>
+<div class="panelbar"><span class="pfile"></span><button type="button" class="pclose" aria-label="Close listing">Close</button></div>
+<div class="pbody"></div>
+</aside>
+</div>
+<script src="assets/book.js"></script>
+<script src="assets/listing-data.js"></script><script src="assets/reader.js"></script>
+</body>
+</html>

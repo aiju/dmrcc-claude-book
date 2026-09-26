@@ -1,0 +1,31 @@
+.globl	_a
+.comm	_a,2
+.globl	_b
+.comm	_b,2
+.globl	_c
+.comm	_c,2
+.globl	_f
+.text
+_f:
+~~f:
+jsr	r5,csv
+R 6 (103:L2:0 (54:0:0 (53:0:0 _a:0 _b:0) (34:0:0 _c:0)))O (103:L2:0 (54:0:2 (53:0:1 _a:0 _b:0) (34:0:1 _c:0)))M cctab 106 0 (106:0:1 _a:0)tst	_a
+jeq	L10001
+M cctab 106 0 (106:0:1 _b:0)tst	_b
+jne	L10000
+L10001:M cctab 106 0 (106:0:1 _c:0)tst	_c
+jne	L2
+L10000:R 6 (100:0:0 _g:16 ())O (100:0:10 _g:16 ())M regtab 98 0 (99:0:10 _g:16)jsr	pc,_g
+L2:L3:R 7 (103:L4:0 (63:0:0 _a:0 _b:0))O (103:L4:0 (63:0:1 _a:0 _b:0))M cctab 106 8 (63:0:1 _a:0 _b:0)cmp	_b,_a
+jle	L4
+R 8 (32:0:0 _a:0 $1:0)O (32:0:1 _a:0 $1:0)M efftab 30 2 (32:0:1 _a:0 $1:0)inc	_a
+jbr	L3
+L4:R 9 (80:0:0 _c:0 (65:0:0 _a:0 _b:0))O (80:0:2 _c:0 (65:0:1 _a:0 _b:0))M efftab 80 8 (80:0:2 _c:0 (65:0:1 _a:0 _b:0))M cctab 106 8 (65:0:1 _a:0 _b:0)cmp	_b,_a
+jlt	L10002
+M regtab 106 0 (106:0:1 $0:0)clr	r0
+jbr	L10003
+L10002:M regtab 106 2 (106:0:1 $1:0)mov	$1,r0
+L10003:mov	r0,_c
+L1:jmp	cret
+.globl
+.data

@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Code Tables · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="chpage">
+<header class="topbar"><nav><a class="home" href="index.html">The Sixth Edition C Compiler</a><span class="sep">/</span>Chapter 10</nav><div class="tools"><a href="contents.html">Contents</a><a href="source/index.html">Listing</a><a href="xref.html">Index</a></div></header>
+<div class="reader">
+<main class="prose chapter">
+<header class="chead">
+<p class="eyebrow">Chapter 10</p>
+<h1>The Code Tables</h1>
+<nav class="local"><ol><li><a href="#four">Four tables</a></li><li><a href="#patterns">Patterns</a></li><li><a href="#templates">Templates</a></li><li><a href="#cvopt">Translating the tables</a></li><li><a href="#match">Matching</a></li><li><a href="#example">An example</a></li><li><a href="#browse">The tables</a></li></ol></nav>
+</header>
+<!-- title: The Code Tables -->
+<!-- number: 10 -->
+<!-- short: Tables -->
+<!-- scripts: v6.js c1view.js -->
+<!-- blurb: The four tables of code templates in table.s, the little language they are written in, and how match() picks one for each node. -->
+
+<p>Most compilers of the early 1970s generated code with large amounts of hand-written logic: a
+routine for each operator, full of cases for each kind of operand. <code>c1</code> has a routine for
+very few operators. Instead, the knowledge of which instructions implement which operator on
+which operands is written as data, in <a href="source/table.s.html"><code>table.s</code></a>: for each
+operator a list of patterns, each describing a kind of operand pair, and for each pattern a
+template of assembly language with holes in it. Code generation is then a search for the first
+pattern that fits, followed by the expansion of its template. The table is 1255 lines long, and
+is the single largest part of the compiler.</p>
+
+<h2 id="four">Four tables</h2>
+
+<p>An expression can be compiled for different purposes, and there are four tables, one for each:</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Table</th><th>Purpose</th><th>Starts at</th></tr></thead>
+<tbody>
+<tr><td><code>regtab</code></td><td>leave the value in a register</td><td><a class="lref" data-file="table.s" data-line="7657" href="source/table.s.html#L7657">7657</a></td></tr>
+<tr><td><code>efftab</code></td><td>compute it only for its side effects, and set the condition codes</td><td><a class="lref" data-file="table.s" data-line="8362" href="source/table.s.html#L8362">8362</a></td></tr>
+<tr><td><code>cctab</code></td><td>only set the condition codes, for a branch</td><td><a class="lref" data-file="table.s" data-line="8721" href="source/table.s.html#L8721">8721</a></td></tr>
+<tr><td><code>sptab</code></td><td>push the value onto the stack, for a function argument</td><td><a class="lref" data-file="table.s" data-line="8842" href="source/table.s.html#L8842">8842</a></td></tr>
+</tbody></table></div>
+
+<p>The same expression gets quite different code from each. <code>a = b</code> for its effect is
+<code>mov _b,_a</code>; for its value in a register it needs another instruction to fetch the result;
+<code>a + 1</code> for the stack can be <code>mov _a,-(sp); inc (sp)</code>. Only <code>regtab</code> has to be
+complete. When a node cannot be compiled with one of the others, the code generator falls back on
+<code>regtab</code> and then adds a <code>tst</code> to set the condition codes, or a <code>mov</code> to push the
+register (<a class="lref" data-file="c10.c" data-line="5175" href="source/c10.c.html#L5175">5175&ndash;5194</a>). So the other tables need only contain the cases where they can do
+better than that.</p>
+
+<p>A fifth table, <code>lsptab</code>, has no entries of its own. It is <code>sptab</code> with one difference:
+it stores into <code>(sp)</code> instead of pushing onto <code>-(sp)</code>. It is used for the first argument evaluated, which is the last one in the source, since
+arguments are compiled from right to left; that one goes into the free word at the top of the stack
+(<a href="01-overview.html#frames">chapter 1</a>). <code>match</code> quietly substitutes <code>sptab</code> for
+it (<a class="lref" data-file="c10.c" data-line="4937" href="source/c10.c.html#L4937">4937&ndash;4938</a>), and the difference is made when the template is expanded.</p>
+
+<p>Each table starts with a directory that maps operator numbers to labels
+(<a class="lref" data-file="table.s" data-line="7657" href="source/table.s.html#L7657">7657&ndash;7702</a>). Operators with the same code share a label: <code>+</code>, <code>-</code>, <code>|</code>,
+<code>&amp;~</code> and <code>&lt;&lt;</code> all use <code>cr40</code> in <code>regtab</code>, since each is a single two-operand
+instruction, and only the instruction's name differs.</p>
+
+<h2 id="patterns">Patterns</h2>
+
+<p>Here is the <code>regtab</code> entry for those operators, in part:</p>
+
+<pre class="excerpt"><span class="xf">table.s</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7879" href="source/table.s.html#L7879"> 7879</a>  <span class="cm">/ +, -, |, &amp;~, &lt;&lt;</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7880" href="source/table.s.html#L7880"> 7880</a>  <span class="def">cr40:</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7881" href="source/table.s.html#L7881"> 7881</a>  <span class="tp">%n,z</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7882" href="source/table.s.html#L7882"> 7882</a>          F</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7883" href="source/table.s.html#L7883"> 7883</a>  </span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7884" href="source/table.s.html#L7884"> 7884</a>  <span class="tp">%n,1</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7885" href="source/table.s.html#L7885"> 7885</a>          F</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7886" href="source/table.s.html#L7886"> 7886</a>          I'      R</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7887" href="source/table.s.html#L7887"> 7887</a>  </span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7888" href="source/table.s.html#L7888"> 7888</a>  <span class="tp">%[add1:]</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7889" href="source/table.s.html#L7889"> 7889</a>  <span class="tp">%n,aw</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7890" href="source/table.s.html#L7890"> 7890</a>  <span class="tp">%nf,ad</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7891" href="source/table.s.html#L7891"> 7891</a>          F</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7892" href="source/table.s.html#L7892"> 7892</a>          IB2     A2,R</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7893" href="source/table.s.html#L7893"> 7893</a>  </span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7894" href="source/table.s.html#L7894"> 7894</a>  <span class="tp">%[add2:]</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7895" href="source/table.s.html#L7895"> 7895</a>  <span class="tp">%n,ew*</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7896" href="source/table.s.html#L7896"> 7896</a>  <span class="tp">%nf,ed*</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7897" href="source/table.s.html#L7897"> 7897</a>          F</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7898" href="source/table.s.html#L7898"> 7898</a>          S1*</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7899" href="source/table.s.html#L7899"> 7899</a>          IB2     #2(R1),R</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7900" href="source/table.s.html#L7900"> 7900</a>  </span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7901" href="source/table.s.html#L7901"> 7901</a>  <span class="tp">%[add3:]</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7902" href="source/table.s.html#L7902"> 7902</a>  <span class="tp">%n,e</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7903" href="source/table.s.html#L7903"> 7903</a>  <span class="tp">%nf,ef</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7904" href="source/table.s.html#L7904"> 7904</a>          F</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7905" href="source/table.s.html#L7905"> 7905</a>          S1</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7906" href="source/table.s.html#L7906"> 7906</a>          IBF     R1,R</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7907" href="source/table.s.html#L7907"> 7907</a>  </span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7908" href="source/table.s.html#L7908"> 7908</a>  <span class="tp">%[add4:]</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7909" href="source/table.s.html#L7909"> 7909</a>  <span class="tp">%n,nw*</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7910" href="source/table.s.html#L7910"> 7910</a>  <span class="tp">%nf,nd*</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7911" href="source/table.s.html#L7911"> 7911</a>          SS*</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7912" href="source/table.s.html#L7912"> 7912</a>          F</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7913" href="source/table.s.html#L7913"> 7913</a>          IB2     *(sp)+,R</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7914" href="source/table.s.html#L7914"> 7914</a>  </span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7915" href="source/table.s.html#L7915"> 7915</a>  <span class="tp">%[add5:]</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7916" href="source/table.s.html#L7916"> 7916</a>  <span class="tp">%n,n</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7917" href="source/table.s.html#L7917"> 7917</a>  <span class="tp">%nf,nf</span></span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7918" href="source/table.s.html#L7918"> 7918</a>          SS</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7919" href="source/table.s.html#L7919"> 7919</a>          F</span>
+<span class="xl"><a class="lref" data-file="table.s" data-line="7920" href="source/table.s.html#L7920"> 7920</a>          IBF     (sp)+,R</span></pre>
+
+<p>Each line beginning with <code>%</code> is a pattern, describing the left and right operands, and
+the lines that follow, up to a blank line, are its template. A pattern describes each operand with
+a letter for how hard it is to compute, then optional letters for its type, then optionally
+<code>*</code>. The difficulty letters are an upper bound:</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Letter</th><th>Matches</th></tr></thead>
+<tbody>
+<tr><td><code>z</code></td><td>the constant 0</td></tr>
+<tr><td><code>1</code></td><td>the constant 1 (or 0)</td></tr>
+<tr><td><code>c</code></td><td>a small positive constant</td></tr>
+<tr><td><code>r</code></td><td>a register variable (or a constant)</td></tr>
+<tr><td><code>a</code></td><td>anything addressable: a name, a constant, an address, or an indirection through a name</td></tr>
+<tr><td><code>e</code></td><td>anything that can be computed in the registers still free</td></tr>
+<tr><td><code>n</code></td><td>anything at all</td></tr>
+</tbody></table></div>
+
+<p>The type letters are <code>w</code> for a word, <code>b</code> for a byte, <code>f</code> for <code>float</code> or
+<code>double</code>, <code>d</code> for <code>double</code>, and <code>l</code> for <code>long</code>; no type letter means a word or a
+byte. A <code>*</code> means the operand must be an indirection, <code>*x</code>, and the template will compute
+the pointer <code>x</code> and address through it. So <code>%n,aw</code> reads: the left operand is anything,
+the right is an addressable word. <code>%nf,nd*</code> reads: the left operand is any floating value, the
+right an indirection through any pointer to a <code>double</code>.</p>
+
+<p>The patterns are tried in order, and the first that fits is used, so the order matters: cheap,
+specific cases come first, and the general case <code>%n,n</code>, which evaluates the right operand onto
+the stack, comes last. For <code>+</code>, the list starts with adding zero, which costs nothing, and
+adding one, which is an <code>inc</code>.</p>
+
+<h2 id="templates">Templates</h2>
+
+<p>The templates are assembly language with embedded macros:</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Macro</th><th>Expands to</th></tr></thead>
+<tbody>
+<tr><td><code>A1</code>, <code>A2</code></td><td>the address of the first or second operand, as an assembler operand</td></tr>
+<tr><td><code>A1+</code></td><td>the address of its second word, for the low half of a <code>long</code></td></tr>
+<tr><td><code>A1'</code></td><td>the address without its side effect: <code>(r2)</code> for <code>(r2)+</code>, when an operand is used twice</td></tr>
+<tr><td><code>I</code>, <code>I'</code></td><td>the instruction for this operator, or its alternative form</td></tr>
+<tr><td><code>B1</code>, <code>B2</code>, <code>BE</code></td><td><code>b</code> if the operand, or either operand, is a <code>char</code>, for the byte form of the instruction</td></tr>
+<tr><td><code>BF</code></td><td><code>f</code> if the operation is floating</td></tr>
+<tr><td><code>R</code>, <code>R1</code>, <code>R-</code>, <code>R+</code></td><td>the result register, the next one, and its neighbours</td></tr>
+<tr><td><code>F</code>, <code>S</code>, <code>H</code></td><td>compile the first operand, the second operand, or the whole tree, into <code>R</code></td></tr>
+<tr><td><code>#1</code>, <code>#2</code></td><td>the constant offset of an indirection, as in <code>#1(R)</code></td></tr>
+<tr><td><code>T</code></td><td>a <code>tst</code>, if the condition codes are not already set</td></tr>
+<tr><td><code>V</code></td><td><code>adc</code> or <code>sbc</code>, to carry into the high word of a <code>long</code></td></tr>
+</tbody></table></div>
+
+<p><code>F</code>, <code>S</code> and <code>H</code> are what make the scheme recursive: each calls the code
+generator on a subtree, and can be modified by following letters. <code>F*</code> compiles, not the
+operand <code>*x</code>, but <code>x</code>, so that the template can then address <code>#1(R)</code>. <code>S1</code>
+compiles into <code>R1</code> instead of <code>R</code>. <code>SS</code> compiles onto the stack, and <code>FC</code> for the
+condition codes.</p>
+
+<p><code>I</code> is looked up in the table <code>instab</code> in <a href="source/c1t.s.html"><code>c1t.s</code></a>
+(<a class="lref" data-file="c1t.s" data-line="7557" href="source/c1t.s.html#L7557">7557&ndash;7609</a>), which gives two names for each operator. The alternative, <code>I'</code>, is used for
+special cases: for <code>=</code> the two are <code>mov</code> and <code>clr</code>, for <code>==</code> they are <code>cmp</code> and
+<code>tst</code>, for <code>+</code> they are <code>add</code> and <code>inc</code>. That is how the pattern <code>%n,1</code> above,
+with template <code>F</code> then <code>I' R</code>, produces <code>inc r0</code> for an addition of one, and
+<code>dec r0</code> for a subtraction.</p>
+
+<p>So the template for <code>%n,aw</code>, which is</p>
+
+<pre>F
+IB2	A2,R</pre>
+
+<p>means: compile the left operand into the register; then emit the operator's instruction, with a
+<code>b</code> suffix if the right operand is a <code>char</code>, taking the right operand's address as the
+source and the register as the destination. For <code>x + y</code> this is <code>mov _x,r0</code>, then
+<code>add _y,r0</code>. For <code>x - 1</code> it is not used, because <code>%n,1</code> comes first.</p>
+
+<p>Templates are often shared. <code>%[add1:]</code> names the template that follows, and a later line
+<code>% [add1]</code> uses it again. Multiplication in <code>cr42</code>, for instance, uses the templates of
+<code>cr40</code> unchanged, since <code>mul</code> works like <code>add</code> once its register has been chosen to be
+odd. The relational operators in <code>cctab</code> share the templates of assignment in <code>efftab</code>,
+which is why comparisons come out with their operands in the unexpected order noted in
+<a href="01-overview.html#first">chapter 1</a>: <code>mov A2,A1</code> becomes <code>cmp A2,A1</code>. Chapter 11
+explains how the branch is reversed to suit.</p>
+
+<h2 id="cvopt">Translating the tables</h2>
+
+<p><code>table.s</code> is not assembled as it stands. It is first passed through <code>cvopt</code>
+(<a class="lref" data-file="cvopt.c" data-line="8956" href="source/cvopt.c.html#L8956">8956&ndash;9240</a>), a small translator whose output is ordinary assembly language
+(<a class="lref" data-file="run" data-line="10953" href="source/run.html#L10953">10953&ndash;10955</a>). <code>cvopt</code> turns each pattern into four bytes, a difficulty and a type for each
+operand, followed by a pointer to the template, and each template into a string. Along the way it
+abbreviates the macros into single characters, as its comment records (<a class="lref" data-file="cvopt.c" data-line="8959" href="source/cvopt.c.html#L8959">8959&ndash;8988</a>):
+<code>A1</code> becomes <code>A</code>, <code>A2</code> becomes <code>B</code>, <code>F</code> becomes <code>G</code>, <code>R</code> becomes
+<code>I</code>, and so on. A subtree macro is followed by one more letter that encodes its
+modifiers: <code>A</code> plus 1 for <code>*</code>, 2 for <code>S</code>, 4 for <code>C</code> and 8 for <code>1</code>, so that
+<code>F</code> becomes <code>GA</code> and <code>F*</code> becomes <code>GB</code>. <code>cexpr</code> decodes them by subtracting
+<code>'A'</code> (<a class="lref" data-file="c10.c" data-line="5394" href="source/c10.c.html#L5394">5394&ndash;5409</a>). The leading tab of every template line is dropped, and a tab inside a line, between the
+instruction and its operands, is stored as the top bit of the character after it, which
+<code>cexpr</code> turns back into a tab (<a class="lref" data-file="c10.c" data-line="5302" href="source/c10.c.html#L5302">5302&ndash;5306</a>). The difficulty letters become numbers that <code>match</code> can compare with the
+result of <code>dcalc</code>: <code>z</code> is 4, <code>1</code> is 5, <code>c</code> is 8, <code>r</code> is 9, <code>a</code> is 16,
+<code>e</code> is 20 and <code>n</code> is 63, and <code>*</code> adds 0100.</p>
+
+<p>The structures that result are declared in <code>c1h.c</code> (<a class="lref" data-file="c1h.c" data-line="4600" href="source/c1h.c.html#L4600">4600&ndash;4611</a>): a <code>struct table</code>
+entry pairs an operator with a list of <code>struct optab</code>, and each <code>optab</code> holds the four
+bytes and the string.</p>
+
+<h2 id="match">Matching</h2>
+
+<p><code>match</code> (<a class="lref" data-file="c10.c" data-line="4926" href="source/c10.c.html#L4926">4926&ndash;4991</a>) is given a tree, a table and the number of free registers. It
+finds the operator in the table, and then tries the patterns in order (<a class="lref" data-file="c10.c" data-line="4974" href="source/c10.c.html#L4974">4974&ndash;4989</a>). For
+each operand it computes a difficulty with <code>dcalc</code> (<a class="lref" data-file="c11.c" data-line="5947" href="source/c11.c.html#L5947">5947&ndash;5985</a>):</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th><code>dcalc</code></th><th>For</th></tr></thead>
+<tbody>
+<tr><td class="num">4</td><td>the constant 0</td></tr>
+<tr><td class="num">5</td><td>the constant 1</td></tr>
+<tr><td class="num">8</td><td>any other positive constant</td></tr>
+<tr><td class="num">9</td><td>a register variable</td></tr>
+<tr><td class="num">12</td><td>a name, an address, a negative constant, <code>(r)+</code>, <code>-(r)</code>, or <code>*</code> of a name or constant</td></tr>
+<tr><td class="num">20</td><td>anything whose degree is no more than the number of free registers</td></tr>
+<tr><td class="num">24</td><td>anything else</td></tr>
+</tbody></table></div>
+
+<p>An operand fits a pattern if its difficulty is at most the pattern's, if it is an indirection
+when the pattern demands one, and if its type is compatible, which <code>notcompat</code>
+(<a class="lref" data-file="c11.c" data-line="5987" href="source/c11.c.html#L5987">5987&ndash;6010</a>) decides. So a constant 1 fits <code>1</code>, <code>c</code>, <code>a</code>, <code>e</code> and <code>n</code>, and
+the first pattern in the list that allows it wins.</p>
+
+<p>There is one more trick in <code>match</code>. If either operand is a conversion, such as
+<code>int</code> to <code>double</code>, it first tries to match the tree with the conversion removed
+(<a class="lref" data-file="c10.c" data-line="4950" href="source/c10.c.html#L4950">4950&ndash;4967</a>). The tables contain entries for mixed types where the machine can do the
+conversion as part of the operation, and these are found that way. The comment gives the example
+of assigning a <code>double</code> to an <code>int</code>: <code>movf double,fr0; movfi fr0,int</code> converts on the way
+out of the register, so the <code>double</code> never needs to be converted into an <code>int</code> in a
+register first.</p>
+
+<h2 id="example">An example</h2>
+
+<p>Here is how <code>a = b + c*d</code>, from <code>expr.c</code>, is compiled, as the tracing <code>c1</code> recorded
+it. After <code>optim</code> the tree is <code>a = (c*d) + b</code>, the product moved first because it is
+harder.</p>
+
+<ol>
+<li>The statement is compiled for effect, and <code>efftab</code>'s entry for <code>=</code>, <code>ci80</code>, is
+searched. The left operand <code>a</code> is addressable; the right is not. The first pattern that fits
+is <code>%a,n</code> (<a class="lref" data-file="table.s" data-line="8403" href="source/table.s.html#L8403">8403</a>), whose template is <code>S</code>, then <code>IB1 R,A1</code>: compute the right
+side into a register, then move it into <code>a</code>.</li>
+<li><code>S</code> compiles <code>(c*d) + b</code> into a register using <code>regtab</code>. The entry <code>cr40</code> matches
+<code>%n,aw</code>, since <code>b</code> is an addressable word: <code>F</code>, then <code>add _b,R</code>.</li>
+<li><code>F</code> compiles <code>c*d</code> into the register. <code>cr42</code> matches <code>%n,aw</code> again, reusing the
+<code>add1</code> template: <code>F</code>, then <code>mul _d,R</code>. Because this is a multiplication, the register
+has been made odd: <code>r1</code>.</li>
+<li><code>F</code> compiles <code>c</code>, a leaf, which is done through the operator <code>LOAD</code> and <code>cr106</code>,
+pattern <code>%a,n</code>: <code>mov _c,r1</code>.</li>
+</ol>
+
+<p>Unwinding, the output is</p>
+
+<pre>mov	_c,r1
+mul	_d,r1
+add	_b,r1
+mov	r1,_a</pre>
+
+<p>which is exactly the code in <code>expr.s</code>. The trace viewer in the next chapter shows this
+breakdown for every statement of several programs.</p>
+
+<h2 id="browse">The tables</h2>
+
+<p>Browse the tables below. Choose a table and an operator to see its patterns in the order
+<code>match</code> tries them, with a reading of each pattern and its template. Clicking a pattern
+opens it in the listing.</p>
+
+<div class="widget" data-widget="tables" data-table="regtab" data-op="40">
+<div class="wbar"><span class="wt">table.s</span>
+<span class="row">
+<label for="tbt" class="small" style="color:inherit;margin:0">Table</label>
+<select id="tbt" class="tsel" style="width:auto"><option>regtab</option><option>efftab</option><option>cctab</option><option>sptab</option></select>
+<label for="tbo" class="small" style="color:inherit;margin:0">Operator</label>
+<select id="tbo" class="osel" style="width:auto"></select>
+</span></div>
+<div class="wbody"><div class="tout"></div></div>
+<script type="application/json">{"dirs":{"regtab":{"106":"cr106","30":"cr70","31":"cr70","32":"cr32","33":"cr32","37":"cr37","38":"cr37","98":"cr100","99":"cr100","80":"cr80","40":"cr40","41":"cr40","42":"cr42","43":"cr43","44":"cr43","45":"cr45","46":"cr40","55":"cr40","48":"cr40","49":"cr49","70":"cr70","71":"cr70","72":"cr72","73":"cr73","74":"cr74","75":"cr75","76":"cr72","78":"cr70","85":"cr70","79":"cr79","102":"cr102","51":"cr51","52":"cr52","56":"cr56","57":"cr57","58":"cr58","59":"cr59","91":"cr91","82":"cr82","83":"cr82","84":"cr82","86":"cr86","87":"cr86","88":"cr86"},"efftab":{"30":"ci70","31":"ci70","32":"ci70","33":"ci70","80":"ci80","70":"ci70","71":"ci70","78":"ci78","85":"ci78","75":"ci75","76":"ci76","92":"ci92"},"cctab":{"106":"cc60","28":"rest","55":"rest","34":"rest","35":"rest","36":"rest","37":"rest","40":"rest","41":"rest","42":"rest","43":"rest","45":"rest","46":"rest","81":"cc81","48":"rest","60":"cc60","61":"cc60","62":"cc60","63":"cc60","64":"cc60","65":"cc60","66":"cc60","67":"cc60","68":"cc60","69":"cc60","72":"rest","73":"rest","79":"rest"},"sptab":{"106":"cs106","40":"cs40","41":"cs40","55":"cs40","48":"cs40","58":"cs58","56":"cs56"}},"labels":{"cr102":[{"pat":"%a,n","line":7707,"tmpl":["        jmp     A1"],"tline":7708,"alias":null},{"pat":"%n*,n","line":7710,"tmpl":["        F*","        jmp     #1(R)"],"tline":7711,"alias":null}],"cr100":[{"pat":"%a,n","line":7716,"tmpl":["        jsr     pc,IA1"],"tline":7717,"alias":null},{"pat":"%n*,n","line":7719,"tmpl":["        F*","        jsr     pc,#1(R)"],"tline":7720,"alias":null},{"pat":"%n,n","line":7723,"tmpl":["        F","        jsr     pc,(R)"],"tline":7724,"alias":null}],"cr106":[{"pat":"%z,n","line":7729,"tmpl":["        clr     R"],"tline":7730,"alias":null},{"pat":"%zf,n","line":7732,"tmpl":["        clrf    R"],"tline":7733,"alias":null},{"pat":"%a,n","line":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null},{"pat":"%ad,n","line":7736,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null},{"pat":"%af,n","line":7739,"tmpl":["        movof   A1,R"],"tline":7740,"alias":null},{"pat":"%n*,n","line":7742,"tmpl":["        F*","        movB1   #1(R),R"],"tline":7744,"alias":null},{"pat":"%nd*,n","line":7743,"tmpl":["        F*","        movB1   #1(R),R"],"tline":7744,"alias":null},{"pat":"%nf*,n","line":7747,"tmpl":["        F*","        movof   #1(R),R"],"tline":7748,"alias":null},{"pat":"%al,n","line":7751,"tmpl":["        mov     A1+,R+","        mov     A1,R"],"tline":7752,"alias":null},{"pat":"%nl*,n","line":7755,"tmpl":["        F*","        mov     #1+2(R),R+","        mov     #1(R),R"],"tline":7756,"alias":null}],"cr32":[{"pat":"%a,1","line":7762,"tmpl":["        movB1   A1',R","        I'B1    A1"],"tline":7763,"alias":null},{"pat":"%aw,n","line":7766,"tmpl":["        mov     A1',R","        I       A2,A1"],"tline":7767,"alias":null},{"pat":"%e*,1","line":7770,"tmpl":["        F1*","        movB1   #1(R1),R","        I'B1    #1(R1)"],"tline":7771,"alias":null},{"pat":"%n*,1","line":7775,"tmpl":["        F*","        movB1   #1(R),-(sp)","        I'B1    #1(R)","        movB1   (sp)+,R"],"tline":7776,"alias":null},{"pat":"%ew*,n","line":7781,"tmpl":["        F1*","        mov     #1(R1),R","        I       A2,#1(R1)"],"tline":7782,"alias":null},{"pat":"%nw*,n","line":7786,"tmpl":["        F*","        mov     #1(R),-(sp)","        I       A2,#1(R)","        mov     (sp)+,R"],"tline":7787,"alias":null},{"pat":"%al,1","line":7792,"tmpl":["        F","        I       $1,A1+","        V       A1"],"tline":7793,"alias":null},{"pat":"%el*,1","line":7797,"tmpl":["        F1*","        mov     #1+2(R1),R+","        mov     #1(R1),R","        I       $1,#1+2(R1)","        V       #1(R1)"],"tline":7798,"alias":null},{"pat":"%nl*,1","line":7804,"tmpl":["        F*","        mov     #1+2(R),-(sp)","        mov     #1(R),-(sp)","        add     $1,#1+2(R)","        V       #1(R)","        mov     (sp)+,R","        mov     (sp)+,R+"],"tline":7805,"alias":null}],"cr37":[{"pat":"%n,n","line":7815,"tmpl":["        F","        IBF     R"],"tline":7817,"alias":null},{"pat":"%nf,n","line":7816,"tmpl":["        F","        IBF     R"],"tline":7817,"alias":null},{"pat":"%nl,n","line":7820,"tmpl":["        F","        I       R","        I       R+","        V       R"],"tline":7821,"alias":null}],"cr80":[{"pat":"%a,n","line":7828,"tmpl":["        S","        movB1   R,A1"],"tline":7830,"alias":null},{"pat":"%ad,nf","line":7829,"tmpl":["        S","        movB1   R,A1"],"tline":7830,"alias":null},{"pat":"%af,nf","line":7833,"tmpl":["        S","        movfo   R,A1"],"tline":7834,"alias":null},{"pat":"%nd*,af","line":7837,"tmpl":["        F*","        S","        movf    R,#1(R)"],"tline":7838,"alias":null},{"pat":"%n*,a","line":7842,"tmpl":["        F*","        movB1   A2,#1(R)","        movB1   #1(R),R"],"tline":7843,"alias":null},{"pat":"%nf*,af","line":7847,"tmpl":["        F*","        S","        movfo   R,#1(R)"],"tline":7848,"alias":null},{"pat":"%n*,e","line":7852,"tmpl":["        F*","        S1","        movB1   R1,#1(R)","        movB1   R1,R"],"tline":7853,"alias":null},{"pat":"%ed*,nf","line":7858,"tmpl":["        S","        F1*","        movf    R,#1(R1)"],"tline":7859,"alias":null},{"pat":"%ef*,nf","line":7863,"tmpl":["        S","        F1*","        movfo   R,#1(R1)"],"tline":7864,"alias":null},{"pat":"%n*,n","line":7868,"tmpl":["        FS*","        S","        movB1   R,*(sp)+"],"tline":7870,"alias":null},{"pat":"%nd*,nf","line":7869,"tmpl":["        FS*","        S","        movB1   R,*(sp)+"],"tline":7870,"alias":null},{"pat":"%nf*,nf","line":7874,"tmpl":["        FS*","        S","        movfo   R,*(sp)+"],"tline":7875,"alias":null}],"cr40":[{"pat":"%n,z","line":7881,"tmpl":["        F"],"tline":7882,"alias":null},{"pat":"%n,1","line":7884,"tmpl":["        F","        I'      R"],"tline":7885,"alias":null},{"pat":"%n,aw","line":7889,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null},{"pat":"%nf,ad","line":7890,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null},{"pat":"%n,ew*","line":7895,"tmpl":["        F","        S1*","        IB2     #2(R1),R"],"tline":7897,"alias":null},{"pat":"%nf,ed*","line":7896,"tmpl":["        F","        S1*","        IB2     #2(R1),R"],"tline":7897,"alias":null},{"pat":"%n,e","line":7902,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":null},{"pat":"%nf,ef","line":7903,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":null},{"pat":"%n,nw*","line":7909,"tmpl":["        SS*","        F","        IB2     *(sp)+,R"],"tline":7911,"alias":null},{"pat":"%nf,nd*","line":7910,"tmpl":["        SS*","        F","        IB2     *(sp)+,R"],"tline":7911,"alias":null},{"pat":"%n,n","line":7916,"tmpl":["        SS","        F","        IBF     (sp)+,R"],"tline":7918,"alias":null},{"pat":"%nf,nf","line":7917,"tmpl":["        SS","        F","        IBF     (sp)+,R"],"tline":7918,"alias":null},{"pat":"%nl,c","line":7922,"tmpl":["        F","        I       A2,R+","        V       R"],"tline":7923,"alias":null},{"pat":"%nl,al","line":7927,"tmpl":["        F","        I       A2,R","        I       A2+,R+","        V       R"],"tline":7928,"alias":null},{"pat":"%nl,el","line":7933,"tmpl":["        F","        S1","        I       R1+,R+","        V       R","        I       R1,R"],"tline":7934,"alias":null},{"pat":"%nl,nl","line":7940,"tmpl":["        SS","        F","        I       (sp)+,R","        I       (sp)+,R+","        V       R"],"tline":7941,"alias":null}],"cr49":[{"pat":"%n,e","line":7949,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":"add3"},{"pat":"%n,n","line":7952,"tmpl":["        FS","        S","        xor     R,(sp)","        mov     (sp)+,R"],"tline":7953,"alias":null}],"cr45":[{"pat":"%n,1","line":7960,"tmpl":["        F","        asr     R"],"tline":7961,"alias":null}],"cr42":[{"pat":"%n,aw","line":7966,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":"add1"},{"pat":"%nf,ad","line":7967,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":"add1"},{"pat":"%n,ew*","line":7970,"tmpl":["        F","        S1*","        IB2     #2(R1),R"],"tline":7897,"alias":"add2"},{"pat":"%nf,ed*","line":7971,"tmpl":["        F","        S1*","        IB2     #2(R1),R"],"tline":7897,"alias":"add2"},{"pat":"%n,e","line":7974,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":"add3"},{"pat":"%nf,ef","line":7975,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":"add3"},{"pat":"%n,n","line":7978,"tmpl":["        SS","        F","        IBF     (sp)+,R"],"tline":7918,"alias":"add5"},{"pat":"%nf,nf","line":7979,"tmpl":["        SS","        F","        IBF     (sp)+,R"],"tline":7918,"alias":"add5"}],"cr43":[{"pat":"%n,aw","line":7984,"tmpl":["        F","        T","        sxt     R-","        div     A2,R-"],"tline":7985,"alias":null},{"pat":"%n,ew*","line":7990,"tmpl":["        F","        T","        sxt     R-","        S1*","        div     #2(R1),R-"],"tline":7991,"alias":null},{"pat":"%n,e","line":7997,"tmpl":["        F","        T","        sxt     R-","        S1","        div     R1,R-"],"tline":7998,"alias":null},{"pat":"%n,n","line":8004,"tmpl":["        SS","        F","        T","        sxt     R-","        div     (sp)+,R-"],"tline":8005,"alias":null},{"pat":"%nf,ad","line":8011,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":"add1"},{"pat":"%nf,ed*","line":8014,"tmpl":["        F","        S1*","        IB2     #2(R1),R"],"tline":7897,"alias":"add2"},{"pat":"%nf,ef","line":8017,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":"add3"},{"pat":"%nf,nf","line":8020,"tmpl":["        SS","        F","        IBF     (sp)+,R"],"tline":7918,"alias":"add5"}],"cr70":[{"pat":"%aw,aw","line":8026,"tmpl":["        I       A2,A1'","        mov     A1,R"],"tline":8027,"alias":null},{"pat":"%a,aw","line":8031,"tmpl":["        movB1   A1',R","        IBF     A2,R","        movB1   R,A1"],"tline":8033,"alias":null},{"pat":"%ad,ad","line":8032,"tmpl":["        movB1   A1',R","        IBF     A2,R","        movB1   R,A1"],"tline":8033,"alias":null},{"pat":"%aw,nw*","line":8038,"tmpl":["        S*","        I       #2(R),A1'","        mov     A1,R"],"tline":8039,"alias":null},{"pat":"%aw,n","line":8044,"tmpl":["        S","        I       R,A1'","        mov     A1,R"],"tline":8045,"alias":null},{"pat":"%ew*,nw*","line":8050,"tmpl":["        S*","        F1*","        I       #2(R),#1(R1)","        mov     #1(R1),R"],"tline":8051,"alias":null},{"pat":"%ad,ef","line":8057,"tmpl":["        movf    A1',R","        S1","        IBF     R1,R","        movf    R,A1"],"tline":8058,"alias":null},{"pat":"%a,n","line":8064,"tmpl":["        SS","        movB1   A1',R","        IBF     (sp)+,R","        movB1   R,A1"],"tline":8066,"alias":null},{"pat":"%ad,nf","line":8065,"tmpl":["        SS","        movB1   A1',R","        IBF     (sp)+,R","        movB1   R,A1"],"tline":8066,"alias":null},{"pat":"%af,nf","line":8072,"tmpl":["        SS","        movof   A1',R","        IBF     (sp)+,R","        movfo   R,A1"],"tline":8073,"alias":null},{"pat":"%ew*,n","line":8079,"tmpl":["        S","        F1*","        I       R,#1(R1)","        mov     #1(R1),R"],"tline":8080,"alias":null},{"pat":"%nw*,n","line":8086,"tmpl":["        SS","        F*","        I       (sp)+,#1(R)","        mov     #1(R),R"],"tline":8087,"alias":null},{"pat":"%n*,n","line":8093,"tmpl":["        FS*","        SS","        movB1   *2(sp),R","        IBF     (sp)+,R","        movB1   R,*(sp)+"],"tline":8094,"alias":null},{"pat":"%nd*,nf","line":8101,"tmpl":["        SS","        F*","        movB1   #1(R),R","        IBF     (sp)+,R","        movB1   R,#1(R)"],"tline":8102,"alias":null},{"pat":"%nf*,nf","line":8109,"tmpl":["        SS","        F*","        movof   #1(R),R1","        IBF     (sp)+,R1","        movfo   R1,#1(R)","        movf    R1,R"],"tline":8110,"alias":null}],"cr72":[{"pat":"%a,aw","line":8119,"tmpl":["        movB1   A1',R","        IBF     A2,R","        movB1   R,A1"],"tline":8033,"alias":"addq1a"},{"pat":"%ad,ad","line":8120,"tmpl":["        movB1   A1',R","        IBF     A2,R","        movB1   R,A1"],"tline":8033,"alias":"addq1a"},{"pat":"%af,nf","line":8123,"tmpl":["        SS","        movof   A1',R","        IBF     (sp)+,R","        movfo   R,A1"],"tline":8073,"alias":"addq6"},{"pat":"%ad,ef","line":8126,"tmpl":["        movf    A1',R","        S1","        IBF     R1,R","        movf    R,A1"],"tline":8058,"alias":"addq4a"},{"pat":"%a,n","line":8129,"tmpl":["        SS","        movB1   A1',R","        IBF     (sp)+,R","        movB1   R,A1"],"tline":8066,"alias":"addq5"},{"pat":"%ad,nf","line":8130,"tmpl":["        SS","        movB1   A1',R","        IBF     (sp)+,R","        movB1   R,A1"],"tline":8066,"alias":"addq5"},{"pat":"%n*,n","line":8133,"tmpl":["        FS*","        SS","        movB1   *2(sp),R","        IBF     (sp)+,R","        movB1   R,*(sp)+"],"tline":8094,"alias":"addq9"},{"pat":"%nd*,nf","line":8136,"tmpl":["        SS","        F*","        movB1   #1(R),R","        IBF     (sp)+,R","        movB1   R,#1(R)"],"tline":8102,"alias":"addq9a"},{"pat":"%nf*,nf","line":8139,"tmpl":["        SS","        F*","        movof   #1(R),R1","        IBF     (sp)+,R1","        movfo   R1,#1(R)","        movf    R1,R"],"tline":8110,"alias":"addq10"}],"cr73":[{"pat":"%a,aw","line":8144,"tmpl":["        movB1   A1',R","        sxt     R-","        divBF   A2,R-","        movB1   R-,A1"],"tline":8145,"alias":null},{"pat":"%a,n","line":8150,"tmpl":["        SS","        movB1   A1',R","        sxt     R-","        div     (sp)+,R-","        movB1   R-,A1"],"tline":8151,"alias":null},{"pat":"%e*,n","line":8157,"tmpl":["        SS","        F1*","        movB1   #1(R1),R","        sxt     R-","        div     (sp)+,R-","        movB1   R-,#1(R1)"],"tline":8158,"alias":null},{"pat":"%n*,n","line":8165,"tmpl":["        FS*","        SS","        movB1   *2(sp),R","        sxt     R-","        div     (sp)+,R-","        movB1   R-,*(sp)+"],"tline":8166,"alias":null},{"pat":"%ad,ad","line":8173,"tmpl":["        movB1   A1',R","        IBF     A2,R","        movB1   R,A1"],"tline":8033,"alias":"addq1a"},{"pat":"%ad,ef","line":8176,"tmpl":["        movf    A1',R","        S1","        IBF     R1,R","        movf    R,A1"],"tline":8058,"alias":"addq4a"},{"pat":"%ad,nf","line":8179,"tmpl":["        SS","        movB1   A1',R","        IBF     (sp)+,R","        movB1   R,A1"],"tline":8066,"alias":"addq5"},{"pat":"%af,nf","line":8182,"tmpl":["        SS","        movof   A1',R","        IBF     (sp)+,R","        movfo   R,A1"],"tline":8073,"alias":"addq6"},{"pat":"%nd*,nf","line":8185,"tmpl":["        SS","        F*","        movB1   #1(R),R","        IBF     (sp)+,R","        movB1   R,#1(R)"],"tline":8102,"alias":"addq9a"},{"pat":"%nf*,nf","line":8188,"tmpl":["        SS","        F*","        movof   #1(R),R1","        IBF     (sp)+,R1","        movfo   R1,#1(R)","        movf    R1,R"],"tline":8110,"alias":"addq10"}],"cr74":[{"pat":"%a,aw","line":8193,"tmpl":["        movB1   A1',R","        sxt     R-","        div     A2,R-","        movB1   R,A1"],"tline":8194,"alias":null},{"pat":"%a,n","line":8199,"tmpl":["        SS","        movB1   A1',R","        sxt     R-","        div     (sp)+,R-","        movB1   R,A1"],"tline":8200,"alias":null},{"pat":"%e*,n","line":8206,"tmpl":["        SS","        F1*","        movB1   #1(R1),R","        sxt     R-","        div     (sp)+,R-","        movB1   R,#1(R1)"],"tline":8207,"alias":null},{"pat":"%n*,n","line":8214,"tmpl":["        FS*","        SS","        movB1   *2(sp),R","        sxt     R-","        div     (sp)+,R-","        mov     R,*(sp)+"],"tline":8215,"alias":null}],"cr79":[{"pat":"%aw,n","line":8224,"tmpl":["        S","        I       R,A1'","        mov     A1,R"],"tline":8045,"alias":"addq3"},{"pat":"%ab,n","line":8227,"tmpl":["        SS","        movb    A1',R","        xor     R,(sp)","        mov     (sp)+,R","        movb    R,A1"],"tline":8228,"alias":null},{"pat":"%n*,n","line":8234,"tmpl":["        FS*","        movB1   *(sp),-(sp)","        S","        xor     R,(sp)","        movB1   (sp)+,R","        movB1   R,*(sp)+"],"tline":8235,"alias":null}],"cr75":[{"pat":"%a,1","line":8244,"tmpl":["        asrB1   A1'","        movB1   A1,R"],"tline":8245,"alias":null},{"pat":"%n*,1","line":8248,"tmpl":["        F*","        asrB1   #1(R)","        movB1   #1(R),R"],"tline":8249,"alias":null}],"cr91":[{"pat":"%nl,aw","line":8255,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":"add1"},{"pat":"%nl,ew*","line":8258,"tmpl":["        F","        S1*","        IB2     #2(R1),R"],"tline":7897,"alias":"add2"},{"pat":"%nl,e","line":8261,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":"add3"},{"pat":"%nl,nw*","line":8264,"tmpl":["        SS*","        F","        IB2     *(sp)+,R"],"tline":7911,"alias":"add4"},{"pat":"%nl,n","line":8267,"tmpl":["        SS","        F","        IBF     (sp)+,R"],"tline":7918,"alias":"add5"}],"cr51":[{"pat":"%aw,n","line":8272,"tmpl":["        movif   A1,R"],"tline":8273,"alias":null},{"pat":"%nw*,n","line":8275,"tmpl":["        F*","        movif   #1(R),R"],"tline":8276,"alias":null},{"pat":"%n,n","line":8279,"tmpl":["        F","        movif   R,R"],"tline":8280,"alias":null}],"cr52":[{"pat":"%nf,n","line":8285,"tmpl":["        F","        movfi   R,R"],"tline":8286,"alias":null}],"cr56":[{"pat":"%nf,n","line":8291,"tmpl":["        F","        setl","        movfi   R,-(sp)","        mov     (sp)+,R","        mov     (sp)+,R+","        seti"],"tline":8292,"alias":null}],"cr57":[{"pat":"%al,n","line":8301,"tmpl":["        setl","        movif   A1,R","        seti"],"tline":8302,"alias":null},{"pat":"%nl*,n","line":8306,"tmpl":["        F*","        setl","        movif   #1(R),R","        seti"],"tline":8307,"alias":null},{"pat":"%nl,n","line":8312,"tmpl":["        FS","        setl","        movif   (sp)+,R","        seti"],"tline":8313,"alias":null}],"cr58":[{"pat":"%n,n","line":8320,"tmpl":["        F1!","        sxt     R"],"tline":8321,"alias":null}],"cr59":[{"pat":"%al,n","line":8326,"tmpl":["        mov     A1+,R"],"tline":8327,"alias":null},{"pat":"%nl*,n","line":8329,"tmpl":["        F*","        mov     #1+2(R),R"],"tline":8330,"alias":null},{"pat":"%nl,n","line":8333,"tmpl":["        F","        mov     R+,R"],"tline":8334,"alias":null}],"cr82":[{"pat":"%nl,nl","line":8339,"tmpl":["        SS","        FS","        jsr     pc,I","        add     $10,sp"],"tline":8340,"alias":null}],"cr86":[{"pat":"%n,nl","line":8348,"tmpl":["        SS","        FS","        jsr     pc,I","        add     $6,sp"],"tline":8349,"alias":null}],"ci80":[{"pat":"%a,z","line":8381,"tmpl":["        I'B1    A1"],"tline":8383,"alias":null},{"pat":"%ad,zf","line":8382,"tmpl":["        I'B1    A1"],"tline":8383,"alias":null},{"pat":"%n*,z","line":8386,"tmpl":["        F*","        I'B1    #1(R)"],"tline":8388,"alias":null},{"pat":"%nd*,zf","line":8387,"tmpl":["        F*","        I'B1    #1(R)"],"tline":8388,"alias":null},{"pat":"%a,aw","line":8392,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":null},{"pat":"%ab,a","line":8393,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":null},{"pat":"%ab,n*","line":8397,"tmpl":["        S*","        IBE     #2(R),A1"],"tline":8399,"alias":null},{"pat":"%a,nw*","line":8398,"tmpl":["        S*","        IBE     #2(R),A1"],"tline":8399,"alias":null},{"pat":"%a,n","line":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null},{"pat":"%n*,aw","line":8408,"tmpl":["        F*","        IBE     A2,#1(R)"],"tline":8410,"alias":null},{"pat":"%nb*,a","line":8409,"tmpl":["        F*","        IBE     A2,#1(R)"],"tline":8410,"alias":null},{"pat":"%n*,ew*","line":8414,"tmpl":["        F*","        S1*","        IBE     #2(R1),#1(R)"],"tline":8416,"alias":null},{"pat":"%nb*,e*","line":8415,"tmpl":["        F*","        S1*","        IBE     #2(R1),#1(R)"],"tline":8416,"alias":null},{"pat":"%n*,e","line":8421,"tmpl":["        F*","        S1","        IB1     R1,#1(R)"],"tline":8422,"alias":null},{"pat":"%e*,nw*","line":8427,"tmpl":["        S*","        F1*","        IBE     #2(R),#1(R1)"],"tline":8429,"alias":null},{"pat":"%eb*,n*","line":8428,"tmpl":["        S*","        F1*","        IBE     #2(R),#1(R1)"],"tline":8429,"alias":null},{"pat":"%e*,n","line":8434,"tmpl":["        S","        F1*","        IB1     R,#1(R1)"],"tline":8435,"alias":null},{"pat":"%n*,nw*","line":8440,"tmpl":["        FS*","        S*","        IBE     #2(R),*(sp)+"],"tline":8442,"alias":null},{"pat":"%nb*,n*","line":8441,"tmpl":["        FS*","        S*","        IBE     #2(R),*(sp)+"],"tline":8442,"alias":null},{"pat":"%n*,n","line":8447,"tmpl":["        FS*","        S","        IB1     R,*(sp)+"],"tline":8448,"alias":null},{"pat":"%al,z","line":8452,"tmpl":["        clr     A1","        clr     A1+"],"tline":8453,"alias":null},{"pat":"%al,aw","line":8456,"tmpl":["        mov     A2,A1+","        sxt     A1"],"tline":8457,"alias":null},{"pat":"%al,nw*","line":8460,"tmpl":["        mov     #2(R),A1+","        sxt     A1"],"tline":8461,"alias":null},{"pat":"%al,n","line":8464,"tmpl":["        S","        mov     R,A1+","        sxt     A1"],"tline":8465,"alias":null},{"pat":"%al,nf","line":8469,"tmpl":["        S","        setl","        movfi   R,A1","        seti"],"tline":8470,"alias":null},{"pat":"%el*,nf","line":8475,"tmpl":["        S","        F1*","        setl","        movfi   R,#1(R1)","        seti"],"tline":8476,"alias":null},{"pat":"%al,c","line":8483,"tmpl":["        I       A2,A1+","        V       A1"],"tline":8484,"alias":null},{"pat":"%al,al","line":8488,"tmpl":["        I       A2,A1","        I       A2+,A1+","        V       A1"],"tline":8489,"alias":null},{"pat":"%al,nl*","line":8494,"tmpl":["        S*","        I       #2(R),A1","        I       #2+2(R),A1+","        V       A1"],"tline":8495,"alias":null},{"pat":"%nl*,c","line":8501,"tmpl":["        F*","        I       A2,2+#1(R)","        V       #1(R)"],"tline":8502,"alias":null},{"pat":"%al,nl","line":8507,"tmpl":["        S","        I       R,A1","        I       R+,A1+","        V       A1"],"tline":8508,"alias":null},{"pat":"%nl*,aw","line":8513,"tmpl":["        F*","        mov     A2,#1+2(R)","        sxt     #1(R)"],"tline":8514,"alias":null},{"pat":"%el*,nl","line":8519,"tmpl":["        S","        F1*","        I       R+,#1+2(R1)","        V       #1(R1)","        I       R,#1(R1)"],"tline":8520,"alias":null},{"pat":"%nl*,n","line":8526,"tmpl":["        SS","        F*","        mov     (sp)+,#1+2(R)","        sxt     #1(R)"],"tline":8527,"alias":null},{"pat":"%nl*,nl","line":8533,"tmpl":["        SS","        F*","        I       (sp)+,#1(R)","        I       (sp)+,#1+2(R)","        V       #1(R)"],"tline":8534,"alias":null}],"ci78":[{"pat":"%a,a","line":8542,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3"},{"pat":"%a,n","line":8545,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":"move5"},{"pat":"%n*,a","line":8548,"tmpl":["        F*","        IBE     A2,#1(R)"],"tline":8410,"alias":"move6"},{"pat":"%n*,e*","line":8551,"tmpl":["        F*","        S1*","        IBE     #2(R1),#1(R)"],"tline":8416,"alias":"move7"},{"pat":"%n*,e","line":8554,"tmpl":["        F*","        S1","        IB1     R1,#1(R)"],"tline":8422,"alias":"move8"},{"pat":"%e*,n*","line":8557,"tmpl":["        S*","        F1*","        IBE     #2(R),#1(R1)"],"tline":8429,"alias":"move9"},{"pat":"%e*,n","line":8560,"tmpl":["        S","        F1*","        IB1     R,#1(R1)"],"tline":8435,"alias":"move10"},{"pat":"%n*,n*","line":8563,"tmpl":["        FS*","        S*","        IBE     #2(R),*(sp)+"],"tline":8442,"alias":"move11"},{"pat":"%n*,n","line":8566,"tmpl":["        FS*","        S","        IB1     R,*(sp)+"],"tline":8448,"alias":"move12"},{"pat":"%al,c","line":8569,"tmpl":["        I       A2,A1+","        V       A1"],"tline":8484,"alias":"move13a"},{"pat":"%al,al","line":8572,"tmpl":["        I       A2,A1","        I       A2+,A1+","        V       A1"],"tline":8489,"alias":"move13"},{"pat":"%al,nl*","line":8575,"tmpl":["        S*","        I       #2(R),A1","        I       #2+2(R),A1+","        V       A1"],"tline":8495,"alias":"move14"},{"pat":"%al,nl","line":8578,"tmpl":["        S","        I       R,A1","        I       R+,A1+","        V       A1"],"tline":8508,"alias":"move15"},{"pat":"%nl*,c","line":8581,"tmpl":["        F*","        I       A2,2+#1(R)","        V       #1(R)"],"tline":8502,"alias":"move14a"},{"pat":"%el*,nl","line":8584,"tmpl":["        S","        F1*","        I       R+,#1+2(R1)","        V       #1(R1)","        I       R,#1(R1)"],"tline":8520,"alias":"move16"},{"pat":"%nl*,nl","line":8587,"tmpl":["        SS","        F*","        I       (sp)+,#1(R)","        I       (sp)+,#1+2(R)","        V       #1(R)"],"tline":8534,"alias":"move17"}],"ci70":[{"pat":"%n*,z","line":8592,"tmpl":[],"tline":945,"alias":null},{"pat":"%a,z","line":8593,"tmpl":[],"tline":945,"alias":null},{"pat":"%a,1","line":8595,"tmpl":["        I'B1    A1"],"tline":8596,"alias":null},{"pat":"%aw,aw","line":8598,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3"},{"pat":"%aw,nw*","line":8601,"tmpl":["        S*","        IBE     #2(R),A1"],"tline":8399,"alias":"move4"},{"pat":"%aw,n","line":8604,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":"move5"},{"pat":"%n*,1","line":8607,"tmpl":["        F*","        I'B1    #1(R)"],"tline":8388,"alias":"move2"},{"pat":"%ew*,nw*","line":8610,"tmpl":["        S*","        F1*","        IBE     #2(R),#1(R1)"],"tline":8429,"alias":"move9"},{"pat":"%a,nw*","line":8613,"tmpl":["        S*","        movB1   A1',R1","        I       #2(R),R1","        movB1   R1,A1"],"tline":8614,"alias":null},{"pat":"%a,n","line":8619,"tmpl":["        S","        movB1   A1',R1","        I       R,R1","        movB1   R1,A1"],"tline":8620,"alias":null},{"pat":"%ew*,n","line":8625,"tmpl":["        S","        F1*","        IB1     R,#1(R1)"],"tline":8435,"alias":"move10"},{"pat":"%nw*,n","line":8628,"tmpl":["        FS*","        S","        IB1     R,*(sp)+"],"tline":8448,"alias":"move12"},{"pat":"%n*,n","line":8631,"tmpl":["        SS","        F*","        movB1   #1(R),R1","        I       (sp)+,R1","        movB1   R1,#1(R)"],"tline":8632,"alias":null},{"pat":"%al,c","line":8638,"tmpl":["        I       A2,A1+","        V       A1"],"tline":8484,"alias":"move13a"},{"pat":"%al,al","line":8641,"tmpl":["        I       A2,A1","        I       A2+,A1+","        V       A1"],"tline":8489,"alias":"move13"},{"pat":"%al,nl*","line":8644,"tmpl":["        S*","        I       #2(R),A1","        I       #2+2(R),A1+","        V       A1"],"tline":8495,"alias":"move14"},{"pat":"%al,nl","line":8647,"tmpl":["        S","        I       R,A1","        I       R+,A1+","        V       A1"],"tline":8508,"alias":"move15"},{"pat":"%nl*,c","line":8650,"tmpl":["        F*","        I       A2,2+#1(R)","        V       #1(R)"],"tline":8502,"alias":"move14a"},{"pat":"%el*,nl","line":8653,"tmpl":["        S","        F1*","        I       R+,#1+2(R1)","        V       #1(R1)","        I       R,#1(R1)"],"tline":8520,"alias":"move16"},{"pat":"%nl*,nl","line":8656,"tmpl":["        SS","        F*","        I       (sp)+,#1(R)","        I       (sp)+,#1+2(R)","        V       #1(R)"],"tline":8534,"alias":"move17"}],"ci75":[{"pat":"%a,1","line":8661,"tmpl":["        asrB1   A1"],"tline":8662,"alias":null},{"pat":"%n*,1","line":8664,"tmpl":["        F*","        asrB1   #1(R)"],"tline":8665,"alias":null}],"ci76":[{"pat":"%a,1","line":8670,"tmpl":["        aslB1   A1"],"tline":8671,"alias":null},{"pat":"%n*,1","line":8673,"tmpl":["        F*","        aslB1   #1(R)"],"tline":8674,"alias":null},{"pat":"%r,aw","line":8677,"tmpl":["        ash     A2,A1"],"tline":8678,"alias":null},{"pat":"%r,nw*","line":8680,"tmpl":["        S*","        ash     #2(R),A1"],"tline":8681,"alias":null},{"pat":"%r,n","line":8684,"tmpl":["        S","        ash     R,A1"],"tline":8685,"alias":null}],"ci92":[{"pat":"%al,aw","line":8690,"tmpl":["        F","        ashc    A2,R","        mov     R,A1","        mov     R+,A1+"],"tline":8691,"alias":null},{"pat":"%al,n","line":8696,"tmpl":["        SS","        F","        ashc    (sp)+,R","        mov     R,A1","        mov     R+,A1+"],"tline":8697,"alias":null},{"pat":"%nl*,n","line":8703,"tmpl":["        FS*","        SS","        mov     2(sp),R","        mov     2(R),R+","        mov     (R),R","        ashc    (sp)+,R","        mov     R,*(sp)","        mov     (sp)+,R","        mov     R+,2(R)"],"tline":8704,"alias":null}],"cc60":[{"pat":"%a,z","line":8755,"tmpl":["        I'B1    A1"],"tline":8383,"alias":"move1"},{"pat":"%ad,zf","line":8756,"tmpl":["        I'B1    A1"],"tline":8383,"alias":"move1"},{"pat":"%af,z","line":8759,"tmpl":["        movof   A1,R"],"tline":8760,"alias":null},{"pat":"%n*,z","line":8762,"tmpl":["        F*","        I'B1    #1(R)"],"tline":8388,"alias":"move2"},{"pat":"%nd*,zf","line":8763,"tmpl":["        F*","        I'B1    #1(R)"],"tline":8388,"alias":"move2"},{"pat":"%nf*,z","line":8766,"tmpl":["        F*","        movof   #1(R),R"],"tline":8767,"alias":null},{"pat":"%n,z","line":8770,"tmpl":["        FC"],"tline":8772,"alias":null},{"pat":"%nf,zf","line":8771,"tmpl":["        FC"],"tline":8772,"alias":null},{"pat":"%aw,aw","line":8774,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3"},{"pat":"%ab,ab","line":8775,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3"},{"pat":"%nw*,aw","line":8778,"tmpl":["        F*","        IBE     A2,#1(R)"],"tline":8410,"alias":"move6"},{"pat":"%nb*,ab","line":8779,"tmpl":["        F*","        IBE     A2,#1(R)"],"tline":8410,"alias":"move6"},{"pat":"%n,aw","line":8782,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":"add1"},{"pat":"%nf,ad","line":8783,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":"add1"},{"pat":"%nw*,ew*","line":8786,"tmpl":["        F*","        S1*","        IBE     #2(R1),#1(R)"],"tline":8416,"alias":"move7"},{"pat":"%nb*,eb*","line":8787,"tmpl":["        F*","        S1*","        IBE     #2(R1),#1(R)"],"tline":8416,"alias":"move7"},{"pat":"%nw*,e","line":8790,"tmpl":["        F*","        S1","        IB1     R1,#1(R)"],"tline":8422,"alias":"move8"},{"pat":"%n,ew*","line":8793,"tmpl":["        F","        S1*","        IB2     #2(R1),R"],"tline":7897,"alias":"add2"},{"pat":"%nf,ed*","line":8794,"tmpl":["        F","        S1*","        IB2     #2(R1),R"],"tline":7897,"alias":"add2"},{"pat":"%n,e","line":8797,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":"add3"},{"pat":"%nf,ef","line":8798,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":"add3"},{"pat":"%nw*,nw*","line":8801,"tmpl":["        FS*","        S*","        IBE     #2(R),*(sp)+"],"tline":8442,"alias":"move11"},{"pat":"%nb*,nb*","line":8802,"tmpl":["        FS*","        S*","        IBE     #2(R),*(sp)+"],"tline":8442,"alias":"move11"},{"pat":"%nw*,n","line":8805,"tmpl":["        FS*","        S","        IB1     R,*(sp)+"],"tline":8448,"alias":"move12"},{"pat":"%n,n","line":8808,"tmpl":["        SS","        F","        IBF     (sp)+,R"],"tline":7918,"alias":"add5"},{"pat":"%nf,nf","line":8809,"tmpl":["        SS","        F","        IBF     (sp)+,R"],"tline":7918,"alias":"add5"}],"cc81":[{"pat":"%a,a","line":8814,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3"},{"pat":"%n*,a","line":8817,"tmpl":["        F*","        IBE     A2,#1(R)"],"tline":8410,"alias":"move6"},{"pat":"%n,a","line":8820,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":"add1"},{"pat":"%n,e","line":8823,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":"add3"},{"pat":"%n,n","line":8826,"tmpl":["        SS","        F","        IBF     (sp)+,R"],"tline":7918,"alias":"add5"}],"rest":[{"pat":"%n,n","line":8831,"tmpl":["        H"],"tline":8833,"alias":null},{"pat":"%nf,nf","line":8832,"tmpl":["        H"],"tline":8833,"alias":null}],"cs106":[{"pat":"%z,n","line":8856,"tmpl":["        clrB1   -(sp)"],"tline":8858,"alias":null},{"pat":"%zf,n","line":8857,"tmpl":["        clrB1   -(sp)"],"tline":8858,"alias":null},{"pat":"%aw,n","line":8860,"tmpl":["        mov     A1,-(sp)"],"tline":8861,"alias":null},{"pat":"%nw*,n","line":8863,"tmpl":["        F*","        mov     #1(R),-(sp)"],"tline":8864,"alias":null},{"pat":"%al,n","line":8867,"tmpl":["        mov     A1+,-(sp)","        mov     A1,-(sp)"],"tline":8868,"alias":null}],"cs40":[{"pat":"%n,1","line":8873,"tmpl":["        FS","        I'      (sp)"],"tline":8874,"alias":null},{"pat":"%n,aw","line":8877,"tmpl":["        FS","        I       A2,(sp)"],"tline":8878,"alias":null},{"pat":"%n,nw*","line":8881,"tmpl":["        FS","        S*","        I       #2(R),(sp)"],"tline":8882,"alias":null},{"pat":"%n,n","line":8886,"tmpl":["        FS","        S","        I       R,(sp)"],"tline":8887,"alias":null}],"cs58":[{"pat":"%n,n","line":8893,"tmpl":["        FS","        sxt     -(sp)"],"tline":8894,"alias":null}],"cs56":[{"pat":"%nf,n","line":8899,"tmpl":["        F","        setl","        movfi   R,-(sp)","        seti"],"tline":8900,"alias":null}]}}</script>
+</div>
+
+<p>A few entries worth finding: <code>efftab</code> for <code>=</code>, whose first patterns clear a variable
+instead of moving zero into it; <code>regtab</code> for <code>/</code>, whose templates show the dance with
+<code>sxt</code> and register pairs needed by <code>div</code>; <code>regtab</code> for <code>++post</code>, with its several
+ways of fetching a value and incrementing it; and <code>cctab</code> for <code>&amp;</code> in tests, which
+reuses the templates of <code>=</code> with <code>bit</code> as the instruction.</p>
+
+<nav class="pager"><a href="09-c1-trees.html">&larr; optim</a><a href="11-codegen.html">Code generation &rarr;</a></nav>
+</main>
+<aside class="panel" id="panel" hidden>
+<div class="panelbar"><span class="pfile"></span><button type="button" class="pclose" aria-label="Close listing">Close</button></div>
+<div class="pbody"></div>
+</aside>
+</div>
+<script src="assets/book.js"></script>
+<script src="assets/listing-data.js"></script><script src="assets/reader.js"></script><script src="assets/v6.js"></script><script src="assets/c1view.js"></script>
+</body>
+</html>

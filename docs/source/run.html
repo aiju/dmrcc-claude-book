@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>run · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>run</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 219 &middot; lines 10950&ndash;10988</p>
+<h1><code>run</code></h1>
+<p class="desc">The build script</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L10950" class="s1"><td class="ln"><a href="#L10950">10950</a></td><td class="code">cc -c -O c0[012345].c</td></tr>
+<tr id="L10951" class="s1"><td class="ln"><a href="#L10951">10951</a></td><td class="code">cc -c -O c1[0123].c</td></tr>
+<tr id="L10952" class="s1"><td class="ln"><a href="#L10952">10952</a></td><td class="code">as c1t.s; mv a.out c1t.o</td></tr>
+<tr id="L10953" class="s1"><td class="ln"><a href="#L10953">10953</a></td><td class="code">cc cvopt.c</td></tr>
+<tr id="L10954" class="s1"><td class="ln"><a href="#L10954">10954</a></td><td class="code">a.out table.s table.i</td></tr>
+<tr id="L10955" class="s1"><td class="ln"><a href="#L10955">10955</a></td><td class="code">as table.i; mv a.out table.o</td></tr>
+<tr id="L10956" class="s1"><td class="ln"><a href="#L10956">10956</a></td><td class="code">cc -c -O c2[01].c</td></tr>
+<tr id="L10957" class="s1"><td class="ln"><a href="#L10957">10957</a></td><td class="code"> </td></tr>
+<tr id="L10958" class="s1"><td class="ln"><a href="#L10958">10958</a></td><td class="code">ed c0t.s</td></tr>
+<tr id="L10959" class="s1"><td class="ln"><a href="#L10959">10959</a></td><td class="code">g/fpp =/s/1/0/</td></tr>
+<tr id="L10960" class="s1"><td class="ln"><a href="#L10960">10960</a></td><td class="code">w</td></tr>
+<tr id="L10961" class="s1"><td class="ln"><a href="#L10961">10961</a></td><td class="code">q</td></tr>
+<tr id="L10962" class="s1"><td class="ln"><a href="#L10962">10962</a></td><td class="code">as c0t.s; mv a.out c0t.o</td></tr>
+<tr id="L10963" class="s1"><td class="ln"><a href="#L10963">10963</a></td><td class="code">cc -s -n c0?.o</td></tr>
+<tr id="L10964" class="s1"><td class="ln"><a href="#L10964">10964</a></td><td class="code">cmp a.out /lib/c0</td></tr>
+<tr id="L10965" class="s1"><td class="ln"><a href="#L10965">10965</a></td><td class="code">cp a.out /lib/c0</td></tr>
+<tr id="L10966" class="s1"><td class="ln"><a href="#L10966">10966</a></td><td class="code"> </td></tr>
+<tr id="L10967" class="s1"><td class="ln"><a href="#L10967">10967</a></td><td class="code">ed c0t.s</td></tr>
+<tr id="L10968" class="s1"><td class="ln"><a href="#L10968">10968</a></td><td class="code">g/fpp =/s/0/1/</td></tr>
+<tr id="L10969" class="s1"><td class="ln"><a href="#L10969">10969</a></td><td class="code">w</td></tr>
+<tr id="L10970" class="s1"><td class="ln"><a href="#L10970">10970</a></td><td class="code">q</td></tr>
+<tr id="L10971" class="s1"><td class="ln"><a href="#L10971">10971</a></td><td class="code">as c0t.s; mv a.out c0t.o</td></tr>
+<tr id="L10972" class="s1"><td class="ln"><a href="#L10972">10972</a></td><td class="code">cc -f -s -n c0?.o</td></tr>
+<tr id="L10973" class="s1"><td class="ln"><a href="#L10973">10973</a></td><td class="code">cmp a.out /lib/fc0</td></tr>
+<tr id="L10974" class="s1"><td class="ln"><a href="#L10974">10974</a></td><td class="code">cp a.out /lib/fc0</td></tr>
+<tr id="L10975" class="s1"><td class="ln"><a href="#L10975">10975</a></td><td class="code"> </td></tr>
+<tr id="L10976" class="s1"><td class="ln"><a href="#L10976">10976</a></td><td class="code">cc -s -n c1?.o table.o</td></tr>
+<tr id="L10977" class="s1"><td class="ln"><a href="#L10977">10977</a></td><td class="code">cmp a.out /lib/c1</td></tr>
+<tr id="L10978" class="s1"><td class="ln"><a href="#L10978">10978</a></td><td class="code">cp a.out /lib/c1</td></tr>
+<tr id="L10979" class="s1"><td class="ln"><a href="#L10979">10979</a></td><td class="code"> </td></tr>
+<tr id="L10980" class="s1"><td class="ln"><a href="#L10980">10980</a></td><td class="code">cc -f -s -n c1?.o table.o</td></tr>
+<tr id="L10981" class="s1"><td class="ln"><a href="#L10981">10981</a></td><td class="code">cmp a.out /lib/fc1</td></tr>
+<tr id="L10982" class="s1"><td class="ln"><a href="#L10982">10982</a></td><td class="code">cp a.out /lib/fc1</td></tr>
+<tr id="L10983" class="s1"><td class="ln"><a href="#L10983">10983</a></td><td class="code"> </td></tr>
+<tr id="L10984" class="s1"><td class="ln"><a href="#L10984">10984</a></td><td class="code">cc -s -n c2?.o</td></tr>
+<tr id="L10985" class="s1"><td class="ln"><a href="#L10985">10985</a></td><td class="code">cmp a.out /lib/c2</td></tr>
+<tr id="L10986" class="s1"><td class="ln"><a href="#L10986">10986</a></td><td class="code">cp a.out /lib/c2</td></tr>
+<tr id="L10987" class="s1"><td class="ln"><a href="#L10987">10987</a></td><td class="code"> </td></tr>
+<tr id="L10988" class="s1"><td class="ln"><a href="#L10988">10988</a></td><td class="code">rm *.o table.i a.out</td></tr></table></div>
+<nav class="pager"><a href="csv.s.html">&larr; csv.s</a><span></span></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,945 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>c10.c · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>c10.c</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 97 &middot; lines 4850&ndash;5771</p>
+<h1><code>c10.c</code></h1>
+<p class="desc">Pass 1: code generation driver</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L4850" class="s1"><td class="ln"><a href="#L4850">4850</a></td><td class="code"><span class="pp">#</span></td></tr>
+<tr id="L4851" class="s1"><td class="ln"><a href="#L4851">4851</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L4852" class="s1"><td class="ln"><a href="#L4852">4852</a></td><td class="code"><span class="cm"></span></td></tr>
+<tr id="L4853" class="s1"><td class="ln"><a href="#L4853">4853</a></td><td class="code"><span class="cm">                C compiler, part 2</span></td></tr>
+<tr id="L4854" class="s1"><td class="ln"><a href="#L4854">4854</a></td><td class="code"><span class="cm"></span></td></tr>
+<tr id="L4855" class="s1"><td class="ln"><a href="#L4855">4855</a></td><td class="code"><span class="cm"></span></td></tr>
+<tr id="L4856" class="s1"><td class="ln"><a href="#L4856">4856</a></td><td class="code"><span class="cm">*/</span></td></tr>
+<tr id="L4857" class="s1"><td class="ln"><a href="#L4857">4857</a></td><td class="code"> </td></tr>
+<tr id="L4858" class="s1"><td class="ln"><a href="#L4858">4858</a></td><td class="code"><span class="pp">#include "c1h.c"</span></td></tr>
+<tr id="L4859" class="s1"><td class="ln"><a href="#L4859">4859</a></td><td class="code"> </td></tr>
+<tr id="L4860" class="s1"><td class="ln"><a href="#L4860">4860</a></td><td class="code"><span class="kw">char</span>    maprel[] {      EQUAL, NEQUAL, GREATEQ, GREAT, LESSEQ,</td></tr>
+<tr id="L4861" class="s1"><td class="ln"><a href="#L4861">4861</a></td><td class="code">                        LESS, GREATQP, GREATP, LESSEQP, LESSP</td></tr>
+<tr id="L4862" class="s1"><td class="ln"><a href="#L4862">4862</a></td><td class="code">};</td></tr>
+<tr id="L4863" class="s1"><td class="ln"><a href="#L4863">4863</a></td><td class="code"> </td></tr>
+<tr id="L4864" class="s1"><td class="ln"><a href="#L4864">4864</a></td><td class="code"><span class="kw">char</span>    notrel[] {      NEQUAL, EQUAL, GREAT, GREATEQ, LESS,</td></tr>
+<tr id="L4865" class="s1"><td class="ln"><a href="#L4865">4865</a></td><td class="code">                        LESSEQ, GREATP, GREATQP, LESSP, LESSEQP</td></tr>
+<tr id="L4866" class="s1"><td class="ln"><a href="#L4866">4866</a></td><td class="code">};</td></tr>
+<tr id="L4867" class="s1"><td class="ln"><a href="#L4867">4867</a></td><td class="code"> </td></tr>
+<tr id="L4868" class="s1"><td class="ln"><a href="#L4868">4868</a></td><td class="code"><span class="kw">struct</span> tconst czero { CON, INT, <span class="nu">0</span>, <span class="nu">0</span>};</td></tr>
+<tr id="L4869" class="s1"><td class="ln"><a href="#L4869">4869</a></td><td class="code"><span class="kw">struct</span> tconst cone  { CON, INT, <span class="nu">0</span>, <span class="nu">1</span>};</td></tr>
+<tr id="L4870" class="s1"><td class="ln"><a href="#L4870">4870</a></td><td class="code"><span class="kw">struct</span> tconst fczero { SFCON, DOUBLE, <span class="nu">0</span>, <span class="nu">0</span> };</td></tr>
+<tr id="L4871" class="s1"><td class="ln"><a href="#L4871">4871</a></td><td class="code"> </td></tr>
+<tr id="L4872" class="s1"><td class="ln"><a href="#L4872">4872</a></td><td class="code"><span class="kw">struct</span>  table   *cregtab;</td></tr>
+<tr id="L4873" class="s1"><td class="ln"><a href="#L4873">4873</a></td><td class="code"> </td></tr>
+<tr id="L4874" class="s1"><td class="ln"><a href="#L4874">4874</a></td><td class="code"><span class="kw">int</span>     nreg    <span class="nu">3</span>;</td></tr>
+<tr id="L4875" class="s1"><td class="ln"><a href="#L4875">4875</a></td><td class="code"><span class="kw">int</span>     isn     <span class="nu">10000</span>;</td></tr>
+<tr id="L4876" class="s1"><td class="ln"><a href="#L4876">4876</a></td><td class="code"><span class="kw">int</span>     namsiz  <span class="nu">8</span>;</td></tr>
+<tr id="L4877" class="s1"><td class="ln"><a href="#L4877">4877</a></td><td class="code"> </td></tr>
+<tr id="L4878" class="s1"><td class="ln"><a href="#L4878">4878</a></td><td class="code"><a class="id" href="../source/cc.c.html#L149">main</a>(argc, argv)</td></tr>
+<tr id="L4879" class="s1"><td class="ln"><a href="#L4879">4879</a></td><td class="code"><span class="kw">char</span> *argv[];</td></tr>
+<tr id="L4880" class="s1"><td class="ln"><a href="#L4880">4880</a></td><td class="code">{</td></tr>
+<tr id="L4881" class="s1"><td class="ln"><a href="#L4881">4881</a></td><td class="code">        <span class="kw">extern</span> fout;</td></tr>
+<tr id="L4882" class="s1"><td class="ln"><a href="#L4882">4882</a></td><td class="code"> </td></tr>
+<tr id="L4883" class="s1"><td class="ln"><a href="#L4883">4883</a></td><td class="code">        <span class="kw">if</span> (argc&lt;<span class="nu">4</span>) {</td></tr>
+<tr id="L4884" class="s1"><td class="ln"><a href="#L4884">4884</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Arg count"</span>);</td></tr>
+<tr id="L4885" class="s1"><td class="ln"><a href="#L4885">4885</a></td><td class="code">                exit(<span class="nu">1</span>);</td></tr>
+<tr id="L4886" class="s1"><td class="ln"><a href="#L4886">4886</a></td><td class="code">        }</td></tr>
+<tr id="L4887" class="s1"><td class="ln"><a href="#L4887">4887</a></td><td class="code">        <span class="kw">if</span>(fopen(argv[<span class="nu">1</span>], ascbuf)&lt;<span class="nu">0</span>) {</td></tr>
+<tr id="L4888" class="s1"><td class="ln"><a href="#L4888">4888</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Missing temp file"</span>);</td></tr>
+<tr id="L4889" class="s1"><td class="ln"><a href="#L4889">4889</a></td><td class="code">                exit(<span class="nu">1</span>);</td></tr>
+<tr id="L4890" class="s1"><td class="ln"><a href="#L4890">4890</a></td><td class="code">        }</td></tr>
+<tr id="L4891" class="s1"><td class="ln"><a href="#L4891">4891</a></td><td class="code">        <span class="kw">if</span> ((fout = creat(argv[<span class="nu">3</span>], <span class="nu">0666</span>)) &lt; <span class="nu">0</span>) {</td></tr>
+<tr id="L4892" class="s1"><td class="ln"><a href="#L4892">4892</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Can't create %s"</span>, argv[<span class="nu">3</span>]);</td></tr>
+<tr id="L4893" class="s1"><td class="ln"><a href="#L4893">4893</a></td><td class="code">                exit(<span class="nu">1</span>);</td></tr>
+<tr id="L4894" class="s1"><td class="ln"><a href="#L4894">4894</a></td><td class="code">        }</td></tr>
+<tr id="L4895" class="s1"><td class="ln"><a href="#L4895">4895</a></td><td class="code">        spacep = treespace;</td></tr>
+<tr id="L4896" class="s1"><td class="ln"><a href="#L4896">4896</a></td><td class="code">        <a class="id" href="../source/c11.c.html#L6429">getree</a>();</td></tr>
+<tr id="L4897" class="s1"><td class="ln"><a href="#L4897">4897</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L4898" class="s1"><td class="ln"><a href="#L4898">4898</a></td><td class="code"><span class="cm">         * If any floating-point instructions</span></td></tr>
+<tr id="L4899" class="s1"><td class="ln"><a href="#L4899">4899</a></td><td class="code"><span class="cm">         * were used, generate a reference which</span></td></tr>
+<tr id="L4900" class="s0"><td class="ln"><a href="#L4900">4900</a></td><td class="code"><span class="cm">         * pulls in the floating-point part of printf.</span></td></tr>
+<tr id="L4901" class="s0"><td class="ln"><a href="#L4901">4901</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L4902" class="s0"><td class="ln"><a href="#L4902">4902</a></td><td class="code">        <span class="kw">if</span> (nfloat)</td></tr>
+<tr id="L4903" class="s0"><td class="ln"><a href="#L4903">4903</a></td><td class="code">                printf(<span class="st">".globl  fltused\n"</span>);</td></tr>
+<tr id="L4904" class="s0"><td class="ln"><a href="#L4904">4904</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L4905" class="s0"><td class="ln"><a href="#L4905">4905</a></td><td class="code"><span class="cm">         * tack on the string file.</span></td></tr>
+<tr id="L4906" class="s0"><td class="ln"><a href="#L4906">4906</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L4907" class="s0"><td class="ln"><a href="#L4907">4907</a></td><td class="code">        close(ascbuf[<span class="nu">0</span>]);</td></tr>
+<tr id="L4908" class="s0"><td class="ln"><a href="#L4908">4908</a></td><td class="code">        <span class="kw">if</span> (fopen(argv[<span class="nu">2</span>], ascbuf)&lt;<span class="nu">0</span>) {</td></tr>
+<tr id="L4909" class="s0"><td class="ln"><a href="#L4909">4909</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Missing temp file"</span>);</td></tr>
+<tr id="L4910" class="s0"><td class="ln"><a href="#L4910">4910</a></td><td class="code">                exit(<span class="nu">1</span>);</td></tr>
+<tr id="L4911" class="s0"><td class="ln"><a href="#L4911">4911</a></td><td class="code">        }</td></tr>
+<tr id="L4912" class="s0"><td class="ln"><a href="#L4912">4912</a></td><td class="code">        printf(<span class="st">".globl\n.data\n"</span>);</td></tr>
+<tr id="L4913" class="s0"><td class="ln"><a href="#L4913">4913</a></td><td class="code">        <a class="id" href="../source/c11.c.html#L6429">getree</a>();</td></tr>
+<tr id="L4914" class="s0"><td class="ln"><a href="#L4914">4914</a></td><td class="code">        flush();</td></tr>
+<tr id="L4915" class="s0"><td class="ln"><a href="#L4915">4915</a></td><td class="code">        exit(nerror!=<span class="nu">0</span>);</td></tr>
+<tr id="L4916" class="s0"><td class="ln"><a href="#L4916">4916</a></td><td class="code">}</td></tr>
+<tr id="L4917" class="s0"><td class="ln"><a href="#L4917">4917</a></td><td class="code"> </td></tr>
+<tr id="L4918" class="s0"><td class="ln"><a href="#L4918">4918</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L4919" class="s0"><td class="ln"><a href="#L4919">4919</a></td><td class="code"><span class="cm"> * Given a tree, a code table, and a</span></td></tr>
+<tr id="L4920" class="s0"><td class="ln"><a href="#L4920">4920</a></td><td class="code"><span class="cm"> * count of available registers, find the code table</span></td></tr>
+<tr id="L4921" class="s0"><td class="ln"><a href="#L4921">4921</a></td><td class="code"><span class="cm"> * for the appropriate operator such that the operands</span></td></tr>
+<tr id="L4922" class="s0"><td class="ln"><a href="#L4922">4922</a></td><td class="code"><span class="cm"> * are of the right type and the number of registers</span></td></tr>
+<tr id="L4923" class="s0"><td class="ln"><a href="#L4923">4923</a></td><td class="code"><span class="cm"> * required is not too large.</span></td></tr>
+<tr id="L4924" class="s0"><td class="ln"><a href="#L4924">4924</a></td><td class="code"><span class="cm"> * Return a ptr to the table entry or 0 if none found.</span></td></tr>
+<tr id="L4925" class="s0"><td class="ln"><a href="#L4925">4925</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L4926" class="s0"><td class="ln"><a href="#L4926">4926</a></td><td class="code"><span class="kw">char</span> *<span class="def">match</span>(atree, table, nrleft)</td></tr>
+<tr id="L4927" class="s0"><td class="ln"><a href="#L4927">4927</a></td><td class="code"><span class="kw">struct</span> tnode *atree;</td></tr>
+<tr id="L4928" class="s0"><td class="ln"><a href="#L4928">4928</a></td><td class="code"><span class="kw">struct</span> table *table;</td></tr>
+<tr id="L4929" class="s0"><td class="ln"><a href="#L4929">4929</a></td><td class="code">{</td></tr>
+<tr id="L4930" class="s0"><td class="ln"><a href="#L4930">4930</a></td><td class="code">        <span class="kw">int</span> op, d1, d2, t1, t2, dope;</td></tr>
+<tr id="L4931" class="s0"><td class="ln"><a href="#L4931">4931</a></td><td class="code">        <span class="kw">struct</span> tnode *p2;</td></tr>
+<tr id="L4932" class="s0"><td class="ln"><a href="#L4932">4932</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p1, *<a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L4933" class="s0"><td class="ln"><a href="#L4933">4933</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> optab *opt;</td></tr>
+<tr id="L4934" class="s0"><td class="ln"><a href="#L4934">4934</a></td><td class="code"> </td></tr>
+<tr id="L4935" class="s0"><td class="ln"><a href="#L4935">4935</a></td><td class="code">        <span class="kw">if</span> ((<a class="id" href="../source/c00.c.html#L1817">tree</a>=atree)==<span class="nu">0</span>)</td></tr>
+<tr id="L4936" class="s0"><td class="ln"><a href="#L4936">4936</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L4937" class="s0"><td class="ln"><a href="#L4937">4937</a></td><td class="code">        <span class="kw">if</span> (table==lsptab)</td></tr>
+<tr id="L4938" class="s0"><td class="ln"><a href="#L4938">4938</a></td><td class="code">                table = sptab;</td></tr>
+<tr id="L4939" class="s0"><td class="ln"><a href="#L4939">4939</a></td><td class="code">        <span class="kw">if</span> ((op = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op)==<span class="nu">0</span>)</td></tr>
+<tr id="L4940" class="s0"><td class="ln"><a href="#L4940">4940</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L4941" class="s0"><td class="ln"><a href="#L4941">4941</a></td><td class="code">        dope = opdope[op];</td></tr>
+<tr id="L4942" class="s0"><td class="ln"><a href="#L4942">4942</a></td><td class="code">        <span class="kw">if</span> ((dope&amp;LEAF) == <span class="nu">0</span>)</td></tr>
+<tr id="L4943" class="s0"><td class="ln"><a href="#L4943">4943</a></td><td class="code">                p1 = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1;</td></tr>
+<tr id="L4944" class="s0"><td class="ln"><a href="#L4944">4944</a></td><td class="code">        <span class="kw">else</span></td></tr>
+<tr id="L4945" class="s0"><td class="ln"><a href="#L4945">4945</a></td><td class="code">                p1 = <a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L4946" class="s0"><td class="ln"><a href="#L4946">4946</a></td><td class="code">        t1 = p1-&gt;type;</td></tr>
+<tr id="L4947" class="s0"><td class="ln"><a href="#L4947">4947</a></td><td class="code">        d1 = <a class="id" href="../source/c11.c.html#L5947">dcalc</a>(p1, nrleft);</td></tr>
+<tr id="L4948" class="s0"><td class="ln"><a href="#L4948">4948</a></td><td class="code">        <span class="kw">if</span> ((dope&amp;BINARY)!=<span class="nu">0</span>) {</td></tr>
+<tr id="L4949" class="s0"><td class="ln"><a href="#L4949">4949</a></td><td class="code">                p2 = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2;</td></tr>
+<tr id="L4950" class="s1"><td class="ln"><a href="#L4950">4950</a></td><td class="code">                <span class="cm">/*</span></td></tr>
+<tr id="L4951" class="s1"><td class="ln"><a href="#L4951">4951</a></td><td class="code"><span class="cm">                 * If a subtree starts off with a conversion operator,</span></td></tr>
+<tr id="L4952" class="s1"><td class="ln"><a href="#L4952">4952</a></td><td class="code"><span class="cm">                 * try for a match with the conversion eliminated.</span></td></tr>
+<tr id="L4953" class="s1"><td class="ln"><a href="#L4953">4953</a></td><td class="code"><span class="cm">                 * E.g. int = double can be done without generating</span></td></tr>
+<tr id="L4954" class="s1"><td class="ln"><a href="#L4954">4954</a></td><td class="code"><span class="cm">                 * the converted int in a register by</span></td></tr>
+<tr id="L4955" class="s1"><td class="ln"><a href="#L4955">4955</a></td><td class="code"><span class="cm">                 * movf double,fr0; movfi fr0,int .</span></td></tr>
+<tr id="L4956" class="s1"><td class="ln"><a href="#L4956">4956</a></td><td class="code"><span class="cm">                 */</span></td></tr>
+<tr id="L4957" class="s1"><td class="ln"><a href="#L4957">4957</a></td><td class="code">                <span class="kw">if</span>(opdope[p1-&gt;op]&amp;CNVRT &amp;&amp; (opdope[p2-&gt;op]&amp;CNVRT)==<span class="nu">0</span>) {</td></tr>
+<tr id="L4958" class="s1"><td class="ln"><a href="#L4958">4958</a></td><td class="code">                        <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1 = p1-&gt;tr1;</td></tr>
+<tr id="L4959" class="s1"><td class="ln"><a href="#L4959">4959</a></td><td class="code">                        <span class="kw">if</span> (opt = <a class="id" href="../source/c10.c.html#L4926">match</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, table, nrleft))</td></tr>
+<tr id="L4960" class="s1"><td class="ln"><a href="#L4960">4960</a></td><td class="code">                                <span class="kw">return</span>(opt);</td></tr>
+<tr id="L4961" class="s1"><td class="ln"><a href="#L4961">4961</a></td><td class="code">                        <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1 = p1;</td></tr>
+<tr id="L4962" class="s1"><td class="ln"><a href="#L4962">4962</a></td><td class="code">                } <span class="kw">else</span> <span class="kw">if</span> (opdope[p2-&gt;op]&amp;CNVRT &amp;&amp; (opdope[p1-&gt;op]&amp;CNVRT)==<span class="nu">0</span>) {</td></tr>
+<tr id="L4963" class="s1"><td class="ln"><a href="#L4963">4963</a></td><td class="code">                        <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2 = p2-&gt;tr1;</td></tr>
+<tr id="L4964" class="s1"><td class="ln"><a href="#L4964">4964</a></td><td class="code">                        <span class="kw">if</span> (opt = <a class="id" href="../source/c10.c.html#L4926">match</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, table, nrleft))</td></tr>
+<tr id="L4965" class="s1"><td class="ln"><a href="#L4965">4965</a></td><td class="code">                                <span class="kw">return</span>(opt);</td></tr>
+<tr id="L4966" class="s1"><td class="ln"><a href="#L4966">4966</a></td><td class="code">                        <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2 = p2;</td></tr>
+<tr id="L4967" class="s1"><td class="ln"><a href="#L4967">4967</a></td><td class="code">                }</td></tr>
+<tr id="L4968" class="s1"><td class="ln"><a href="#L4968">4968</a></td><td class="code">                t2 = p2-&gt;type;</td></tr>
+<tr id="L4969" class="s1"><td class="ln"><a href="#L4969">4969</a></td><td class="code">                d2 = <a class="id" href="../source/c11.c.html#L5947">dcalc</a>(p2, nrleft);</td></tr>
+<tr id="L4970" class="s1"><td class="ln"><a href="#L4970">4970</a></td><td class="code">        }</td></tr>
+<tr id="L4971" class="s1"><td class="ln"><a href="#L4971">4971</a></td><td class="code">        <span class="kw">for</span> (; table-&gt;op!=op; table++)</td></tr>
+<tr id="L4972" class="s1"><td class="ln"><a href="#L4972">4972</a></td><td class="code">                <span class="kw">if</span> (table-&gt;op==<span class="nu">0</span>)</td></tr>
+<tr id="L4973" class="s1"><td class="ln"><a href="#L4973">4973</a></td><td class="code">                        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L4974" class="s1"><td class="ln"><a href="#L4974">4974</a></td><td class="code">        <span class="kw">for</span> (opt = table-&gt;tabp; opt-&gt;tabdeg1!=<span class="nu">0</span>; opt++) {</td></tr>
+<tr id="L4975" class="s1"><td class="ln"><a href="#L4975">4975</a></td><td class="code">                <span class="kw">if</span> (d1 &gt; (opt-&gt;tabdeg1&amp;<span class="nu">077</span>)</td></tr>
+<tr id="L4976" class="s1"><td class="ln"><a href="#L4976">4976</a></td><td class="code">                 || (opt-&gt;tabdeg1 &gt;= <span class="nu">0100</span> &amp;&amp; (p1-&gt;op != STAR)))</td></tr>
+<tr id="L4977" class="s1"><td class="ln"><a href="#L4977">4977</a></td><td class="code">                        <span class="kw">continue</span>;</td></tr>
+<tr id="L4978" class="s1"><td class="ln"><a href="#L4978">4978</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/c11.c.html#L5987">notcompat</a>(p1, opt-&gt;tabtyp1, op)) {</td></tr>
+<tr id="L4979" class="s1"><td class="ln"><a href="#L4979">4979</a></td><td class="code">                        <span class="kw">continue</span>;</td></tr>
+<tr id="L4980" class="s1"><td class="ln"><a href="#L4980">4980</a></td><td class="code">                }</td></tr>
+<tr id="L4981" class="s1"><td class="ln"><a href="#L4981">4981</a></td><td class="code">                <span class="kw">if</span> ((opdope[op]&amp;BINARY)!=<span class="nu">0</span> &amp;&amp; p2!=<span class="nu">0</span>) {</td></tr>
+<tr id="L4982" class="s1"><td class="ln"><a href="#L4982">4982</a></td><td class="code">                        <span class="kw">if</span> (d2 &gt; (opt-&gt;tabdeg2&amp;<span class="nu">077</span>)</td></tr>
+<tr id="L4983" class="s1"><td class="ln"><a href="#L4983">4983</a></td><td class="code">                         || (opt-&gt;tabdeg2 &gt;= <span class="nu">0100</span>) &amp;&amp; (p2-&gt;op != STAR) )</td></tr>
+<tr id="L4984" class="s1"><td class="ln"><a href="#L4984">4984</a></td><td class="code">                                <span class="kw">continue</span>;</td></tr>
+<tr id="L4985" class="s1"><td class="ln"><a href="#L4985">4985</a></td><td class="code">                        <span class="kw">if</span> (<a class="id" href="../source/c11.c.html#L5987">notcompat</a>(p2,opt-&gt;tabtyp2, <span class="nu">0</span>))</td></tr>
+<tr id="L4986" class="s1"><td class="ln"><a href="#L4986">4986</a></td><td class="code">                                <span class="kw">continue</span>;</td></tr>
+<tr id="L4987" class="s1"><td class="ln"><a href="#L4987">4987</a></td><td class="code">                }</td></tr>
+<tr id="L4988" class="s1"><td class="ln"><a href="#L4988">4988</a></td><td class="code">                <span class="kw">return</span>(opt);</td></tr>
+<tr id="L4989" class="s1"><td class="ln"><a href="#L4989">4989</a></td><td class="code">        }</td></tr>
+<tr id="L4990" class="s1"><td class="ln"><a href="#L4990">4990</a></td><td class="code">        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L4991" class="s1"><td class="ln"><a href="#L4991">4991</a></td><td class="code">}</td></tr>
+<tr id="L4992" class="s1"><td class="ln"><a href="#L4992">4992</a></td><td class="code"> </td></tr>
+<tr id="L4993" class="s1"><td class="ln"><a href="#L4993">4993</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L4994" class="s1"><td class="ln"><a href="#L4994">4994</a></td><td class="code"><span class="cm"> * Given a tree, a code table, and a register,</span></td></tr>
+<tr id="L4995" class="s1"><td class="ln"><a href="#L4995">4995</a></td><td class="code"><span class="cm"> * produce code to evaluate the tree with the appropriate table.</span></td></tr>
+<tr id="L4996" class="s1"><td class="ln"><a href="#L4996">4996</a></td><td class="code"><span class="cm"> * Registers reg and upcan be used.</span></td></tr>
+<tr id="L4997" class="s1"><td class="ln"><a href="#L4997">4997</a></td><td class="code"><span class="cm"> * If there is a value, it is desired that it appear in reg.</span></td></tr>
+<tr id="L4998" class="s1"><td class="ln"><a href="#L4998">4998</a></td><td class="code"><span class="cm"> * The routine returns the register in which the value actually appears.</span></td></tr>
+<tr id="L4999" class="s1"><td class="ln"><a href="#L4999">4999</a></td><td class="code"><span class="cm"> * This routine must work or there is an error.</span></td></tr>
+<tr id="L5000" class="s0"><td class="ln"><a href="#L5000">5000</a></td><td class="code"><span class="cm"> * If the table called for is cctab, sptab, or efftab,</span></td></tr>
+<tr id="L5001" class="s0"><td class="ln"><a href="#L5001">5001</a></td><td class="code"><span class="cm"> * and tree can't be done using the called-for table,</span></td></tr>
+<tr id="L5002" class="s0"><td class="ln"><a href="#L5002">5002</a></td><td class="code"><span class="cm"> * another try is made.</span></td></tr>
+<tr id="L5003" class="s0"><td class="ln"><a href="#L5003">5003</a></td><td class="code"><span class="cm"> * If the tree can't be compiled using cctab, regtab is</span></td></tr>
+<tr id="L5004" class="s0"><td class="ln"><a href="#L5004">5004</a></td><td class="code"><span class="cm"> * used and a "tst" instruction is produced.</span></td></tr>
+<tr id="L5005" class="s0"><td class="ln"><a href="#L5005">5005</a></td><td class="code"><span class="cm"> * If the tree can't be compiled using sptab,</span></td></tr>
+<tr id="L5006" class="s0"><td class="ln"><a href="#L5006">5006</a></td><td class="code"><span class="cm"> * regtab is used and the register is pushed on the stack.</span></td></tr>
+<tr id="L5007" class="s0"><td class="ln"><a href="#L5007">5007</a></td><td class="code"><span class="cm"> * If the tree can't be compiled using efftab,</span></td></tr>
+<tr id="L5008" class="s0"><td class="ln"><a href="#L5008">5008</a></td><td class="code"><span class="cm"> * just use regtab.</span></td></tr>
+<tr id="L5009" class="s0"><td class="ln"><a href="#L5009">5009</a></td><td class="code"><span class="cm"> * Regtab must succeed or an "op not found" error results.</span></td></tr>
+<tr id="L5010" class="s0"><td class="ln"><a href="#L5010">5010</a></td><td class="code"><span class="cm"> *</span></td></tr>
+<tr id="L5011" class="s0"><td class="ln"><a href="#L5011">5011</a></td><td class="code"><span class="cm"> * A number of special cases are recognized, and</span></td></tr>
+<tr id="L5012" class="s0"><td class="ln"><a href="#L5012">5012</a></td><td class="code"><span class="cm"> * there is an interaction with the optimizer routines.</span></td></tr>
+<tr id="L5013" class="s0"><td class="ln"><a href="#L5013">5013</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L5014" class="s0"><td class="ln"><a href="#L5014">5014</a></td><td class="code"><a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(atree, atable, reg)</td></tr>
+<tr id="L5015" class="s0"><td class="ln"><a href="#L5015">5015</a></td><td class="code"><span class="kw">struct</span> tnode *atree;</td></tr>
+<tr id="L5016" class="s0"><td class="ln"><a href="#L5016">5016</a></td><td class="code"><span class="kw">struct</span> table *atable;</td></tr>
+<tr id="L5017" class="s0"><td class="ln"><a href="#L5017">5017</a></td><td class="code">{</td></tr>
+<tr id="L5018" class="s0"><td class="ln"><a href="#L5018">5018</a></td><td class="code">        <span class="kw">register</span> r;</td></tr>
+<tr id="L5019" class="s0"><td class="ln"><a href="#L5019">5019</a></td><td class="code">        <span class="kw">int</span> modf, nargs, recurf;</td></tr>
+<tr id="L5020" class="s0"><td class="ln"><a href="#L5020">5020</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *<a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L5021" class="s0"><td class="ln"><a href="#L5021">5021</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> table *table;</td></tr>
+<tr id="L5022" class="s0"><td class="ln"><a href="#L5022">5022</a></td><td class="code"> </td></tr>
+<tr id="L5023" class="s0"><td class="ln"><a href="#L5023">5023</a></td><td class="code">        table = atable;</td></tr>
+<tr id="L5024" class="s0"><td class="ln"><a href="#L5024">5024</a></td><td class="code">        recurf = <span class="nu">0</span>;</td></tr>
+<tr id="L5025" class="s0"><td class="ln"><a href="#L5025">5025</a></td><td class="code">        <span class="kw">if</span> (reg&lt;<span class="nu">0</span>) {</td></tr>
+<tr id="L5026" class="s0"><td class="ln"><a href="#L5026">5026</a></td><td class="code">                recurf++;</td></tr>
+<tr id="L5027" class="s0"><td class="ln"><a href="#L5027">5027</a></td><td class="code">                reg = ~reg;</td></tr>
+<tr id="L5028" class="s0"><td class="ln"><a href="#L5028">5028</a></td><td class="code">                <span class="kw">if</span> (reg&gt;=<span class="nu">020</span>) {</td></tr>
+<tr id="L5029" class="s0"><td class="ln"><a href="#L5029">5029</a></td><td class="code">                        reg =- <span class="nu">020</span>;</td></tr>
+<tr id="L5030" class="s0"><td class="ln"><a href="#L5030">5030</a></td><td class="code">                        recurf++;</td></tr>
+<tr id="L5031" class="s0"><td class="ln"><a href="#L5031">5031</a></td><td class="code">                }</td></tr>
+<tr id="L5032" class="s0"><td class="ln"><a href="#L5032">5032</a></td><td class="code">        }</td></tr>
+<tr id="L5033" class="s0"><td class="ln"><a href="#L5033">5033</a></td><td class="code">        <span class="kw">if</span>((<a class="id" href="../source/c00.c.html#L1817">tree</a>=atree)==<span class="nu">0</span>)</td></tr>
+<tr id="L5034" class="s0"><td class="ln"><a href="#L5034">5034</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5035" class="s0"><td class="ln"><a href="#L5035">5035</a></td><td class="code">        <span class="kw">switch</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op)  {</td></tr>
+<tr id="L5036" class="s0"><td class="ln"><a href="#L5036">5036</a></td><td class="code"> </td></tr>
+<tr id="L5037" class="s0"><td class="ln"><a href="#L5037">5037</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5038" class="s0"><td class="ln"><a href="#L5038">5038</a></td><td class="code"><span class="cm">         * A conditional branch</span></td></tr>
+<tr id="L5039" class="s0"><td class="ln"><a href="#L5039">5039</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5040" class="s0"><td class="ln"><a href="#L5040">5040</a></td><td class="code">        <span class="kw">case</span> CBRANCH:</td></tr>
+<tr id="L5041" class="s0"><td class="ln"><a href="#L5041">5041</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3838">cbranch</a>(<a class="id" href="../source/c12.c.html#L6658">optim</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;btree), <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;lbl, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;cond, <span class="nu">0</span>);</td></tr>
+<tr id="L5042" class="s0"><td class="ln"><a href="#L5042">5042</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5043" class="s0"><td class="ln"><a href="#L5043">5043</a></td><td class="code"> </td></tr>
+<tr id="L5044" class="s0"><td class="ln"><a href="#L5044">5044</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5045" class="s0"><td class="ln"><a href="#L5045">5045</a></td><td class="code"><span class="cm">         * An initializing expression</span></td></tr>
+<tr id="L5046" class="s0"><td class="ln"><a href="#L5046">5046</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5047" class="s0"><td class="ln"><a href="#L5047">5047</a></td><td class="code">        <span class="kw">case</span> INIT:</td></tr>
+<tr id="L5048" class="s0"><td class="ln"><a href="#L5048">5048</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1-&gt;op == AMPER)</td></tr>
+<tr id="L5049" class="s0"><td class="ln"><a href="#L5049">5049</a></td><td class="code">                        <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1 = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1-&gt;tr1;</td></tr>
+<tr id="L5050" class="s1"><td class="ln"><a href="#L5050">5050</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1-&gt;op==NAME)</td></tr>
+<tr id="L5051" class="s1"><td class="ln"><a href="#L5051">5051</a></td><td class="code">                        <a class="id" href="../source/c11.c.html#L5835">pname</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1);</td></tr>
+<tr id="L5052" class="s1"><td class="ln"><a href="#L5052">5052</a></td><td class="code">                <span class="kw">else</span> <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1==CON)</td></tr>
+<tr id="L5053" class="s1"><td class="ln"><a href="#L5053">5053</a></td><td class="code">                        <a class="id" href="../source/c11.c.html#L6414">psoct</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1-&gt;value);</td></tr>
+<tr id="L5054" class="s1"><td class="ln"><a href="#L5054">5054</a></td><td class="code">                <span class="kw">else</span></td></tr>
+<tr id="L5055" class="s1"><td class="ln"><a href="#L5055">5055</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Illegal initialization"</span>);</td></tr>
+<tr id="L5056" class="s1"><td class="ln"><a href="#L5056">5056</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L4095">putchar</a>(<span class="st">'\n'</span>);</td></tr>
+<tr id="L5057" class="s1"><td class="ln"><a href="#L5057">5057</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5058" class="s1"><td class="ln"><a href="#L5058">5058</a></td><td class="code"> </td></tr>
+<tr id="L5059" class="s1"><td class="ln"><a href="#L5059">5059</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5060" class="s1"><td class="ln"><a href="#L5060">5060</a></td><td class="code"><span class="cm">         * Put the value of an expression in r0,</span></td></tr>
+<tr id="L5061" class="s1"><td class="ln"><a href="#L5061">5061</a></td><td class="code"><span class="cm">         * for a switch or a return</span></td></tr>
+<tr id="L5062" class="s1"><td class="ln"><a href="#L5062">5062</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5063" class="s1"><td class="ln"><a href="#L5063">5063</a></td><td class="code">        <span class="kw">case</span> RFORCE:</td></tr>
+<tr id="L5064" class="s1"><td class="ln"><a href="#L5064">5064</a></td><td class="code">                <span class="kw">if</span>((r=<a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1, regtab, reg)) != <span class="nu">0</span>)</td></tr>
+<tr id="L5065" class="s1"><td class="ln"><a href="#L5065">5065</a></td><td class="code">                        printf(<span class="st">"mov%c   r%d,r0\n"</span>, <a class="id" href="../source/c11.c.html#L6047">isfloat</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1), r);</td></tr>
+<tr id="L5066" class="s1"><td class="ln"><a href="#L5066">5066</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5067" class="s1"><td class="ln"><a href="#L5067">5067</a></td><td class="code"> </td></tr>
+<tr id="L5068" class="s1"><td class="ln"><a href="#L5068">5068</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5069" class="s1"><td class="ln"><a href="#L5069">5069</a></td><td class="code"><span class="cm">         * sequential execution</span></td></tr>
+<tr id="L5070" class="s1"><td class="ln"><a href="#L5070">5070</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5071" class="s1"><td class="ln"><a href="#L5071">5071</a></td><td class="code">        <span class="kw">case</span> COMMA:</td></tr>
+<tr id="L5072" class="s1"><td class="ln"><a href="#L5072">5072</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1, efftab, reg);</td></tr>
+<tr id="L5073" class="s1"><td class="ln"><a href="#L5073">5073</a></td><td class="code">                atree = <a class="id" href="../source/c00.c.html#L1817">tree</a> = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2;</td></tr>
+<tr id="L5074" class="s1"><td class="ln"><a href="#L5074">5074</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L5075" class="s1"><td class="ln"><a href="#L5075">5075</a></td><td class="code"> </td></tr>
+<tr id="L5076" class="s1"><td class="ln"><a href="#L5076">5076</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5077" class="s1"><td class="ln"><a href="#L5077">5077</a></td><td class="code"><span class="cm">         * In the generated &amp;~ operator,</span></td></tr>
+<tr id="L5078" class="s1"><td class="ln"><a href="#L5078">5078</a></td><td class="code"><span class="cm">         * fiddle things so a PDP-11 "bit"</span></td></tr>
+<tr id="L5079" class="s1"><td class="ln"><a href="#L5079">5079</a></td><td class="code"><span class="cm">         * instruction will be produced when cctab is used.</span></td></tr>
+<tr id="L5080" class="s1"><td class="ln"><a href="#L5080">5080</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5081" class="s1"><td class="ln"><a href="#L5081">5081</a></td><td class="code">        <span class="kw">case</span> NAND:</td></tr>
+<tr id="L5082" class="s1"><td class="ln"><a href="#L5082">5082</a></td><td class="code">                <span class="kw">if</span> (table==cctab) {</td></tr>
+<tr id="L5083" class="s1"><td class="ln"><a href="#L5083">5083</a></td><td class="code">                        <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op = TAND;</td></tr>
+<tr id="L5084" class="s1"><td class="ln"><a href="#L5084">5084</a></td><td class="code">                        <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2 = <a class="id" href="../source/c12.c.html#L6658">optim</a>(<a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">1</span>, COMPL, INT, <span class="nu">0</span>, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2));</td></tr>
+<tr id="L5085" class="s1"><td class="ln"><a href="#L5085">5085</a></td><td class="code">                }</td></tr>
+<tr id="L5086" class="s1"><td class="ln"><a href="#L5086">5086</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L5087" class="s1"><td class="ln"><a href="#L5087">5087</a></td><td class="code"> </td></tr>
+<tr id="L5088" class="s1"><td class="ln"><a href="#L5088">5088</a></td><td class="code"> </td></tr>
+<tr id="L5089" class="s1"><td class="ln"><a href="#L5089">5089</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5090" class="s1"><td class="ln"><a href="#L5090">5090</a></td><td class="code"><span class="cm">         * Handle a subroutine call. It has to be done</span></td></tr>
+<tr id="L5091" class="s1"><td class="ln"><a href="#L5091">5091</a></td><td class="code"><span class="cm">         * here because if cexpr got called twice, the</span></td></tr>
+<tr id="L5092" class="s1"><td class="ln"><a href="#L5092">5092</a></td><td class="code"><span class="cm">         * arguments might be compiled twice.</span></td></tr>
+<tr id="L5093" class="s1"><td class="ln"><a href="#L5093">5093</a></td><td class="code"><span class="cm">         * There is also some fiddling so the</span></td></tr>
+<tr id="L5094" class="s1"><td class="ln"><a href="#L5094">5094</a></td><td class="code"><span class="cm">         * first argument, in favorable circumstances,</span></td></tr>
+<tr id="L5095" class="s1"><td class="ln"><a href="#L5095">5095</a></td><td class="code"><span class="cm">         * goes to (sp) instead of -(sp), reducing</span></td></tr>
+<tr id="L5096" class="s1"><td class="ln"><a href="#L5096">5096</a></td><td class="code"><span class="cm">         * the amount of stack-popping.</span></td></tr>
+<tr id="L5097" class="s1"><td class="ln"><a href="#L5097">5097</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5098" class="s1"><td class="ln"><a href="#L5098">5098</a></td><td class="code">        <span class="kw">case</span> CALL:</td></tr>
+<tr id="L5099" class="s1"><td class="ln"><a href="#L5099">5099</a></td><td class="code">                r = <span class="nu">0</span>;</td></tr>
+<tr id="L5100" class="s0"><td class="ln"><a href="#L5100">5100</a></td><td class="code">                nargs = <span class="nu">0</span>;</td></tr>
+<tr id="L5101" class="s0"><td class="ln"><a href="#L5101">5101</a></td><td class="code">                modf = <span class="nu">0</span>;</td></tr>
+<tr id="L5102" class="s0"><td class="ln"><a href="#L5102">5102</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1-&gt;op!=NAME) {      <span class="cm">/* get nargs right */</span></td></tr>
+<tr id="L5103" class="s0"><td class="ln"><a href="#L5103">5103</a></td><td class="code">                        nargs++;</td></tr>
+<tr id="L5104" class="s0"><td class="ln"><a href="#L5104">5104</a></td><td class="code">                        nstack++;</td></tr>
+<tr id="L5105" class="s0"><td class="ln"><a href="#L5105">5105</a></td><td class="code">                }</td></tr>
+<tr id="L5106" class="s0"><td class="ln"><a href="#L5106">5106</a></td><td class="code">                <a class="id" href="../source/c00.c.html#L1817">tree</a> = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2;</td></tr>
+<tr id="L5107" class="s0"><td class="ln"><a href="#L5107">5107</a></td><td class="code">                <span class="kw">if</span>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op) {</td></tr>
+<tr id="L5108" class="s0"><td class="ln"><a href="#L5108">5108</a></td><td class="code">                        <span class="kw">while</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op==COMMA) {</td></tr>
+<tr id="L5109" class="s0"><td class="ln"><a href="#L5109">5109</a></td><td class="code">                                r =+ <a class="id" href="../source/c10.c.html#L5755">comarg</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2, &amp;modf);</td></tr>
+<tr id="L5110" class="s0"><td class="ln"><a href="#L5110">5110</a></td><td class="code">                                <a class="id" href="../source/c00.c.html#L1817">tree</a> = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1;</td></tr>
+<tr id="L5111" class="s0"><td class="ln"><a href="#L5111">5111</a></td><td class="code">                                nargs++;</td></tr>
+<tr id="L5112" class="s0"><td class="ln"><a href="#L5112">5112</a></td><td class="code">                        }</td></tr>
+<tr id="L5113" class="s0"><td class="ln"><a href="#L5113">5113</a></td><td class="code">                        r =+ <a class="id" href="../source/c10.c.html#L5755">comarg</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, &amp;modf);</td></tr>
+<tr id="L5114" class="s0"><td class="ln"><a href="#L5114">5114</a></td><td class="code">                        nargs++;</td></tr>
+<tr id="L5115" class="s0"><td class="ln"><a href="#L5115">5115</a></td><td class="code">                }</td></tr>
+<tr id="L5116" class="s0"><td class="ln"><a href="#L5116">5116</a></td><td class="code">                <a class="id" href="../source/c00.c.html#L1817">tree</a> = atree;</td></tr>
+<tr id="L5117" class="s0"><td class="ln"><a href="#L5117">5117</a></td><td class="code">                <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op = CALL2;</td></tr>
+<tr id="L5118" class="s0"><td class="ln"><a href="#L5118">5118</a></td><td class="code">                <span class="kw">if</span> (modf &amp;&amp; <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1-&gt;op==NAME &amp;&amp; <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1-&gt;class==EXTERN)</td></tr>
+<tr id="L5119" class="s0"><td class="ln"><a href="#L5119">5119</a></td><td class="code">                        <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op = CALL1;</td></tr>
+<tr id="L5120" class="s0"><td class="ln"><a href="#L5120">5120</a></td><td class="code">                <a class="id" href="../source/c10.c.html#L5211">cexpr</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, regtab, reg);</td></tr>
+<tr id="L5121" class="s0"><td class="ln"><a href="#L5121">5121</a></td><td class="code">                <a class="id" href="../source/c11.c.html#L6380">popstk</a>(r);</td></tr>
+<tr id="L5122" class="s0"><td class="ln"><a href="#L5122">5122</a></td><td class="code">                nstack =- nargs;</td></tr>
+<tr id="L5123" class="s0"><td class="ln"><a href="#L5123">5123</a></td><td class="code">                <span class="kw">if</span> (table==efftab || table==regtab)</td></tr>
+<tr id="L5124" class="s0"><td class="ln"><a href="#L5124">5124</a></td><td class="code">                        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5125" class="s0"><td class="ln"><a href="#L5125">5125</a></td><td class="code">                r = <span class="nu">0</span>;</td></tr>
+<tr id="L5126" class="s0"><td class="ln"><a href="#L5126">5126</a></td><td class="code">                <span class="kw">goto</span> fixup;</td></tr>
+<tr id="L5127" class="s0"><td class="ln"><a href="#L5127">5127</a></td><td class="code"> </td></tr>
+<tr id="L5128" class="s0"><td class="ln"><a href="#L5128">5128</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5129" class="s0"><td class="ln"><a href="#L5129">5129</a></td><td class="code"><span class="cm">         * Longs need special treatment.</span></td></tr>
+<tr id="L5130" class="s0"><td class="ln"><a href="#L5130">5130</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5131" class="s0"><td class="ln"><a href="#L5131">5131</a></td><td class="code">        <span class="kw">case</span> ASLSH:</td></tr>
+<tr id="L5132" class="s0"><td class="ln"><a href="#L5132">5132</a></td><td class="code">        <span class="kw">case</span> LSHIFT:</td></tr>
+<tr id="L5133" class="s0"><td class="ln"><a href="#L5133">5133</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;type==LONG) {</td></tr>
+<tr id="L5134" class="s0"><td class="ln"><a href="#L5134">5134</a></td><td class="code">                        <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2-&gt;op==ITOL)</td></tr>
+<tr id="L5135" class="s0"><td class="ln"><a href="#L5135">5135</a></td><td class="code">                                <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2 = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2-&gt;tr1;</td></tr>
+<tr id="L5136" class="s0"><td class="ln"><a href="#L5136">5136</a></td><td class="code">                        <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op==ASLSH)</td></tr>
+<tr id="L5137" class="s0"><td class="ln"><a href="#L5137">5137</a></td><td class="code">                                <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op = ASLSHL;</td></tr>
+<tr id="L5138" class="s0"><td class="ln"><a href="#L5138">5138</a></td><td class="code">                        <span class="kw">else</span></td></tr>
+<tr id="L5139" class="s0"><td class="ln"><a href="#L5139">5139</a></td><td class="code">                                <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op = LLSHIFT;</td></tr>
+<tr id="L5140" class="s0"><td class="ln"><a href="#L5140">5140</a></td><td class="code">                }</td></tr>
+<tr id="L5141" class="s0"><td class="ln"><a href="#L5141">5141</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L5142" class="s0"><td class="ln"><a href="#L5142">5142</a></td><td class="code"> </td></tr>
+<tr id="L5143" class="s0"><td class="ln"><a href="#L5143">5143</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5144" class="s0"><td class="ln"><a href="#L5144">5144</a></td><td class="code"><span class="cm">         * Try to change * and / to shifts.</span></td></tr>
+<tr id="L5145" class="s0"><td class="ln"><a href="#L5145">5145</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5146" class="s0"><td class="ln"><a href="#L5146">5146</a></td><td class="code">        <span class="kw">case</span> TIMES:</td></tr>
+<tr id="L5147" class="s0"><td class="ln"><a href="#L5147">5147</a></td><td class="code">        <span class="kw">case</span> DIVIDE:</td></tr>
+<tr id="L5148" class="s0"><td class="ln"><a href="#L5148">5148</a></td><td class="code">        <span class="kw">case</span> ASTIMES:</td></tr>
+<tr id="L5149" class="s0"><td class="ln"><a href="#L5149">5149</a></td><td class="code">        <span class="kw">case</span> ASDIV:</td></tr>
+<tr id="L5150" class="s1"><td class="ln"><a href="#L5150">5150</a></td><td class="code">                <a class="id" href="../source/c00.c.html#L1817">tree</a> = <a class="id" href="../source/c11.c.html#L6272">pow2</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>);</td></tr>
+<tr id="L5151" class="s1"><td class="ln"><a href="#L5151">5151</a></td><td class="code">        }</td></tr>
+<tr id="L5152" class="s1"><td class="ln"><a href="#L5152">5152</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5153" class="s1"><td class="ln"><a href="#L5153">5153</a></td><td class="code"><span class="cm">         * Try to find postfix ++ and -- operators that can be</span></td></tr>
+<tr id="L5154" class="s1"><td class="ln"><a href="#L5154">5154</a></td><td class="code"><span class="cm">         * pulled out and done after the rest of the expression</span></td></tr>
+<tr id="L5155" class="s1"><td class="ln"><a href="#L5155">5155</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5156" class="s1"><td class="ln"><a href="#L5156">5156</a></td><td class="code">        <span class="kw">if</span> (table!=cctab &amp;&amp; table!=cregtab &amp;&amp; recurf&lt;<span class="nu">2</span></td></tr>
+<tr id="L5157" class="s1"><td class="ln"><a href="#L5157">5157</a></td><td class="code">         &amp;&amp; (opdope[<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op]&amp;LEAF)==<span class="nu">0</span>) {</td></tr>
+<tr id="L5158" class="s1"><td class="ln"><a href="#L5158">5158</a></td><td class="code">                <span class="kw">if</span> (r=<a class="id" href="../source/c10.c.html#L5667">delay</a>(&amp;atree, table, reg)) {</td></tr>
+<tr id="L5159" class="s1"><td class="ln"><a href="#L5159">5159</a></td><td class="code">                        <a class="id" href="../source/c00.c.html#L1817">tree</a> = atree;</td></tr>
+<tr id="L5160" class="s1"><td class="ln"><a href="#L5160">5160</a></td><td class="code">                        table = efftab;</td></tr>
+<tr id="L5161" class="s1"><td class="ln"><a href="#L5161">5161</a></td><td class="code">                        reg = r-<span class="nu">1</span>;</td></tr>
+<tr id="L5162" class="s1"><td class="ln"><a href="#L5162">5162</a></td><td class="code">                }</td></tr>
+<tr id="L5163" class="s1"><td class="ln"><a href="#L5163">5163</a></td><td class="code">        }</td></tr>
+<tr id="L5164" class="s1"><td class="ln"><a href="#L5164">5164</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5165" class="s1"><td class="ln"><a href="#L5165">5165</a></td><td class="code"><span class="cm">         * Basically, try to reorder the computation</span></td></tr>
+<tr id="L5166" class="s1"><td class="ln"><a href="#L5166">5166</a></td><td class="code"><span class="cm">         * so  reg = x+y  is done as  reg = x; reg =+ y</span></td></tr>
+<tr id="L5167" class="s1"><td class="ln"><a href="#L5167">5167</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5168" class="s1"><td class="ln"><a href="#L5168">5168</a></td><td class="code">        <span class="kw">if</span> (recurf==<span class="nu">0</span> &amp;&amp; <a class="id" href="../source/c10.c.html#L5544">reorder</a>(&amp;atree, table, reg)) {</td></tr>
+<tr id="L5169" class="s1"><td class="ln"><a href="#L5169">5169</a></td><td class="code">                <span class="kw">if</span> (table==cctab &amp;&amp; atree-&gt;op==NAME)</td></tr>
+<tr id="L5170" class="s1"><td class="ln"><a href="#L5170">5170</a></td><td class="code">                        <span class="kw">return</span>(reg);</td></tr>
+<tr id="L5171" class="s1"><td class="ln"><a href="#L5171">5171</a></td><td class="code">        }</td></tr>
+<tr id="L5172" class="s1"><td class="ln"><a href="#L5172">5172</a></td><td class="code">        <a class="id" href="../source/c00.c.html#L1817">tree</a> = atree;</td></tr>
+<tr id="L5173" class="s1"><td class="ln"><a href="#L5173">5173</a></td><td class="code">        <span class="kw">if</span> (table==efftab &amp;&amp; <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op==NAME)</td></tr>
+<tr id="L5174" class="s1"><td class="ln"><a href="#L5174">5174</a></td><td class="code">                <span class="kw">return</span>(reg);</td></tr>
+<tr id="L5175" class="s1"><td class="ln"><a href="#L5175">5175</a></td><td class="code">        <span class="kw">if</span> ((r=<a class="id" href="../source/c10.c.html#L5211">cexpr</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, table, reg))&gt;=<span class="nu">0</span>)</td></tr>
+<tr id="L5176" class="s1"><td class="ln"><a href="#L5176">5176</a></td><td class="code">                <span class="kw">return</span>(r);</td></tr>
+<tr id="L5177" class="s1"><td class="ln"><a href="#L5177">5177</a></td><td class="code">        <span class="kw">if</span> (table!=regtab)  {</td></tr>
+<tr id="L5178" class="s1"><td class="ln"><a href="#L5178">5178</a></td><td class="code">                <span class="kw">if</span>((r=<a class="id" href="../source/c10.c.html#L5211">cexpr</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, regtab, reg))&gt;=<span class="nu">0</span>) {</td></tr>
+<tr id="L5179" class="s1"><td class="ln"><a href="#L5179">5179</a></td><td class="code">        fixup:</td></tr>
+<tr id="L5180" class="s1"><td class="ln"><a href="#L5180">5180</a></td><td class="code">                        modf = <a class="id" href="../source/c11.c.html#L6047">isfloat</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>);</td></tr>
+<tr id="L5181" class="s1"><td class="ln"><a href="#L5181">5181</a></td><td class="code">                        <span class="kw">if</span> (table==sptab || table==lsptab) {</td></tr>
+<tr id="L5182" class="s1"><td class="ln"><a href="#L5182">5182</a></td><td class="code">                                <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;type==LONG) {</td></tr>
+<tr id="L5183" class="s1"><td class="ln"><a href="#L5183">5183</a></td><td class="code">                                        printf(<span class="st">"mov\tr%d,-(sp)\n"</span>,r+<span class="nu">1</span>);</td></tr>
+<tr id="L5184" class="s1"><td class="ln"><a href="#L5184">5184</a></td><td class="code">                                        nstack++;</td></tr>
+<tr id="L5185" class="s1"><td class="ln"><a href="#L5185">5185</a></td><td class="code">                                }</td></tr>
+<tr id="L5186" class="s1"><td class="ln"><a href="#L5186">5186</a></td><td class="code">                                printf(<span class="st">"mov%c   r%d,%c(sp)\n"</span>, modf, r,</td></tr>
+<tr id="L5187" class="s1"><td class="ln"><a href="#L5187">5187</a></td><td class="code">                                        table==sptab? <span class="st">'-'</span>:<span class="nu">0</span>);</td></tr>
+<tr id="L5188" class="s1"><td class="ln"><a href="#L5188">5188</a></td><td class="code">                                nstack++;</td></tr>
+<tr id="L5189" class="s1"><td class="ln"><a href="#L5189">5189</a></td><td class="code">                        }</td></tr>
+<tr id="L5190" class="s1"><td class="ln"><a href="#L5190">5190</a></td><td class="code">                        <span class="kw">if</span> (table==cctab)</td></tr>
+<tr id="L5191" class="s1"><td class="ln"><a href="#L5191">5191</a></td><td class="code">                                printf(<span class="st">"tst%c   r%d\n"</span>, modf, r);</td></tr>
+<tr id="L5192" class="s1"><td class="ln"><a href="#L5192">5192</a></td><td class="code">                        <span class="kw">return</span>(r);</td></tr>
+<tr id="L5193" class="s1"><td class="ln"><a href="#L5193">5193</a></td><td class="code">                }</td></tr>
+<tr id="L5194" class="s1"><td class="ln"><a href="#L5194">5194</a></td><td class="code">        }</td></tr>
+<tr id="L5195" class="s1"><td class="ln"><a href="#L5195">5195</a></td><td class="code">        <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op&gt;<span class="nu">0</span> &amp;&amp; <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op&lt;RFORCE &amp;&amp; opntab[<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op])</td></tr>
+<tr id="L5196" class="s1"><td class="ln"><a href="#L5196">5196</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"No code table for op: %s"</span>, opntab[<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op]);</td></tr>
+<tr id="L5197" class="s1"><td class="ln"><a href="#L5197">5197</a></td><td class="code">        <span class="kw">else</span></td></tr>
+<tr id="L5198" class="s1"><td class="ln"><a href="#L5198">5198</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"No code table for op %d"</span>, <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op);</td></tr>
+<tr id="L5199" class="s1"><td class="ln"><a href="#L5199">5199</a></td><td class="code">        <span class="kw">return</span>(reg);</td></tr>
+<tr id="L5200" class="s0"><td class="ln"><a href="#L5200">5200</a></td><td class="code">}</td></tr>
+<tr id="L5201" class="s0"><td class="ln"><a href="#L5201">5201</a></td><td class="code"> </td></tr>
+<tr id="L5202" class="s0"><td class="ln"><a href="#L5202">5202</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L5203" class="s0"><td class="ln"><a href="#L5203">5203</a></td><td class="code"><span class="cm"> * Try to compile the tree with the code table using</span></td></tr>
+<tr id="L5204" class="s0"><td class="ln"><a href="#L5204">5204</a></td><td class="code"><span class="cm"> * registers areg and up.  If successful,</span></td></tr>
+<tr id="L5205" class="s0"><td class="ln"><a href="#L5205">5205</a></td><td class="code"><span class="cm"> * return the register where the value actually ended up.</span></td></tr>
+<tr id="L5206" class="s0"><td class="ln"><a href="#L5206">5206</a></td><td class="code"><span class="cm"> * If unsuccessful, return -1.</span></td></tr>
+<tr id="L5207" class="s0"><td class="ln"><a href="#L5207">5207</a></td><td class="code"><span class="cm"> *</span></td></tr>
+<tr id="L5208" class="s0"><td class="ln"><a href="#L5208">5208</a></td><td class="code"><span class="cm"> * Most of the work is the macro-expansion of the</span></td></tr>
+<tr id="L5209" class="s0"><td class="ln"><a href="#L5209">5209</a></td><td class="code"><span class="cm"> * code table.</span></td></tr>
+<tr id="L5210" class="s0"><td class="ln"><a href="#L5210">5210</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L5211" class="s0"><td class="ln"><a href="#L5211">5211</a></td><td class="code"><span class="def">cexpr</span>(atree, table, areg)</td></tr>
+<tr id="L5212" class="s0"><td class="ln"><a href="#L5212">5212</a></td><td class="code"><span class="kw">struct</span> tnode *atree;</td></tr>
+<tr id="L5213" class="s0"><td class="ln"><a href="#L5213">5213</a></td><td class="code"><span class="kw">struct</span> table *table;</td></tr>
+<tr id="L5214" class="s0"><td class="ln"><a href="#L5214">5214</a></td><td class="code">{</td></tr>
+<tr id="L5215" class="s0"><td class="ln"><a href="#L5215">5215</a></td><td class="code">        <span class="kw">int</span> c, r;</td></tr>
+<tr id="L5216" class="s0"><td class="ln"><a href="#L5216">5216</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p, *p1, *<a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L5217" class="s0"><td class="ln"><a href="#L5217">5217</a></td><td class="code">        <span class="kw">struct</span> table *ctable;</td></tr>
+<tr id="L5218" class="s0"><td class="ln"><a href="#L5218">5218</a></td><td class="code">        <span class="kw">struct</span> tnode *p2;</td></tr>
+<tr id="L5219" class="s0"><td class="ln"><a href="#L5219">5219</a></td><td class="code">        <span class="kw">char</span> *string;</td></tr>
+<tr id="L5220" class="s0"><td class="ln"><a href="#L5220">5220</a></td><td class="code">        <span class="kw">int</span> reg, reg1, rreg, <a class="id" href="../source/cvopt.c.html#L9269">flag</a>, opd;</td></tr>
+<tr id="L5221" class="s0"><td class="ln"><a href="#L5221">5221</a></td><td class="code">        <span class="kw">char</span> *opt;</td></tr>
+<tr id="L5222" class="s0"><td class="ln"><a href="#L5222">5222</a></td><td class="code"> </td></tr>
+<tr id="L5223" class="s0"><td class="ln"><a href="#L5223">5223</a></td><td class="code">        <a class="id" href="../source/c00.c.html#L1817">tree</a> = atree;</td></tr>
+<tr id="L5224" class="s0"><td class="ln"><a href="#L5224">5224</a></td><td class="code">        reg = areg;</td></tr>
+<tr id="L5225" class="s0"><td class="ln"><a href="#L5225">5225</a></td><td class="code">        p1 = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2;</td></tr>
+<tr id="L5226" class="s0"><td class="ln"><a href="#L5226">5226</a></td><td class="code">        c = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op;</td></tr>
+<tr id="L5227" class="s0"><td class="ln"><a href="#L5227">5227</a></td><td class="code">        opd = opdope[c];</td></tr>
+<tr id="L5228" class="s0"><td class="ln"><a href="#L5228">5228</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5229" class="s0"><td class="ln"><a href="#L5229">5229</a></td><td class="code"><span class="cm">         * When the value of a relational or a logical expression is</span></td></tr>
+<tr id="L5230" class="s0"><td class="ln"><a href="#L5230">5230</a></td><td class="code"><span class="cm">         * desired, more work must be done.</span></td></tr>
+<tr id="L5231" class="s0"><td class="ln"><a href="#L5231">5231</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5232" class="s0"><td class="ln"><a href="#L5232">5232</a></td><td class="code">        <span class="kw">if</span> ((opd&amp;RELAT||c==LOGAND||c==LOGOR||c==EXCLA) &amp;&amp; table!=cctab) {</td></tr>
+<tr id="L5233" class="s0"><td class="ln"><a href="#L5233">5233</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3838">cbranch</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, c=isn++, <span class="nu">1</span>, reg);</td></tr>
+<tr id="L5234" class="s0"><td class="ln"><a href="#L5234">5234</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(&amp;czero, table, reg);</td></tr>
+<tr id="L5235" class="s0"><td class="ln"><a href="#L5235">5235</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3904">branch</a>(isn, <span class="nu">0</span>);</td></tr>
+<tr id="L5236" class="s0"><td class="ln"><a href="#L5236">5236</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3911">label</a>(c);</td></tr>
+<tr id="L5237" class="s0"><td class="ln"><a href="#L5237">5237</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(&amp;cone, table, reg);</td></tr>
+<tr id="L5238" class="s0"><td class="ln"><a href="#L5238">5238</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3911">label</a>(isn++);</td></tr>
+<tr id="L5239" class="s0"><td class="ln"><a href="#L5239">5239</a></td><td class="code">                <span class="kw">return</span>(reg);</td></tr>
+<tr id="L5240" class="s0"><td class="ln"><a href="#L5240">5240</a></td><td class="code">        }</td></tr>
+<tr id="L5241" class="s0"><td class="ln"><a href="#L5241">5241</a></td><td class="code">        <span class="kw">if</span>(c==QUEST) {</td></tr>
+<tr id="L5242" class="s0"><td class="ln"><a href="#L5242">5242</a></td><td class="code">                <span class="kw">if</span> (table==cctab)</td></tr>
+<tr id="L5243" class="s0"><td class="ln"><a href="#L5243">5243</a></td><td class="code">                        <span class="kw">return</span>(-<span class="nu">1</span>);</td></tr>
+<tr id="L5244" class="s0"><td class="ln"><a href="#L5244">5244</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3838">cbranch</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1, c=isn++, <span class="nu">0</span>, reg);</td></tr>
+<tr id="L5245" class="s0"><td class="ln"><a href="#L5245">5245</a></td><td class="code">                <a class="id" href="../source/cvopt.c.html#L9269">flag</a> = nstack;</td></tr>
+<tr id="L5246" class="s0"><td class="ln"><a href="#L5246">5246</a></td><td class="code">                rreg = <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(p1-&gt;tr1, table, reg);</td></tr>
+<tr id="L5247" class="s0"><td class="ln"><a href="#L5247">5247</a></td><td class="code">                nstack = <a class="id" href="../source/cvopt.c.html#L9269">flag</a>;</td></tr>
+<tr id="L5248" class="s0"><td class="ln"><a href="#L5248">5248</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3904">branch</a>(r=isn++, <span class="nu">0</span>);</td></tr>
+<tr id="L5249" class="s0"><td class="ln"><a href="#L5249">5249</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3911">label</a>(c);</td></tr>
+<tr id="L5250" class="s1"><td class="ln"><a href="#L5250">5250</a></td><td class="code">                reg = <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(p1-&gt;tr2, table, rreg);</td></tr>
+<tr id="L5251" class="s1"><td class="ln"><a href="#L5251">5251</a></td><td class="code">                <span class="kw">if</span> (rreg!=reg)</td></tr>
+<tr id="L5252" class="s1"><td class="ln"><a href="#L5252">5252</a></td><td class="code">                        printf(<span class="st">"mov%c   r%d,r%d\n"</span>,</td></tr>
+<tr id="L5253" class="s1"><td class="ln"><a href="#L5253">5253</a></td><td class="code">                            <a class="id" href="../source/c11.c.html#L6047">isfloat</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>),reg,rreg);</td></tr>
+<tr id="L5254" class="s1"><td class="ln"><a href="#L5254">5254</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3911">label</a>(r);</td></tr>
+<tr id="L5255" class="s1"><td class="ln"><a href="#L5255">5255</a></td><td class="code">                <span class="kw">return</span>(rreg);</td></tr>
+<tr id="L5256" class="s1"><td class="ln"><a href="#L5256">5256</a></td><td class="code">        }</td></tr>
+<tr id="L5257" class="s1"><td class="ln"><a href="#L5257">5257</a></td><td class="code">        reg = <a class="id" href="../source/c11.c.html#L6062">oddreg</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, reg);</td></tr>
+<tr id="L5258" class="s1"><td class="ln"><a href="#L5258">5258</a></td><td class="code">        reg1 = reg+<span class="nu">1</span>;</td></tr>
+<tr id="L5259" class="s1"><td class="ln"><a href="#L5259">5259</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5260" class="s1"><td class="ln"><a href="#L5260">5260</a></td><td class="code"><span class="cm">         * long values take 2 registers.</span></td></tr>
+<tr id="L5261" class="s1"><td class="ln"><a href="#L5261">5261</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5262" class="s1"><td class="ln"><a href="#L5262">5262</a></td><td class="code">        <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;type==LONG &amp;&amp; <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op!=ITOL)</td></tr>
+<tr id="L5263" class="s1"><td class="ln"><a href="#L5263">5263</a></td><td class="code">                reg1++;</td></tr>
+<tr id="L5264" class="s1"><td class="ln"><a href="#L5264">5264</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5265" class="s1"><td class="ln"><a href="#L5265">5265</a></td><td class="code"><span class="cm">         * Leaves of the expression tree</span></td></tr>
+<tr id="L5266" class="s1"><td class="ln"><a href="#L5266">5266</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5267" class="s1"><td class="ln"><a href="#L5267">5267</a></td><td class="code">        <span class="kw">if</span> ((r = <a class="id" href="../source/c10.c.html#L5732">chkleaf</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, table, reg)) &gt;= <span class="nu">0</span>)</td></tr>
+<tr id="L5268" class="s1"><td class="ln"><a href="#L5268">5268</a></td><td class="code">                <span class="kw">return</span>(r);</td></tr>
+<tr id="L5269" class="s1"><td class="ln"><a href="#L5269">5269</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5270" class="s1"><td class="ln"><a href="#L5270">5270</a></td><td class="code"><span class="cm">         * x + (-1) is better done as x-1.</span></td></tr>
+<tr id="L5271" class="s1"><td class="ln"><a href="#L5271">5271</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5272" class="s1"><td class="ln"><a href="#L5272">5272</a></td><td class="code"> </td></tr>
+<tr id="L5273" class="s1"><td class="ln"><a href="#L5273">5273</a></td><td class="code">        <span class="kw">if</span> ((<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op==PLUS||<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op==ASPLUS) &amp;&amp;</td></tr>
+<tr id="L5274" class="s1"><td class="ln"><a href="#L5274">5274</a></td><td class="code">            (p1=<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2)-&gt;op == CON &amp;&amp; p1-&gt;value == -<span class="nu">1</span>) {</td></tr>
+<tr id="L5275" class="s1"><td class="ln"><a href="#L5275">5275</a></td><td class="code">                p1-&gt;value = <span class="nu">1</span>;</td></tr>
+<tr id="L5276" class="s1"><td class="ln"><a href="#L5276">5276</a></td><td class="code">                <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op =+ (MINUS-PLUS);</td></tr>
+<tr id="L5277" class="s1"><td class="ln"><a href="#L5277">5277</a></td><td class="code">        }</td></tr>
+<tr id="L5278" class="s1"><td class="ln"><a href="#L5278">5278</a></td><td class="code">        <span class="kw">if</span> (table==cregtab)</td></tr>
+<tr id="L5279" class="s1"><td class="ln"><a href="#L5279">5279</a></td><td class="code">                table = regtab;</td></tr>
+<tr id="L5280" class="s1"><td class="ln"><a href="#L5280">5280</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5281" class="s1"><td class="ln"><a href="#L5281">5281</a></td><td class="code"><span class="cm">         * The following peculiar code depends on the fact that</span></td></tr>
+<tr id="L5282" class="s1"><td class="ln"><a href="#L5282">5282</a></td><td class="code"><span class="cm">         * if you just want the codition codes set, efftab</span></td></tr>
+<tr id="L5283" class="s1"><td class="ln"><a href="#L5283">5283</a></td><td class="code"><span class="cm">         * will generate the right code unless the operator is</span></td></tr>
+<tr id="L5284" class="s1"><td class="ln"><a href="#L5284">5284</a></td><td class="code"><span class="cm">         * postfix ++ or --. Unravelled, if the table is</span></td></tr>
+<tr id="L5285" class="s1"><td class="ln"><a href="#L5285">5285</a></td><td class="code"><span class="cm">         * cctab and the operator is not special, try first</span></td></tr>
+<tr id="L5286" class="s1"><td class="ln"><a href="#L5286">5286</a></td><td class="code"><span class="cm">         * for efftab;  if the table isn't, if the operator is,</span></td></tr>
+<tr id="L5287" class="s1"><td class="ln"><a href="#L5287">5287</a></td><td class="code"><span class="cm">         * or the first match fails, try to match</span></td></tr>
+<tr id="L5288" class="s1"><td class="ln"><a href="#L5288">5288</a></td><td class="code"><span class="cm">         * with the table actually asked for.</span></td></tr>
+<tr id="L5289" class="s1"><td class="ln"><a href="#L5289">5289</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5290" class="s1"><td class="ln"><a href="#L5290">5290</a></td><td class="code">        <span class="kw">if</span> (table!=cctab || c==INCAFT || c==DECAFT</td></tr>
+<tr id="L5291" class="s1"><td class="ln"><a href="#L5291">5291</a></td><td class="code">         || (opt = <a class="id" href="../source/c10.c.html#L4926">match</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, efftab, nreg-reg)) == <span class="nu">0</span>)</td></tr>
+<tr id="L5292" class="s1"><td class="ln"><a href="#L5292">5292</a></td><td class="code">                <span class="kw">if</span> ((opt=<a class="id" href="../source/c10.c.html#L4926">match</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, table, nreg-reg))==<span class="nu">0</span>)</td></tr>
+<tr id="L5293" class="s1"><td class="ln"><a href="#L5293">5293</a></td><td class="code">                        <span class="kw">return</span>(-<span class="nu">1</span>);</td></tr>
+<tr id="L5294" class="s1"><td class="ln"><a href="#L5294">5294</a></td><td class="code">        string = opt-&gt;tabstring;</td></tr>
+<tr id="L5295" class="s1"><td class="ln"><a href="#L5295">5295</a></td><td class="code">        p1 = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr1;</td></tr>
+<tr id="L5296" class="s1"><td class="ln"><a href="#L5296">5296</a></td><td class="code">        p2 = <span class="nu">0</span>;</td></tr>
+<tr id="L5297" class="s1"><td class="ln"><a href="#L5297">5297</a></td><td class="code">        <span class="kw">if</span> (opdope[<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op]&amp;BINARY)</td></tr>
+<tr id="L5298" class="s1"><td class="ln"><a href="#L5298">5298</a></td><td class="code">                p2 = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;tr2;</td></tr>
+<tr id="L5299" class="s1"><td class="ln"><a href="#L5299">5299</a></td><td class="code">loop:</td></tr>
+<tr id="L5300" class="s0"><td class="ln"><a href="#L5300">5300</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L5301" class="s0"><td class="ln"><a href="#L5301">5301</a></td><td class="code"><span class="cm">         * The 0200 bit asks for a tab.</span></td></tr>
+<tr id="L5302" class="s0"><td class="ln"><a href="#L5302">5302</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L5303" class="s0"><td class="ln"><a href="#L5303">5303</a></td><td class="code">        <span class="kw">if</span> ((c = *string++) &amp; <span class="nu">0200</span>) {</td></tr>
+<tr id="L5304" class="s0"><td class="ln"><a href="#L5304">5304</a></td><td class="code">                c =&amp; <span class="nu">0177</span>;</td></tr>
+<tr id="L5305" class="s0"><td class="ln"><a href="#L5305">5305</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L4095">putchar</a>(<span class="st">'\t'</span>);</td></tr>
+<tr id="L5306" class="s0"><td class="ln"><a href="#L5306">5306</a></td><td class="code">        }</td></tr>
+<tr id="L5307" class="s0"><td class="ln"><a href="#L5307">5307</a></td><td class="code">        <span class="kw">switch</span> (c) {</td></tr>
+<tr id="L5308" class="s0"><td class="ln"><a href="#L5308">5308</a></td><td class="code"> </td></tr>
+<tr id="L5309" class="s0"><td class="ln"><a href="#L5309">5309</a></td><td class="code">        <span class="kw">case</span> <span class="st">'\0'</span>:</td></tr>
+<tr id="L5310" class="s0"><td class="ln"><a href="#L5310">5310</a></td><td class="code">                <span class="kw">if</span> (!<a class="id" href="../source/c11.c.html#L6047">isfloat</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>))</td></tr>
+<tr id="L5311" class="s0"><td class="ln"><a href="#L5311">5311</a></td><td class="code">                        <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op==DIVIDE || <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op==ASDIV)</td></tr>
+<tr id="L5312" class="s0"><td class="ln"><a href="#L5312">5312</a></td><td class="code">                                reg--;</td></tr>
+<tr id="L5313" class="s0"><td class="ln"><a href="#L5313">5313</a></td><td class="code">                <span class="kw">return</span>(reg);</td></tr>
+<tr id="L5314" class="s0"><td class="ln"><a href="#L5314">5314</a></td><td class="code"> </td></tr>
+<tr id="L5315" class="s0"><td class="ln"><a href="#L5315">5315</a></td><td class="code">        <span class="cm">/* A1 */</span></td></tr>
+<tr id="L5316" class="s0"><td class="ln"><a href="#L5316">5316</a></td><td class="code">        <span class="kw">case</span> <span class="st">'A'</span>:</td></tr>
+<tr id="L5317" class="s0"><td class="ln"><a href="#L5317">5317</a></td><td class="code">                p = p1;</td></tr>
+<tr id="L5318" class="s0"><td class="ln"><a href="#L5318">5318</a></td><td class="code">                <span class="kw">goto</span> adr;</td></tr>
+<tr id="L5319" class="s0"><td class="ln"><a href="#L5319">5319</a></td><td class="code"> </td></tr>
+<tr id="L5320" class="s0"><td class="ln"><a href="#L5320">5320</a></td><td class="code">        <span class="cm">/* A2 */</span></td></tr>
+<tr id="L5321" class="s0"><td class="ln"><a href="#L5321">5321</a></td><td class="code">        <span class="kw">case</span> <span class="st">'B'</span>:</td></tr>
+<tr id="L5322" class="s0"><td class="ln"><a href="#L5322">5322</a></td><td class="code">                p = p2;</td></tr>
+<tr id="L5323" class="s0"><td class="ln"><a href="#L5323">5323</a></td><td class="code">                <span class="kw">goto</span> adr;</td></tr>
+<tr id="L5324" class="s0"><td class="ln"><a href="#L5324">5324</a></td><td class="code"> </td></tr>
+<tr id="L5325" class="s0"><td class="ln"><a href="#L5325">5325</a></td><td class="code">        adr:</td></tr>
+<tr id="L5326" class="s0"><td class="ln"><a href="#L5326">5326</a></td><td class="code">                c = <span class="nu">0</span>;</td></tr>
+<tr id="L5327" class="s0"><td class="ln"><a href="#L5327">5327</a></td><td class="code">                <span class="kw">if</span> (*string==<span class="st">'\''</span>) {</td></tr>
+<tr id="L5328" class="s0"><td class="ln"><a href="#L5328">5328</a></td><td class="code">                        c = <span class="nu">1</span>;</td></tr>
+<tr id="L5329" class="s0"><td class="ln"><a href="#L5329">5329</a></td><td class="code">                        string++;</td></tr>
+<tr id="L5330" class="s0"><td class="ln"><a href="#L5330">5330</a></td><td class="code">                } <span class="kw">else</span> <span class="kw">if</span> (*string==<span class="st">'+'</span>) {</td></tr>
+<tr id="L5331" class="s0"><td class="ln"><a href="#L5331">5331</a></td><td class="code">                        c = <span class="nu">2</span>;</td></tr>
+<tr id="L5332" class="s0"><td class="ln"><a href="#L5332">5332</a></td><td class="code">                        string++;</td></tr>
+<tr id="L5333" class="s0"><td class="ln"><a href="#L5333">5333</a></td><td class="code">                }</td></tr>
+<tr id="L5334" class="s0"><td class="ln"><a href="#L5334">5334</a></td><td class="code">                <a class="id" href="../source/c11.c.html#L5835">pname</a>(p, c);</td></tr>
+<tr id="L5335" class="s0"><td class="ln"><a href="#L5335">5335</a></td><td class="code">                <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5336" class="s0"><td class="ln"><a href="#L5336">5336</a></td><td class="code"> </td></tr>
+<tr id="L5337" class="s0"><td class="ln"><a href="#L5337">5337</a></td><td class="code">        <span class="cm">/* I */</span></td></tr>
+<tr id="L5338" class="s0"><td class="ln"><a href="#L5338">5338</a></td><td class="code">        <span class="kw">case</span> <span class="st">'M'</span>:</td></tr>
+<tr id="L5339" class="s0"><td class="ln"><a href="#L5339">5339</a></td><td class="code">                <span class="kw">if</span> ((c = *string)==<span class="st">'\''</span>)</td></tr>
+<tr id="L5340" class="s0"><td class="ln"><a href="#L5340">5340</a></td><td class="code">                        string++;</td></tr>
+<tr id="L5341" class="s0"><td class="ln"><a href="#L5341">5341</a></td><td class="code">                <span class="kw">else</span></td></tr>
+<tr id="L5342" class="s0"><td class="ln"><a href="#L5342">5342</a></td><td class="code">                        c = <span class="nu">0</span>;</td></tr>
+<tr id="L5343" class="s0"><td class="ln"><a href="#L5343">5343</a></td><td class="code">                <a class="id" href="../source/c11.c.html#L6012">prins</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op, c, instab);</td></tr>
+<tr id="L5344" class="s0"><td class="ln"><a href="#L5344">5344</a></td><td class="code">                <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5345" class="s0"><td class="ln"><a href="#L5345">5345</a></td><td class="code"> </td></tr>
+<tr id="L5346" class="s0"><td class="ln"><a href="#L5346">5346</a></td><td class="code">        <span class="cm">/* B1 */</span></td></tr>
+<tr id="L5347" class="s0"><td class="ln"><a href="#L5347">5347</a></td><td class="code">        <span class="kw">case</span> <span class="st">'C'</span>:</td></tr>
+<tr id="L5348" class="s0"><td class="ln"><a href="#L5348">5348</a></td><td class="code">                <span class="kw">if</span> ((opd&amp;LEAF) != <span class="nu">0</span>)</td></tr>
+<tr id="L5349" class="s0"><td class="ln"><a href="#L5349">5349</a></td><td class="code">                        p = <a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L5350" class="s1"><td class="ln"><a href="#L5350">5350</a></td><td class="code">                <span class="kw">else</span></td></tr>
+<tr id="L5351" class="s1"><td class="ln"><a href="#L5351">5351</a></td><td class="code">                        p = p1;</td></tr>
+<tr id="L5352" class="s1"><td class="ln"><a href="#L5352">5352</a></td><td class="code">                <span class="kw">goto</span> pbyte;</td></tr>
+<tr id="L5353" class="s1"><td class="ln"><a href="#L5353">5353</a></td><td class="code"> </td></tr>
+<tr id="L5354" class="s1"><td class="ln"><a href="#L5354">5354</a></td><td class="code">        <span class="cm">/* BF */</span></td></tr>
+<tr id="L5355" class="s1"><td class="ln"><a href="#L5355">5355</a></td><td class="code">        <span class="kw">case</span> <span class="st">'P'</span>:</td></tr>
+<tr id="L5356" class="s1"><td class="ln"><a href="#L5356">5356</a></td><td class="code">                p = <a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L5357" class="s1"><td class="ln"><a href="#L5357">5357</a></td><td class="code">                <span class="kw">goto</span> pb1;</td></tr>
+<tr id="L5358" class="s1"><td class="ln"><a href="#L5358">5358</a></td><td class="code"> </td></tr>
+<tr id="L5359" class="s1"><td class="ln"><a href="#L5359">5359</a></td><td class="code">        <span class="cm">/* B2 */</span></td></tr>
+<tr id="L5360" class="s1"><td class="ln"><a href="#L5360">5360</a></td><td class="code">        <span class="kw">case</span> <span class="st">'D'</span>:</td></tr>
+<tr id="L5361" class="s1"><td class="ln"><a href="#L5361">5361</a></td><td class="code">                p = p2;</td></tr>
+<tr id="L5362" class="s1"><td class="ln"><a href="#L5362">5362</a></td><td class="code">        pbyte:</td></tr>
+<tr id="L5363" class="s1"><td class="ln"><a href="#L5363">5363</a></td><td class="code">                <span class="kw">if</span> (p-&gt;type==CHAR)</td></tr>
+<tr id="L5364" class="s1"><td class="ln"><a href="#L5364">5364</a></td><td class="code">                        <a class="id" href="../source/c04.c.html#L4095">putchar</a>(<span class="st">'b'</span>);</td></tr>
+<tr id="L5365" class="s1"><td class="ln"><a href="#L5365">5365</a></td><td class="code">        pb1:</td></tr>
+<tr id="L5366" class="s1"><td class="ln"><a href="#L5366">5366</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/c11.c.html#L6047">isfloat</a>(p))</td></tr>
+<tr id="L5367" class="s1"><td class="ln"><a href="#L5367">5367</a></td><td class="code">                        <a class="id" href="../source/c04.c.html#L4095">putchar</a>(<span class="st">'f'</span>);</td></tr>
+<tr id="L5368" class="s1"><td class="ln"><a href="#L5368">5368</a></td><td class="code">                <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5369" class="s1"><td class="ln"><a href="#L5369">5369</a></td><td class="code"> </td></tr>
+<tr id="L5370" class="s1"><td class="ln"><a href="#L5370">5370</a></td><td class="code">        <span class="cm">/* BE */</span></td></tr>
+<tr id="L5371" class="s1"><td class="ln"><a href="#L5371">5371</a></td><td class="code">        <span class="kw">case</span> <span class="st">'L'</span>:</td></tr>
+<tr id="L5372" class="s1"><td class="ln"><a href="#L5372">5372</a></td><td class="code">                <span class="kw">if</span> (p1-&gt;type==CHAR || p2-&gt;type==CHAR)</td></tr>
+<tr id="L5373" class="s1"><td class="ln"><a href="#L5373">5373</a></td><td class="code">                        <a class="id" href="../source/c04.c.html#L4095">putchar</a>(<span class="st">'b'</span>);</td></tr>
+<tr id="L5374" class="s1"><td class="ln"><a href="#L5374">5374</a></td><td class="code">                p = <a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L5375" class="s1"><td class="ln"><a href="#L5375">5375</a></td><td class="code">                <span class="kw">goto</span> pb1;</td></tr>
+<tr id="L5376" class="s1"><td class="ln"><a href="#L5376">5376</a></td><td class="code"> </td></tr>
+<tr id="L5377" class="s1"><td class="ln"><a href="#L5377">5377</a></td><td class="code">        <span class="cm">/* F */</span></td></tr>
+<tr id="L5378" class="s1"><td class="ln"><a href="#L5378">5378</a></td><td class="code">        <span class="kw">case</span> <span class="st">'G'</span>:</td></tr>
+<tr id="L5379" class="s1"><td class="ln"><a href="#L5379">5379</a></td><td class="code">                p = p1;</td></tr>
+<tr id="L5380" class="s1"><td class="ln"><a href="#L5380">5380</a></td><td class="code">                <a class="id" href="../source/cvopt.c.html#L9269">flag</a> = <span class="nu">01</span>;</td></tr>
+<tr id="L5381" class="s1"><td class="ln"><a href="#L5381">5381</a></td><td class="code">                <span class="kw">goto</span> subtre;</td></tr>
+<tr id="L5382" class="s1"><td class="ln"><a href="#L5382">5382</a></td><td class="code"> </td></tr>
+<tr id="L5383" class="s1"><td class="ln"><a href="#L5383">5383</a></td><td class="code">        <span class="cm">/* S */</span></td></tr>
+<tr id="L5384" class="s1"><td class="ln"><a href="#L5384">5384</a></td><td class="code">        <span class="kw">case</span> <span class="st">'K'</span>:</td></tr>
+<tr id="L5385" class="s1"><td class="ln"><a href="#L5385">5385</a></td><td class="code">                p = p2;</td></tr>
+<tr id="L5386" class="s1"><td class="ln"><a href="#L5386">5386</a></td><td class="code">                <a class="id" href="../source/cvopt.c.html#L9269">flag</a> = <span class="nu">02</span>;</td></tr>
+<tr id="L5387" class="s1"><td class="ln"><a href="#L5387">5387</a></td><td class="code">                <span class="kw">goto</span> subtre;</td></tr>
+<tr id="L5388" class="s1"><td class="ln"><a href="#L5388">5388</a></td><td class="code"> </td></tr>
+<tr id="L5389" class="s1"><td class="ln"><a href="#L5389">5389</a></td><td class="code">        <span class="cm">/* H */</span></td></tr>
+<tr id="L5390" class="s1"><td class="ln"><a href="#L5390">5390</a></td><td class="code">        <span class="kw">case</span> <span class="st">'H'</span>:</td></tr>
+<tr id="L5391" class="s1"><td class="ln"><a href="#L5391">5391</a></td><td class="code">                p = <a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L5392" class="s1"><td class="ln"><a href="#L5392">5392</a></td><td class="code">                <a class="id" href="../source/cvopt.c.html#L9269">flag</a> = <span class="nu">04</span>;</td></tr>
+<tr id="L5393" class="s1"><td class="ln"><a href="#L5393">5393</a></td><td class="code"> </td></tr>
+<tr id="L5394" class="s1"><td class="ln"><a href="#L5394">5394</a></td><td class="code">        subtre:</td></tr>
+<tr id="L5395" class="s1"><td class="ln"><a href="#L5395">5395</a></td><td class="code">                ctable = regtab;</td></tr>
+<tr id="L5396" class="s1"><td class="ln"><a href="#L5396">5396</a></td><td class="code">                c = *string++ - <span class="st">'A'</span>;</td></tr>
+<tr id="L5397" class="s1"><td class="ln"><a href="#L5397">5397</a></td><td class="code">                <span class="kw">if</span> (*string==<span class="st">'!'</span>) {</td></tr>
+<tr id="L5398" class="s1"><td class="ln"><a href="#L5398">5398</a></td><td class="code">                        string++;</td></tr>
+<tr id="L5399" class="s1"><td class="ln"><a href="#L5399">5399</a></td><td class="code">                        c =| <span class="nu">020</span>;       <span class="cm">/* force right register */</span></td></tr>
+<tr id="L5400" class="s0"><td class="ln"><a href="#L5400">5400</a></td><td class="code">                }</td></tr>
+<tr id="L5401" class="s0"><td class="ln"><a href="#L5401">5401</a></td><td class="code">                <span class="kw">if</span> ((c&amp;<span class="nu">02</span>)!=<span class="nu">0</span>)</td></tr>
+<tr id="L5402" class="s0"><td class="ln"><a href="#L5402">5402</a></td><td class="code">                        ctable = sptab;</td></tr>
+<tr id="L5403" class="s0"><td class="ln"><a href="#L5403">5403</a></td><td class="code">                <span class="kw">if</span> ((c&amp;<span class="nu">04</span>)!=<span class="nu">0</span>)</td></tr>
+<tr id="L5404" class="s0"><td class="ln"><a href="#L5404">5404</a></td><td class="code">                        ctable = cctab;</td></tr>
+<tr id="L5405" class="s0"><td class="ln"><a href="#L5405">5405</a></td><td class="code">                <span class="kw">if</span> ((<a class="id" href="../source/cvopt.c.html#L9269">flag</a>&amp;<span class="nu">01</span>) &amp;&amp; ctable==regtab &amp;&amp; (c&amp;<span class="nu">01</span>)==<span class="nu">0</span></td></tr>
+<tr id="L5406" class="s0"><td class="ln"><a href="#L5406">5406</a></td><td class="code">                  &amp;&amp; (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op==DIVIDE||<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op==MOD</td></tr>
+<tr id="L5407" class="s0"><td class="ln"><a href="#L5407">5407</a></td><td class="code">                   || <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op==ASDIV||<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op==ASMOD))</td></tr>
+<tr id="L5408" class="s0"><td class="ln"><a href="#L5408">5408</a></td><td class="code">                        ctable = cregtab;</td></tr>
+<tr id="L5409" class="s0"><td class="ln"><a href="#L5409">5409</a></td><td class="code">                <span class="kw">if</span> ((c&amp;<span class="nu">01</span>)!=<span class="nu">0</span>) {</td></tr>
+<tr id="L5410" class="s0"><td class="ln"><a href="#L5410">5410</a></td><td class="code">                        p = p-&gt;tr1;</td></tr>
+<tr id="L5411" class="s0"><td class="ln"><a href="#L5411">5411</a></td><td class="code">                        <span class="kw">if</span>(<a class="id" href="../source/c11.c.html#L6030">collcon</a>(p) &amp;&amp; ctable!=sptab) {</td></tr>
+<tr id="L5412" class="s0"><td class="ln"><a href="#L5412">5412</a></td><td class="code">                                <span class="kw">if</span> (p-&gt;op==STAR)</td></tr>
+<tr id="L5413" class="s0"><td class="ln"><a href="#L5413">5413</a></td><td class="code">                                        p = p-&gt;tr1;</td></tr>
+<tr id="L5414" class="s0"><td class="ln"><a href="#L5414">5414</a></td><td class="code">                                p = p-&gt;tr1;</td></tr>
+<tr id="L5415" class="s0"><td class="ln"><a href="#L5415">5415</a></td><td class="code">                        }</td></tr>
+<tr id="L5416" class="s0"><td class="ln"><a href="#L5416">5416</a></td><td class="code">                }</td></tr>
+<tr id="L5417" class="s0"><td class="ln"><a href="#L5417">5417</a></td><td class="code">                <span class="kw">if</span> (table==lsptab &amp;&amp; ctable==sptab)</td></tr>
+<tr id="L5418" class="s0"><td class="ln"><a href="#L5418">5418</a></td><td class="code">                        ctable = lsptab;</td></tr>
+<tr id="L5419" class="s0"><td class="ln"><a href="#L5419">5419</a></td><td class="code">                <span class="kw">if</span> (c&amp;<span class="nu">010</span>)</td></tr>
+<tr id="L5420" class="s0"><td class="ln"><a href="#L5420">5420</a></td><td class="code">                        r = reg1;</td></tr>
+<tr id="L5421" class="s0"><td class="ln"><a href="#L5421">5421</a></td><td class="code">                <span class="kw">else</span></td></tr>
+<tr id="L5422" class="s0"><td class="ln"><a href="#L5422">5422</a></td><td class="code">                        <span class="kw">if</span> (opdope[p-&gt;op]&amp;LEAF || p-&gt;<a class="id" href="../source/c11.c.html#L5814">degree</a> &lt; <span class="nu">2</span>)</td></tr>
+<tr id="L5423" class="s0"><td class="ln"><a href="#L5423">5423</a></td><td class="code">                                r = reg;</td></tr>
+<tr id="L5424" class="s0"><td class="ln"><a href="#L5424">5424</a></td><td class="code">                        <span class="kw">else</span></td></tr>
+<tr id="L5425" class="s0"><td class="ln"><a href="#L5425">5425</a></td><td class="code">                                r = areg;</td></tr>
+<tr id="L5426" class="s0"><td class="ln"><a href="#L5426">5426</a></td><td class="code">                rreg = <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(p, ctable, r);</td></tr>
+<tr id="L5427" class="s0"><td class="ln"><a href="#L5427">5427</a></td><td class="code">                <span class="kw">if</span> (ctable!=regtab &amp;&amp; ctable!=cregtab)</td></tr>
+<tr id="L5428" class="s0"><td class="ln"><a href="#L5428">5428</a></td><td class="code">                        <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5429" class="s0"><td class="ln"><a href="#L5429">5429</a></td><td class="code">                <span class="kw">if</span> (c&amp;<span class="nu">010</span>) {</td></tr>
+<tr id="L5430" class="s0"><td class="ln"><a href="#L5430">5430</a></td><td class="code">                        <span class="kw">if</span> (c&amp;<span class="nu">020</span> &amp;&amp; rreg!=reg1)</td></tr>
+<tr id="L5431" class="s0"><td class="ln"><a href="#L5431">5431</a></td><td class="code">                                printf(<span class="st">"mov%c   r%d,r%d\n"</span>,</td></tr>
+<tr id="L5432" class="s0"><td class="ln"><a href="#L5432">5432</a></td><td class="code">                                    <a class="id" href="../source/c11.c.html#L6047">isfloat</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>),rreg,reg1);</td></tr>
+<tr id="L5433" class="s0"><td class="ln"><a href="#L5433">5433</a></td><td class="code">                        <span class="kw">else</span></td></tr>
+<tr id="L5434" class="s0"><td class="ln"><a href="#L5434">5434</a></td><td class="code">                                reg1 = rreg;</td></tr>
+<tr id="L5435" class="s0"><td class="ln"><a href="#L5435">5435</a></td><td class="code">                } <span class="kw">else</span> <span class="kw">if</span> (rreg!=reg)</td></tr>
+<tr id="L5436" class="s0"><td class="ln"><a href="#L5436">5436</a></td><td class="code">                        <span class="kw">if</span> ((c&amp;<span class="nu">020</span>)==<span class="nu">0</span> &amp;&amp; <a class="id" href="../source/c11.c.html#L6062">oddreg</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, <span class="nu">0</span>)==<span class="nu">0</span> &amp;&amp; (<a class="id" href="../source/cvopt.c.html#L9269">flag</a>&amp;<span class="nu">04</span> ||</td></tr>
+<tr id="L5437" class="s0"><td class="ln"><a href="#L5437">5437</a></td><td class="code">                              <a class="id" href="../source/cvopt.c.html#L9269">flag</a>&amp;<span class="nu">01</span></td></tr>
+<tr id="L5438" class="s0"><td class="ln"><a href="#L5438">5438</a></td><td class="code">                          &amp;&amp; <a class="id" href="../source/c11.c.html#L5930">xdcalc</a>(p2, nreg-rreg-<span class="nu">1</span>) &lt;= (opt-&gt;tabdeg2&amp;<span class="nu">077</span>)</td></tr>
+<tr id="L5439" class="s0"><td class="ln"><a href="#L5439">5439</a></td><td class="code">                         ||   <a class="id" href="../source/cvopt.c.html#L9269">flag</a>&amp;<span class="nu">02</span></td></tr>
+<tr id="L5440" class="s0"><td class="ln"><a href="#L5440">5440</a></td><td class="code">                          &amp;&amp; <a class="id" href="../source/c11.c.html#L5930">xdcalc</a>(p1,nreg-rreg-<span class="nu">1</span>) &lt;= (opt-&gt;tabdeg1&amp;<span class="nu">077</span>))) {</td></tr>
+<tr id="L5441" class="s0"><td class="ln"><a href="#L5441">5441</a></td><td class="code">                                reg = rreg;</td></tr>
+<tr id="L5442" class="s0"><td class="ln"><a href="#L5442">5442</a></td><td class="code">                                reg1 = rreg+<span class="nu">1</span>;</td></tr>
+<tr id="L5443" class="s0"><td class="ln"><a href="#L5443">5443</a></td><td class="code">                        } <span class="kw">else</span></td></tr>
+<tr id="L5444" class="s0"><td class="ln"><a href="#L5444">5444</a></td><td class="code">                                printf(<span class="st">"mov%c\tr%d,r%d\n"</span>,</td></tr>
+<tr id="L5445" class="s0"><td class="ln"><a href="#L5445">5445</a></td><td class="code">                                    <a class="id" href="../source/c11.c.html#L6047">isfloat</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>), rreg, reg);</td></tr>
+<tr id="L5446" class="s0"><td class="ln"><a href="#L5446">5446</a></td><td class="code">                <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5447" class="s0"><td class="ln"><a href="#L5447">5447</a></td><td class="code"> </td></tr>
+<tr id="L5448" class="s0"><td class="ln"><a href="#L5448">5448</a></td><td class="code">        <span class="cm">/* R */</span></td></tr>
+<tr id="L5449" class="s0"><td class="ln"><a href="#L5449">5449</a></td><td class="code">        <span class="kw">case</span> <span class="st">'I'</span>:</td></tr>
+<tr id="L5450" class="s1"><td class="ln"><a href="#L5450">5450</a></td><td class="code">                r = reg;</td></tr>
+<tr id="L5451" class="s1"><td class="ln"><a href="#L5451">5451</a></td><td class="code">                <span class="kw">if</span> (*string==<span class="st">'-'</span>) {</td></tr>
+<tr id="L5452" class="s1"><td class="ln"><a href="#L5452">5452</a></td><td class="code">                        string++;</td></tr>
+<tr id="L5453" class="s1"><td class="ln"><a href="#L5453">5453</a></td><td class="code">                        r--;</td></tr>
+<tr id="L5454" class="s1"><td class="ln"><a href="#L5454">5454</a></td><td class="code">                }</td></tr>
+<tr id="L5455" class="s1"><td class="ln"><a href="#L5455">5455</a></td><td class="code">                <span class="kw">goto</span> preg;</td></tr>
+<tr id="L5456" class="s1"><td class="ln"><a href="#L5456">5456</a></td><td class="code"> </td></tr>
+<tr id="L5457" class="s1"><td class="ln"><a href="#L5457">5457</a></td><td class="code">        <span class="cm">/* R1 */</span></td></tr>
+<tr id="L5458" class="s1"><td class="ln"><a href="#L5458">5458</a></td><td class="code">        <span class="kw">case</span> <span class="st">'J'</span>:</td></tr>
+<tr id="L5459" class="s1"><td class="ln"><a href="#L5459">5459</a></td><td class="code">                r = reg1;</td></tr>
+<tr id="L5460" class="s1"><td class="ln"><a href="#L5460">5460</a></td><td class="code">        preg:</td></tr>
+<tr id="L5461" class="s1"><td class="ln"><a href="#L5461">5461</a></td><td class="code">                <span class="kw">if</span> (*string==<span class="st">'+'</span>) {</td></tr>
+<tr id="L5462" class="s1"><td class="ln"><a href="#L5462">5462</a></td><td class="code">                        string++;</td></tr>
+<tr id="L5463" class="s1"><td class="ln"><a href="#L5463">5463</a></td><td class="code">                        r++;</td></tr>
+<tr id="L5464" class="s1"><td class="ln"><a href="#L5464">5464</a></td><td class="code">                }</td></tr>
+<tr id="L5465" class="s1"><td class="ln"><a href="#L5465">5465</a></td><td class="code">                <span class="kw">if</span> (r&gt;nreg)</td></tr>
+<tr id="L5466" class="s1"><td class="ln"><a href="#L5466">5466</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Register overflow: simplify expression"</span>);</td></tr>
+<tr id="L5467" class="s1"><td class="ln"><a href="#L5467">5467</a></td><td class="code">                printf(<span class="st">"r%d"</span>, r);</td></tr>
+<tr id="L5468" class="s1"><td class="ln"><a href="#L5468">5468</a></td><td class="code">                <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5469" class="s1"><td class="ln"><a href="#L5469">5469</a></td><td class="code"> </td></tr>
+<tr id="L5470" class="s1"><td class="ln"><a href="#L5470">5470</a></td><td class="code">        <span class="kw">case</span> <span class="st">'-'</span>:               <span class="cm">/* check -(sp) */</span></td></tr>
+<tr id="L5471" class="s1"><td class="ln"><a href="#L5471">5471</a></td><td class="code">                <span class="kw">if</span> (*string==<span class="st">'('</span>) {</td></tr>
+<tr id="L5472" class="s1"><td class="ln"><a href="#L5472">5472</a></td><td class="code">                        nstack++;</td></tr>
+<tr id="L5473" class="s1"><td class="ln"><a href="#L5473">5473</a></td><td class="code">                        <span class="kw">if</span> (table!=lsptab)</td></tr>
+<tr id="L5474" class="s1"><td class="ln"><a href="#L5474">5474</a></td><td class="code">                                <a class="id" href="../source/c04.c.html#L4095">putchar</a>(<span class="st">'-'</span>);</td></tr>
+<tr id="L5475" class="s1"><td class="ln"><a href="#L5475">5475</a></td><td class="code">                        <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5476" class="s1"><td class="ln"><a href="#L5476">5476</a></td><td class="code">                }</td></tr>
+<tr id="L5477" class="s1"><td class="ln"><a href="#L5477">5477</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L5478" class="s1"><td class="ln"><a href="#L5478">5478</a></td><td class="code"> </td></tr>
+<tr id="L5479" class="s1"><td class="ln"><a href="#L5479">5479</a></td><td class="code">        <span class="kw">case</span> <span class="st">')'</span>:               <span class="cm">/* check (sp)+ */</span></td></tr>
+<tr id="L5480" class="s1"><td class="ln"><a href="#L5480">5480</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L4095">putchar</a>(<span class="st">')'</span>);</td></tr>
+<tr id="L5481" class="s1"><td class="ln"><a href="#L5481">5481</a></td><td class="code">                <span class="kw">if</span> (*string==<span class="st">'+'</span>)</td></tr>
+<tr id="L5482" class="s1"><td class="ln"><a href="#L5482">5482</a></td><td class="code">                        nstack--;</td></tr>
+<tr id="L5483" class="s1"><td class="ln"><a href="#L5483">5483</a></td><td class="code">                <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5484" class="s1"><td class="ln"><a href="#L5484">5484</a></td><td class="code"> </td></tr>
+<tr id="L5485" class="s1"><td class="ln"><a href="#L5485">5485</a></td><td class="code">        <span class="cm">/* #1 */</span></td></tr>
+<tr id="L5486" class="s1"><td class="ln"><a href="#L5486">5486</a></td><td class="code">        <span class="kw">case</span> <span class="st">'#'</span>:</td></tr>
+<tr id="L5487" class="s1"><td class="ln"><a href="#L5487">5487</a></td><td class="code">                p = p1-&gt;tr1;</td></tr>
+<tr id="L5488" class="s1"><td class="ln"><a href="#L5488">5488</a></td><td class="code">                <span class="kw">goto</span> nmbr;</td></tr>
+<tr id="L5489" class="s1"><td class="ln"><a href="#L5489">5489</a></td><td class="code"> </td></tr>
+<tr id="L5490" class="s1"><td class="ln"><a href="#L5490">5490</a></td><td class="code">        <span class="cm">/* #2 */</span></td></tr>
+<tr id="L5491" class="s1"><td class="ln"><a href="#L5491">5491</a></td><td class="code">        <span class="kw">case</span> <span class="st">'"'</span>:</td></tr>
+<tr id="L5492" class="s1"><td class="ln"><a href="#L5492">5492</a></td><td class="code">                p = p2-&gt;tr1;</td></tr>
+<tr id="L5493" class="s1"><td class="ln"><a href="#L5493">5493</a></td><td class="code"> </td></tr>
+<tr id="L5494" class="s1"><td class="ln"><a href="#L5494">5494</a></td><td class="code">        nmbr:</td></tr>
+<tr id="L5495" class="s1"><td class="ln"><a href="#L5495">5495</a></td><td class="code">                <span class="kw">if</span>(<a class="id" href="../source/c11.c.html#L6030">collcon</a>(p)) {</td></tr>
+<tr id="L5496" class="s1"><td class="ln"><a href="#L5496">5496</a></td><td class="code">                        <span class="kw">if</span> (p-&gt;op==STAR) {</td></tr>
+<tr id="L5497" class="s1"><td class="ln"><a href="#L5497">5497</a></td><td class="code">                                printf(<span class="st">"*"</span>);</td></tr>
+<tr id="L5498" class="s1"><td class="ln"><a href="#L5498">5498</a></td><td class="code">                                p = p-&gt;tr1;</td></tr>
+<tr id="L5499" class="s1"><td class="ln"><a href="#L5499">5499</a></td><td class="code">                        }</td></tr>
+<tr id="L5500" class="s0"><td class="ln"><a href="#L5500">5500</a></td><td class="code">                        <span class="kw">if</span> ((p = p-&gt;tr2)-&gt;op == CON) {</td></tr>
+<tr id="L5501" class="s0"><td class="ln"><a href="#L5501">5501</a></td><td class="code">                                <span class="kw">if</span> (p-&gt;value)</td></tr>
+<tr id="L5502" class="s0"><td class="ln"><a href="#L5502">5502</a></td><td class="code">                                        <a class="id" href="../source/c11.c.html#L6414">psoct</a>(p-&gt;value);</td></tr>
+<tr id="L5503" class="s0"><td class="ln"><a href="#L5503">5503</a></td><td class="code">                        } <span class="kw">else</span> <span class="kw">if</span> (p-&gt;op==AMPER)</td></tr>
+<tr id="L5504" class="s0"><td class="ln"><a href="#L5504">5504</a></td><td class="code">                                <a class="id" href="../source/c11.c.html#L5835">pname</a>(p-&gt;tr1, <span class="nu">0</span>);</td></tr>
+<tr id="L5505" class="s0"><td class="ln"><a href="#L5505">5505</a></td><td class="code">                }</td></tr>
+<tr id="L5506" class="s0"><td class="ln"><a href="#L5506">5506</a></td><td class="code">                <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5507" class="s0"><td class="ln"><a href="#L5507">5507</a></td><td class="code"> </td></tr>
+<tr id="L5508" class="s0"><td class="ln"><a href="#L5508">5508</a></td><td class="code">        <span class="kw">case</span> <span class="st">'T'</span>:               <span class="cm">/* "tst R" if 1st op not in cctab */</span></td></tr>
+<tr id="L5509" class="s0"><td class="ln"><a href="#L5509">5509</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/c11.c.html#L5947">dcalc</a>(p1, <span class="nu">5</span>)&gt;<span class="nu">12</span> &amp;&amp; !<a class="id" href="../source/c10.c.html#L4926">match</a>(p1, cctab, <span class="nu">10</span>))</td></tr>
+<tr id="L5510" class="s0"><td class="ln"><a href="#L5510">5510</a></td><td class="code">                        printf(<span class="st">"tst     r%d\n"</span>, reg);</td></tr>
+<tr id="L5511" class="s0"><td class="ln"><a href="#L5511">5511</a></td><td class="code">                <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5512" class="s0"><td class="ln"><a href="#L5512">5512</a></td><td class="code">        <span class="kw">case</span> <span class="st">'V'</span>:       <span class="cm">/* adc or sbc as required for longs */</span></td></tr>
+<tr id="L5513" class="s0"><td class="ln"><a href="#L5513">5513</a></td><td class="code">                <span class="kw">switch</span>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op) {</td></tr>
+<tr id="L5514" class="s0"><td class="ln"><a href="#L5514">5514</a></td><td class="code">                <span class="kw">case</span> PLUS:</td></tr>
+<tr id="L5515" class="s0"><td class="ln"><a href="#L5515">5515</a></td><td class="code">                <span class="kw">case</span> ASPLUS:</td></tr>
+<tr id="L5516" class="s0"><td class="ln"><a href="#L5516">5516</a></td><td class="code">                <span class="kw">case</span> INCBEF:</td></tr>
+<tr id="L5517" class="s0"><td class="ln"><a href="#L5517">5517</a></td><td class="code">                <span class="kw">case</span> INCAFT:</td></tr>
+<tr id="L5518" class="s0"><td class="ln"><a href="#L5518">5518</a></td><td class="code">                        printf(<span class="st">"adc"</span>);</td></tr>
+<tr id="L5519" class="s0"><td class="ln"><a href="#L5519">5519</a></td><td class="code">                        <span class="kw">break</span>;</td></tr>
+<tr id="L5520" class="s0"><td class="ln"><a href="#L5520">5520</a></td><td class="code"> </td></tr>
+<tr id="L5521" class="s0"><td class="ln"><a href="#L5521">5521</a></td><td class="code">                <span class="kw">case</span> MINUS:</td></tr>
+<tr id="L5522" class="s0"><td class="ln"><a href="#L5522">5522</a></td><td class="code">                <span class="kw">case</span> ASMINUS:</td></tr>
+<tr id="L5523" class="s0"><td class="ln"><a href="#L5523">5523</a></td><td class="code">                <span class="kw">case</span> NEG:</td></tr>
+<tr id="L5524" class="s0"><td class="ln"><a href="#L5524">5524</a></td><td class="code">                <span class="kw">case</span> DECBEF:</td></tr>
+<tr id="L5525" class="s0"><td class="ln"><a href="#L5525">5525</a></td><td class="code">                <span class="kw">case</span> DECAFT:</td></tr>
+<tr id="L5526" class="s0"><td class="ln"><a href="#L5526">5526</a></td><td class="code">                        printf(<span class="st">"sbc"</span>);</td></tr>
+<tr id="L5527" class="s0"><td class="ln"><a href="#L5527">5527</a></td><td class="code">                        <span class="kw">break</span>;</td></tr>
+<tr id="L5528" class="s0"><td class="ln"><a href="#L5528">5528</a></td><td class="code"> </td></tr>
+<tr id="L5529" class="s0"><td class="ln"><a href="#L5529">5529</a></td><td class="code">                <span class="kw">default</span>:</td></tr>
+<tr id="L5530" class="s0"><td class="ln"><a href="#L5530">5530</a></td><td class="code">                        <span class="kw">while</span> ((c = *string++)!=<span class="st">'\n'</span> &amp;&amp; c!=<span class="st">'\0'</span>);</td></tr>
+<tr id="L5531" class="s0"><td class="ln"><a href="#L5531">5531</a></td><td class="code">                        <span class="kw">break</span>;</td></tr>
+<tr id="L5532" class="s0"><td class="ln"><a href="#L5532">5532</a></td><td class="code">                }</td></tr>
+<tr id="L5533" class="s0"><td class="ln"><a href="#L5533">5533</a></td><td class="code">                <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5534" class="s0"><td class="ln"><a href="#L5534">5534</a></td><td class="code">        }</td></tr>
+<tr id="L5535" class="s0"><td class="ln"><a href="#L5535">5535</a></td><td class="code">        <a class="id" href="../source/c04.c.html#L4095">putchar</a>(c);</td></tr>
+<tr id="L5536" class="s0"><td class="ln"><a href="#L5536">5536</a></td><td class="code">        <span class="kw">goto</span> loop;</td></tr>
+<tr id="L5537" class="s0"><td class="ln"><a href="#L5537">5537</a></td><td class="code">}</td></tr>
+<tr id="L5538" class="s0"><td class="ln"><a href="#L5538">5538</a></td><td class="code"> </td></tr>
+<tr id="L5539" class="s0"><td class="ln"><a href="#L5539">5539</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L5540" class="s0"><td class="ln"><a href="#L5540">5540</a></td><td class="code"><span class="cm"> * This routine just calls sreorder (below)</span></td></tr>
+<tr id="L5541" class="s0"><td class="ln"><a href="#L5541">5541</a></td><td class="code"><span class="cm"> * on the subtrees and then on the tree itself.</span></td></tr>
+<tr id="L5542" class="s0"><td class="ln"><a href="#L5542">5542</a></td><td class="code"><span class="cm"> * It returns non-zero if anything changed.</span></td></tr>
+<tr id="L5543" class="s0"><td class="ln"><a href="#L5543">5543</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L5544" class="s0"><td class="ln"><a href="#L5544">5544</a></td><td class="code"><span class="def">reorder</span>(treep, table, reg)</td></tr>
+<tr id="L5545" class="s0"><td class="ln"><a href="#L5545">5545</a></td><td class="code"><span class="kw">struct</span> tnode **treep;</td></tr>
+<tr id="L5546" class="s0"><td class="ln"><a href="#L5546">5546</a></td><td class="code"><span class="kw">struct</span> table *table;</td></tr>
+<tr id="L5547" class="s0"><td class="ln"><a href="#L5547">5547</a></td><td class="code">{</td></tr>
+<tr id="L5548" class="s0"><td class="ln"><a href="#L5548">5548</a></td><td class="code">        <span class="kw">register</span> r, r1;</td></tr>
+<tr id="L5549" class="s0"><td class="ln"><a href="#L5549">5549</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p;</td></tr>
+<tr id="L5550" class="s1"><td class="ln"><a href="#L5550">5550</a></td><td class="code"> </td></tr>
+<tr id="L5551" class="s1"><td class="ln"><a href="#L5551">5551</a></td><td class="code">        p = *treep;</td></tr>
+<tr id="L5552" class="s1"><td class="ln"><a href="#L5552">5552</a></td><td class="code">        <span class="kw">if</span> (opdope[p-&gt;op]&amp;LEAF)</td></tr>
+<tr id="L5553" class="s1"><td class="ln"><a href="#L5553">5553</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5554" class="s1"><td class="ln"><a href="#L5554">5554</a></td><td class="code">        r1 = <span class="nu">0</span>;</td></tr>
+<tr id="L5555" class="s1"><td class="ln"><a href="#L5555">5555</a></td><td class="code">        <span class="kw">while</span>(<a class="id" href="../source/c10.c.html#L5577">sreorder</a>(&amp;p-&gt;tr1, table, reg))</td></tr>
+<tr id="L5556" class="s1"><td class="ln"><a href="#L5556">5556</a></td><td class="code">                r1++;</td></tr>
+<tr id="L5557" class="s1"><td class="ln"><a href="#L5557">5557</a></td><td class="code">        <span class="kw">if</span> (opdope[p-&gt;op]&amp;BINARY) </td></tr>
+<tr id="L5558" class="s1"><td class="ln"><a href="#L5558">5558</a></td><td class="code">                <span class="kw">while</span>(<a class="id" href="../source/c10.c.html#L5577">sreorder</a>(&amp;p-&gt;tr2, table, reg))</td></tr>
+<tr id="L5559" class="s1"><td class="ln"><a href="#L5559">5559</a></td><td class="code">                        r1++;</td></tr>
+<tr id="L5560" class="s1"><td class="ln"><a href="#L5560">5560</a></td><td class="code">        r = <span class="nu">0</span>;</td></tr>
+<tr id="L5561" class="s1"><td class="ln"><a href="#L5561">5561</a></td><td class="code">        <span class="kw">while</span> (<a class="id" href="../source/c10.c.html#L5577">sreorder</a>(treep, table, reg))</td></tr>
+<tr id="L5562" class="s1"><td class="ln"><a href="#L5562">5562</a></td><td class="code">                r++;</td></tr>
+<tr id="L5563" class="s1"><td class="ln"><a href="#L5563">5563</a></td><td class="code">        *treep = <a class="id" href="../source/c12.c.html#L6658">optim</a>(*treep);</td></tr>
+<tr id="L5564" class="s1"><td class="ln"><a href="#L5564">5564</a></td><td class="code">        <span class="kw">return</span>(r);</td></tr>
+<tr id="L5565" class="s1"><td class="ln"><a href="#L5565">5565</a></td><td class="code">}</td></tr>
+<tr id="L5566" class="s1"><td class="ln"><a href="#L5566">5566</a></td><td class="code"> </td></tr>
+<tr id="L5567" class="s1"><td class="ln"><a href="#L5567">5567</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L5568" class="s1"><td class="ln"><a href="#L5568">5568</a></td><td class="code"><span class="cm"> * Basically this routine carries out two kinds of optimization.</span></td></tr>
+<tr id="L5569" class="s1"><td class="ln"><a href="#L5569">5569</a></td><td class="code"><span class="cm"> * First, it observes that "x + (reg = y)" where actually</span></td></tr>
+<tr id="L5570" class="s1"><td class="ln"><a href="#L5570">5570</a></td><td class="code"><span class="cm"> * the = is any assignment op is better done as "reg=y; x+reg".</span></td></tr>
+<tr id="L5571" class="s1"><td class="ln"><a href="#L5571">5571</a></td><td class="code"><span class="cm"> * In this case rcexpr is called to do the first part and the</span></td></tr>
+<tr id="L5572" class="s1"><td class="ln"><a href="#L5572">5572</a></td><td class="code"><span class="cm"> * tree is modified so the name of the register</span></td></tr>
+<tr id="L5573" class="s1"><td class="ln"><a href="#L5573">5573</a></td><td class="code"><span class="cm"> * replaces the assignment.</span></td></tr>
+<tr id="L5574" class="s1"><td class="ln"><a href="#L5574">5574</a></td><td class="code"><span class="cm"> * Moreover, expressions like "reg = x+y" are best done as</span></td></tr>
+<tr id="L5575" class="s1"><td class="ln"><a href="#L5575">5575</a></td><td class="code"><span class="cm"> * "reg = x; reg =+ y" (so long as "reg" and "y" are not the same!).</span></td></tr>
+<tr id="L5576" class="s1"><td class="ln"><a href="#L5576">5576</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L5577" class="s1"><td class="ln"><a href="#L5577">5577</a></td><td class="code"><span class="def">sreorder</span>(treep, table, reg)</td></tr>
+<tr id="L5578" class="s1"><td class="ln"><a href="#L5578">5578</a></td><td class="code"><span class="kw">struct</span> tnode **treep;</td></tr>
+<tr id="L5579" class="s1"><td class="ln"><a href="#L5579">5579</a></td><td class="code"><span class="kw">struct</span> table *table;</td></tr>
+<tr id="L5580" class="s1"><td class="ln"><a href="#L5580">5580</a></td><td class="code">{</td></tr>
+<tr id="L5581" class="s1"><td class="ln"><a href="#L5581">5581</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p, *p1;</td></tr>
+<tr id="L5582" class="s1"><td class="ln"><a href="#L5582">5582</a></td><td class="code"> </td></tr>
+<tr id="L5583" class="s1"><td class="ln"><a href="#L5583">5583</a></td><td class="code">        p = *treep;</td></tr>
+<tr id="L5584" class="s1"><td class="ln"><a href="#L5584">5584</a></td><td class="code">        <span class="kw">if</span> (opdope[p-&gt;op]&amp;LEAF)</td></tr>
+<tr id="L5585" class="s1"><td class="ln"><a href="#L5585">5585</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5586" class="s1"><td class="ln"><a href="#L5586">5586</a></td><td class="code">        <span class="kw">if</span> (p-&gt;op==PLUS)</td></tr>
+<tr id="L5587" class="s1"><td class="ln"><a href="#L5587">5587</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/c10.c.html#L5544">reorder</a>(&amp;p-&gt;tr2, table, reg))</td></tr>
+<tr id="L5588" class="s1"><td class="ln"><a href="#L5588">5588</a></td><td class="code">                        *treep = p = <a class="id" href="../source/c12.c.html#L6658">optim</a>(p);</td></tr>
+<tr id="L5589" class="s1"><td class="ln"><a href="#L5589">5589</a></td><td class="code">        p1 = p-&gt;tr1;</td></tr>
+<tr id="L5590" class="s1"><td class="ln"><a href="#L5590">5590</a></td><td class="code">        <span class="kw">if</span> (p-&gt;op==STAR || p-&gt;op==PLUS) {</td></tr>
+<tr id="L5591" class="s1"><td class="ln"><a href="#L5591">5591</a></td><td class="code">                <span class="kw">if</span> (<a class="id" href="../source/c10.c.html#L5544">reorder</a>(&amp;p-&gt;tr1, table, reg))</td></tr>
+<tr id="L5592" class="s1"><td class="ln"><a href="#L5592">5592</a></td><td class="code">                        *treep = p = <a class="id" href="../source/c12.c.html#L6658">optim</a>(p);</td></tr>
+<tr id="L5593" class="s1"><td class="ln"><a href="#L5593">5593</a></td><td class="code">                p1 = p-&gt;tr1;</td></tr>
+<tr id="L5594" class="s1"><td class="ln"><a href="#L5594">5594</a></td><td class="code">        }</td></tr>
+<tr id="L5595" class="s1"><td class="ln"><a href="#L5595">5595</a></td><td class="code">        <span class="kw">if</span> (p1-&gt;op==NAME) <span class="kw">switch</span>(p-&gt;op) {</td></tr>
+<tr id="L5596" class="s1"><td class="ln"><a href="#L5596">5596</a></td><td class="code">                <span class="kw">case</span> ASLSH:</td></tr>
+<tr id="L5597" class="s1"><td class="ln"><a href="#L5597">5597</a></td><td class="code">                <span class="kw">case</span> ASRSH:</td></tr>
+<tr id="L5598" class="s1"><td class="ln"><a href="#L5598">5598</a></td><td class="code">                <span class="kw">case</span> ASSIGN:</td></tr>
+<tr id="L5599" class="s1"><td class="ln"><a href="#L5599">5599</a></td><td class="code">                        <span class="kw">if</span> (p1-&gt;class != REG || <a class="id" href="../source/c11.c.html#L6047">isfloat</a>(p-&gt;tr2))</td></tr>
+<tr id="L5600" class="s0"><td class="ln"><a href="#L5600">5600</a></td><td class="code">                                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5601" class="s0"><td class="ln"><a href="#L5601">5601</a></td><td class="code">                        <span class="kw">if</span> (p-&gt;op==ASSIGN) <span class="kw">switch</span> (p-&gt;tr2-&gt;op) {</td></tr>
+<tr id="L5602" class="s0"><td class="ln"><a href="#L5602">5602</a></td><td class="code">                        <span class="kw">case</span> TIMES:</td></tr>
+<tr id="L5603" class="s0"><td class="ln"><a href="#L5603">5603</a></td><td class="code">                        <span class="kw">case</span> DIVIDE:</td></tr>
+<tr id="L5604" class="s0"><td class="ln"><a href="#L5604">5604</a></td><td class="code">                                <span class="kw">if</span> (!<a class="id" href="../source/c11.c.html#L6258">ispow2</a>(p-&gt;tr2))</td></tr>
+<tr id="L5605" class="s0"><td class="ln"><a href="#L5605">5605</a></td><td class="code">                                        <span class="kw">break</span>;</td></tr>
+<tr id="L5606" class="s0"><td class="ln"><a href="#L5606">5606</a></td><td class="code">                                p-&gt;tr2 = <a class="id" href="../source/c11.c.html#L6272">pow2</a>(p-&gt;tr2);</td></tr>
+<tr id="L5607" class="s0"><td class="ln"><a href="#L5607">5607</a></td><td class="code">                        <span class="kw">case</span> PLUS:</td></tr>
+<tr id="L5608" class="s0"><td class="ln"><a href="#L5608">5608</a></td><td class="code">                        <span class="kw">case</span> MINUS:</td></tr>
+<tr id="L5609" class="s0"><td class="ln"><a href="#L5609">5609</a></td><td class="code">                        <span class="kw">case</span> AND:</td></tr>
+<tr id="L5610" class="s0"><td class="ln"><a href="#L5610">5610</a></td><td class="code">                        <span class="kw">case</span> NAND:</td></tr>
+<tr id="L5611" class="s0"><td class="ln"><a href="#L5611">5611</a></td><td class="code">                        <span class="kw">case</span> OR:</td></tr>
+<tr id="L5612" class="s0"><td class="ln"><a href="#L5612">5612</a></td><td class="code">                        <span class="kw">case</span> EXOR:</td></tr>
+<tr id="L5613" class="s0"><td class="ln"><a href="#L5613">5613</a></td><td class="code">                        <span class="kw">case</span> LSHIFT:</td></tr>
+<tr id="L5614" class="s0"><td class="ln"><a href="#L5614">5614</a></td><td class="code">                        <span class="kw">case</span> RSHIFT:</td></tr>
+<tr id="L5615" class="s0"><td class="ln"><a href="#L5615">5615</a></td><td class="code">                                p1 = p-&gt;tr2-&gt;tr2;</td></tr>
+<tr id="L5616" class="s0"><td class="ln"><a href="#L5616">5616</a></td><td class="code">                                <span class="kw">if</span> (<a class="id" href="../source/c11.c.html#L5930">xdcalc</a>(p1) &gt; <span class="nu">12</span></td></tr>
+<tr id="L5617" class="s0"><td class="ln"><a href="#L5617">5617</a></td><td class="code">                                 || p1-&gt;op==NAME</td></tr>
+<tr id="L5618" class="s0"><td class="ln"><a href="#L5618">5618</a></td><td class="code">                                 &amp;&amp;(p1-&gt;nloc==p-&gt;tr1-&gt;nloc</td></tr>
+<tr id="L5619" class="s0"><td class="ln"><a href="#L5619">5619</a></td><td class="code">                                  || p1-&gt;regno==p-&gt;tr1-&gt;nloc))</td></tr>
+<tr id="L5620" class="s0"><td class="ln"><a href="#L5620">5620</a></td><td class="code">                                        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5621" class="s0"><td class="ln"><a href="#L5621">5621</a></td><td class="code">                                p1 = p-&gt;tr2;</td></tr>
+<tr id="L5622" class="s0"><td class="ln"><a href="#L5622">5622</a></td><td class="code">                                p-&gt;tr2 = p1-&gt;tr1;</td></tr>
+<tr id="L5623" class="s0"><td class="ln"><a href="#L5623">5623</a></td><td class="code">                                <span class="kw">if</span> (p1-&gt;tr1-&gt;op!=NAME</td></tr>
+<tr id="L5624" class="s0"><td class="ln"><a href="#L5624">5624</a></td><td class="code">                                 || p1-&gt;tr1-&gt;class!=REG</td></tr>
+<tr id="L5625" class="s0"><td class="ln"><a href="#L5625">5625</a></td><td class="code">                                 || p1-&gt;tr1-&gt;nloc!=p-&gt;tr1-&gt;nloc)</td></tr>
+<tr id="L5626" class="s0"><td class="ln"><a href="#L5626">5626</a></td><td class="code">                                        <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(p, efftab, reg);</td></tr>
+<tr id="L5627" class="s0"><td class="ln"><a href="#L5627">5627</a></td><td class="code">                                p-&gt;tr2 = p1-&gt;tr2;</td></tr>
+<tr id="L5628" class="s0"><td class="ln"><a href="#L5628">5628</a></td><td class="code">                                p-&gt;op = p1-&gt;op + ASPLUS - PLUS;</td></tr>
+<tr id="L5629" class="s0"><td class="ln"><a href="#L5629">5629</a></td><td class="code">                                *treep = p;</td></tr>
+<tr id="L5630" class="s0"><td class="ln"><a href="#L5630">5630</a></td><td class="code">                                <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L5631" class="s0"><td class="ln"><a href="#L5631">5631</a></td><td class="code">                        }</td></tr>
+<tr id="L5632" class="s0"><td class="ln"><a href="#L5632">5632</a></td><td class="code">                        <span class="kw">goto</span> OK;</td></tr>
+<tr id="L5633" class="s0"><td class="ln"><a href="#L5633">5633</a></td><td class="code"> </td></tr>
+<tr id="L5634" class="s0"><td class="ln"><a href="#L5634">5634</a></td><td class="code">                <span class="kw">case</span> ASTIMES:</td></tr>
+<tr id="L5635" class="s0"><td class="ln"><a href="#L5635">5635</a></td><td class="code">                <span class="kw">case</span> ASDIV:</td></tr>
+<tr id="L5636" class="s0"><td class="ln"><a href="#L5636">5636</a></td><td class="code">                        <span class="kw">if</span> (!<a class="id" href="../source/c11.c.html#L6258">ispow2</a>(p))</td></tr>
+<tr id="L5637" class="s0"><td class="ln"><a href="#L5637">5637</a></td><td class="code">                                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5638" class="s0"><td class="ln"><a href="#L5638">5638</a></td><td class="code">                <span class="kw">case</span> ASPLUS:</td></tr>
+<tr id="L5639" class="s0"><td class="ln"><a href="#L5639">5639</a></td><td class="code">                <span class="kw">case</span> ASMINUS:</td></tr>
+<tr id="L5640" class="s0"><td class="ln"><a href="#L5640">5640</a></td><td class="code">                <span class="kw">case</span> ASSAND:</td></tr>
+<tr id="L5641" class="s0"><td class="ln"><a href="#L5641">5641</a></td><td class="code">                <span class="kw">case</span> ASSNAND:</td></tr>
+<tr id="L5642" class="s0"><td class="ln"><a href="#L5642">5642</a></td><td class="code">                <span class="kw">case</span> ASOR:</td></tr>
+<tr id="L5643" class="s0"><td class="ln"><a href="#L5643">5643</a></td><td class="code">                <span class="kw">case</span> ASXOR:</td></tr>
+<tr id="L5644" class="s0"><td class="ln"><a href="#L5644">5644</a></td><td class="code">                <span class="kw">case</span> DECBEF:</td></tr>
+<tr id="L5645" class="s0"><td class="ln"><a href="#L5645">5645</a></td><td class="code">                <span class="kw">case</span> INCBEF:</td></tr>
+<tr id="L5646" class="s0"><td class="ln"><a href="#L5646">5646</a></td><td class="code">                OK:</td></tr>
+<tr id="L5647" class="s0"><td class="ln"><a href="#L5647">5647</a></td><td class="code">                        <span class="kw">if</span> (table==cctab||table==cregtab)</td></tr>
+<tr id="L5648" class="s0"><td class="ln"><a href="#L5648">5648</a></td><td class="code">                                reg =+ <span class="nu">020</span>;</td></tr>
+<tr id="L5649" class="s0"><td class="ln"><a href="#L5649">5649</a></td><td class="code">                        <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(<a class="id" href="../source/c12.c.html#L6658">optim</a>(p), efftab, ~reg);</td></tr>
+<tr id="L5650" class="s1"><td class="ln"><a href="#L5650">5650</a></td><td class="code">                        *treep = p1;</td></tr>
+<tr id="L5651" class="s1"><td class="ln"><a href="#L5651">5651</a></td><td class="code">                        <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L5652" class="s1"><td class="ln"><a href="#L5652">5652</a></td><td class="code">        }</td></tr>
+<tr id="L5653" class="s1"><td class="ln"><a href="#L5653">5653</a></td><td class="code">        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5654" class="s1"><td class="ln"><a href="#L5654">5654</a></td><td class="code">}</td></tr>
+<tr id="L5655" class="s1"><td class="ln"><a href="#L5655">5655</a></td><td class="code"> </td></tr>
+<tr id="L5656" class="s1"><td class="ln"><a href="#L5656">5656</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L5657" class="s1"><td class="ln"><a href="#L5657">5657</a></td><td class="code"><span class="cm"> * Delay handles postfix ++ and -- </span></td></tr>
+<tr id="L5658" class="s1"><td class="ln"><a href="#L5658">5658</a></td><td class="code"><span class="cm"> * It observes that "x + y++" is better</span></td></tr>
+<tr id="L5659" class="s1"><td class="ln"><a href="#L5659">5659</a></td><td class="code"><span class="cm"> * treated as "x + y; y++".</span></td></tr>
+<tr id="L5660" class="s1"><td class="ln"><a href="#L5660">5660</a></td><td class="code"><span class="cm"> * If the operator is ++ or -- itself,</span></td></tr>
+<tr id="L5661" class="s1"><td class="ln"><a href="#L5661">5661</a></td><td class="code"><span class="cm"> * it calls rcexpr to load the operand, letting</span></td></tr>
+<tr id="L5662" class="s1"><td class="ln"><a href="#L5662">5662</a></td><td class="code"><span class="cm"> * the calling instance of rcexpr to do the</span></td></tr>
+<tr id="L5663" class="s1"><td class="ln"><a href="#L5663">5663</a></td><td class="code"><span class="cm"> * ++ using efftab.</span></td></tr>
+<tr id="L5664" class="s1"><td class="ln"><a href="#L5664">5664</a></td><td class="code"><span class="cm"> * Otherwise it uses sdelay to search for inc/dec</span></td></tr>
+<tr id="L5665" class="s1"><td class="ln"><a href="#L5665">5665</a></td><td class="code"><span class="cm"> * among the operands.</span></td></tr>
+<tr id="L5666" class="s1"><td class="ln"><a href="#L5666">5666</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L5667" class="s1"><td class="ln"><a href="#L5667">5667</a></td><td class="code"><span class="def">delay</span>(treep, table, reg)</td></tr>
+<tr id="L5668" class="s1"><td class="ln"><a href="#L5668">5668</a></td><td class="code"><span class="kw">struct</span> tnode **treep;</td></tr>
+<tr id="L5669" class="s1"><td class="ln"><a href="#L5669">5669</a></td><td class="code">{</td></tr>
+<tr id="L5670" class="s1"><td class="ln"><a href="#L5670">5670</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p, *p1;</td></tr>
+<tr id="L5671" class="s1"><td class="ln"><a href="#L5671">5671</a></td><td class="code">        <span class="kw">register</span> r;</td></tr>
+<tr id="L5672" class="s1"><td class="ln"><a href="#L5672">5672</a></td><td class="code"> </td></tr>
+<tr id="L5673" class="s1"><td class="ln"><a href="#L5673">5673</a></td><td class="code">        p = *treep;</td></tr>
+<tr id="L5674" class="s1"><td class="ln"><a href="#L5674">5674</a></td><td class="code">        <span class="kw">if</span> (table!=efftab &amp;&amp; (p-&gt;op==INCAFT||p-&gt;op==DECAFT)</td></tr>
+<tr id="L5675" class="s1"><td class="ln"><a href="#L5675">5675</a></td><td class="code">         &amp;&amp; p-&gt;tr1-&gt;op==NAME) {</td></tr>
+<tr id="L5676" class="s1"><td class="ln"><a href="#L5676">5676</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">1</span>+<a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(p-&gt;tr1, table, reg));</td></tr>
+<tr id="L5677" class="s1"><td class="ln"><a href="#L5677">5677</a></td><td class="code">        }</td></tr>
+<tr id="L5678" class="s1"><td class="ln"><a href="#L5678">5678</a></td><td class="code">        p1 = <span class="nu">0</span>;</td></tr>
+<tr id="L5679" class="s1"><td class="ln"><a href="#L5679">5679</a></td><td class="code">        <span class="kw">if</span> (opdope[p-&gt;op]&amp;BINARY)</td></tr>
+<tr id="L5680" class="s1"><td class="ln"><a href="#L5680">5680</a></td><td class="code">                p1 = <a class="id" href="../source/c10.c.html#L5691">sdelay</a>(&amp;p-&gt;tr2);</td></tr>
+<tr id="L5681" class="s1"><td class="ln"><a href="#L5681">5681</a></td><td class="code">        <span class="kw">if</span> (p1==<span class="nu">0</span>)</td></tr>
+<tr id="L5682" class="s1"><td class="ln"><a href="#L5682">5682</a></td><td class="code">                p1 = <a class="id" href="../source/c10.c.html#L5691">sdelay</a>(&amp;p-&gt;tr1);</td></tr>
+<tr id="L5683" class="s1"><td class="ln"><a href="#L5683">5683</a></td><td class="code">        <span class="kw">if</span> (p1) {</td></tr>
+<tr id="L5684" class="s1"><td class="ln"><a href="#L5684">5684</a></td><td class="code">                r = <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(<a class="id" href="../source/c12.c.html#L6658">optim</a>(p), table, reg);</td></tr>
+<tr id="L5685" class="s1"><td class="ln"><a href="#L5685">5685</a></td><td class="code">                *treep = p1;</td></tr>
+<tr id="L5686" class="s1"><td class="ln"><a href="#L5686">5686</a></td><td class="code">                <span class="kw">return</span>(r+<span class="nu">1</span>);</td></tr>
+<tr id="L5687" class="s1"><td class="ln"><a href="#L5687">5687</a></td><td class="code">        }</td></tr>
+<tr id="L5688" class="s1"><td class="ln"><a href="#L5688">5688</a></td><td class="code">        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5689" class="s1"><td class="ln"><a href="#L5689">5689</a></td><td class="code">}</td></tr>
+<tr id="L5690" class="s1"><td class="ln"><a href="#L5690">5690</a></td><td class="code"> </td></tr>
+<tr id="L5691" class="s1"><td class="ln"><a href="#L5691">5691</a></td><td class="code"><span class="def">sdelay</span>(ap)</td></tr>
+<tr id="L5692" class="s1"><td class="ln"><a href="#L5692">5692</a></td><td class="code"><span class="kw">struct</span> tnode **ap;</td></tr>
+<tr id="L5693" class="s1"><td class="ln"><a href="#L5693">5693</a></td><td class="code">{</td></tr>
+<tr id="L5694" class="s1"><td class="ln"><a href="#L5694">5694</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p, *p1;</td></tr>
+<tr id="L5695" class="s1"><td class="ln"><a href="#L5695">5695</a></td><td class="code"> </td></tr>
+<tr id="L5696" class="s1"><td class="ln"><a href="#L5696">5696</a></td><td class="code">        p = *ap;</td></tr>
+<tr id="L5697" class="s1"><td class="ln"><a href="#L5697">5697</a></td><td class="code">        <span class="kw">if</span> ((p-&gt;op==INCAFT||p-&gt;op==DECAFT) &amp;&amp; p-&gt;tr1-&gt;op==NAME) {</td></tr>
+<tr id="L5698" class="s1"><td class="ln"><a href="#L5698">5698</a></td><td class="code">                *ap = <a class="id" href="../source/c10.c.html#L5716">ncopy</a>(p-&gt;tr1);</td></tr>
+<tr id="L5699" class="s1"><td class="ln"><a href="#L5699">5699</a></td><td class="code">                <span class="kw">return</span>(p);</td></tr>
+<tr id="L5700" class="s0"><td class="ln"><a href="#L5700">5700</a></td><td class="code">        }</td></tr>
+<tr id="L5701" class="s0"><td class="ln"><a href="#L5701">5701</a></td><td class="code">        <span class="kw">if</span> (p-&gt;op==STAR || p-&gt;op==PLUS)</td></tr>
+<tr id="L5702" class="s0"><td class="ln"><a href="#L5702">5702</a></td><td class="code">                <span class="kw">if</span> (p1=<a class="id" href="../source/c10.c.html#L5691">sdelay</a>(&amp;p-&gt;tr1))</td></tr>
+<tr id="L5703" class="s0"><td class="ln"><a href="#L5703">5703</a></td><td class="code">                        <span class="kw">return</span>(p1);</td></tr>
+<tr id="L5704" class="s0"><td class="ln"><a href="#L5704">5704</a></td><td class="code">        <span class="kw">if</span> (p-&gt;op==PLUS)</td></tr>
+<tr id="L5705" class="s0"><td class="ln"><a href="#L5705">5705</a></td><td class="code">                <span class="kw">return</span>(<a class="id" href="../source/c10.c.html#L5691">sdelay</a>(&amp;p-&gt;tr2));</td></tr>
+<tr id="L5706" class="s0"><td class="ln"><a href="#L5706">5706</a></td><td class="code">        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L5707" class="s0"><td class="ln"><a href="#L5707">5707</a></td><td class="code">}</td></tr>
+<tr id="L5708" class="s0"><td class="ln"><a href="#L5708">5708</a></td><td class="code"> </td></tr>
+<tr id="L5709" class="s0"><td class="ln"><a href="#L5709">5709</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L5710" class="s0"><td class="ln"><a href="#L5710">5710</a></td><td class="code"><span class="cm"> * Copy a tree node for a register variable.</span></td></tr>
+<tr id="L5711" class="s0"><td class="ln"><a href="#L5711">5711</a></td><td class="code"><span class="cm"> * Used by sdelay because if *reg-- is turned</span></td></tr>
+<tr id="L5712" class="s0"><td class="ln"><a href="#L5712">5712</a></td><td class="code"><span class="cm"> * into *reg; reg-- the *reg will in turn</span></td></tr>
+<tr id="L5713" class="s0"><td class="ln"><a href="#L5713">5713</a></td><td class="code"><span class="cm"> * be changed to some offset class, accidentally</span></td></tr>
+<tr id="L5714" class="s0"><td class="ln"><a href="#L5714">5714</a></td><td class="code"><span class="cm"> * modifying the reg--.</span></td></tr>
+<tr id="L5715" class="s0"><td class="ln"><a href="#L5715">5715</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L5716" class="s0"><td class="ln"><a href="#L5716">5716</a></td><td class="code"><span class="def">ncopy</span>(ap)</td></tr>
+<tr id="L5717" class="s0"><td class="ln"><a href="#L5717">5717</a></td><td class="code"><span class="kw">struct</span> tname *ap;</td></tr>
+<tr id="L5718" class="s0"><td class="ln"><a href="#L5718">5718</a></td><td class="code">{</td></tr>
+<tr id="L5719" class="s0"><td class="ln"><a href="#L5719">5719</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tname *p;</td></tr>
+<tr id="L5720" class="s0"><td class="ln"><a href="#L5720">5720</a></td><td class="code"> </td></tr>
+<tr id="L5721" class="s0"><td class="ln"><a href="#L5721">5721</a></td><td class="code">        p = ap;</td></tr>
+<tr id="L5722" class="s0"><td class="ln"><a href="#L5722">5722</a></td><td class="code">        <span class="kw">if</span> (p-&gt;class!=REG)</td></tr>
+<tr id="L5723" class="s0"><td class="ln"><a href="#L5723">5723</a></td><td class="code">                <span class="kw">return</span>(p);</td></tr>
+<tr id="L5724" class="s0"><td class="ln"><a href="#L5724">5724</a></td><td class="code">        <span class="kw">return</span>(<a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">3</span>, NAME, p-&gt;type, p-&gt;elsize, p-&gt;tr1,</td></tr>
+<tr id="L5725" class="s0"><td class="ln"><a href="#L5725">5725</a></td><td class="code">            p-&gt;offset, p-&gt;nloc));</td></tr>
+<tr id="L5726" class="s0"><td class="ln"><a href="#L5726">5726</a></td><td class="code">}</td></tr>
+<tr id="L5727" class="s0"><td class="ln"><a href="#L5727">5727</a></td><td class="code"> </td></tr>
+<tr id="L5728" class="s0"><td class="ln"><a href="#L5728">5728</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L5729" class="s0"><td class="ln"><a href="#L5729">5729</a></td><td class="code"><span class="cm"> * If the tree can be immediately loaded into a register,</span></td></tr>
+<tr id="L5730" class="s0"><td class="ln"><a href="#L5730">5730</a></td><td class="code"><span class="cm"> * produce code to do so and return success.</span></td></tr>
+<tr id="L5731" class="s0"><td class="ln"><a href="#L5731">5731</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L5732" class="s0"><td class="ln"><a href="#L5732">5732</a></td><td class="code"><span class="def">chkleaf</span>(atree, table, reg)</td></tr>
+<tr id="L5733" class="s0"><td class="ln"><a href="#L5733">5733</a></td><td class="code"><span class="kw">struct</span> tnode *atree;</td></tr>
+<tr id="L5734" class="s0"><td class="ln"><a href="#L5734">5734</a></td><td class="code">{</td></tr>
+<tr id="L5735" class="s0"><td class="ln"><a href="#L5735">5735</a></td><td class="code">        <span class="kw">struct</span> tnode lbuf;</td></tr>
+<tr id="L5736" class="s0"><td class="ln"><a href="#L5736">5736</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *<a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L5737" class="s0"><td class="ln"><a href="#L5737">5737</a></td><td class="code"> </td></tr>
+<tr id="L5738" class="s0"><td class="ln"><a href="#L5738">5738</a></td><td class="code">        <a class="id" href="../source/c00.c.html#L1817">tree</a> = atree;</td></tr>
+<tr id="L5739" class="s0"><td class="ln"><a href="#L5739">5739</a></td><td class="code">        <span class="kw">if</span> (<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;op!=STAR &amp;&amp; <a class="id" href="../source/c11.c.html#L5947">dcalc</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, nreg-reg) &gt; <span class="nu">12</span>)</td></tr>
+<tr id="L5740" class="s0"><td class="ln"><a href="#L5740">5740</a></td><td class="code">                <span class="kw">return</span>(-<span class="nu">1</span>);</td></tr>
+<tr id="L5741" class="s0"><td class="ln"><a href="#L5741">5741</a></td><td class="code">        lbuf.op = LOAD;</td></tr>
+<tr id="L5742" class="s0"><td class="ln"><a href="#L5742">5742</a></td><td class="code">        lbuf.type = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;type;</td></tr>
+<tr id="L5743" class="s0"><td class="ln"><a href="#L5743">5743</a></td><td class="code">        lbuf.<a class="id" href="../source/c11.c.html#L5814">degree</a> = <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;<a class="id" href="../source/c11.c.html#L5814">degree</a>;</td></tr>
+<tr id="L5744" class="s0"><td class="ln"><a href="#L5744">5744</a></td><td class="code">        lbuf.tr1 = <a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L5745" class="s0"><td class="ln"><a href="#L5745">5745</a></td><td class="code">        <span class="kw">return</span>(<a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(&amp;lbuf, table, reg));</td></tr>
+<tr id="L5746" class="s0"><td class="ln"><a href="#L5746">5746</a></td><td class="code">}</td></tr>
+<tr id="L5747" class="s0"><td class="ln"><a href="#L5747">5747</a></td><td class="code"> </td></tr>
+<tr id="L5748" class="s0"><td class="ln"><a href="#L5748">5748</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L5749" class="s0"><td class="ln"><a href="#L5749">5749</a></td><td class="code"><span class="cm"> * Compile a function argument.</span></td></tr>
+<tr id="L5750" class="s1"><td class="ln"><a href="#L5750">5750</a></td><td class="code"><span class="cm"> * If the stack is currently empty, put it in (sp)</span></td></tr>
+<tr id="L5751" class="s1"><td class="ln"><a href="#L5751">5751</a></td><td class="code"><span class="cm"> * rather than -(sp); this will save a pop.</span></td></tr>
+<tr id="L5752" class="s1"><td class="ln"><a href="#L5752">5752</a></td><td class="code"><span class="cm"> * Return the number of bytes pushed,</span></td></tr>
+<tr id="L5753" class="s1"><td class="ln"><a href="#L5753">5753</a></td><td class="code"><span class="cm"> * for future popping.</span></td></tr>
+<tr id="L5754" class="s1"><td class="ln"><a href="#L5754">5754</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L5755" class="s1"><td class="ln"><a href="#L5755">5755</a></td><td class="code"><span class="def">comarg</span>(atree, flagp)</td></tr>
+<tr id="L5756" class="s1"><td class="ln"><a href="#L5756">5756</a></td><td class="code"><span class="kw">int</span> *flagp;</td></tr>
+<tr id="L5757" class="s1"><td class="ln"><a href="#L5757">5757</a></td><td class="code">{</td></tr>
+<tr id="L5758" class="s1"><td class="ln"><a href="#L5758">5758</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *<a class="id" href="../source/c00.c.html#L1817">tree</a>;</td></tr>
+<tr id="L5759" class="s1"><td class="ln"><a href="#L5759">5759</a></td><td class="code">        <span class="kw">register</span> retval;</td></tr>
+<tr id="L5760" class="s1"><td class="ln"><a href="#L5760">5760</a></td><td class="code"> </td></tr>
+<tr id="L5761" class="s1"><td class="ln"><a href="#L5761">5761</a></td><td class="code">        <a class="id" href="../source/c00.c.html#L1817">tree</a> = atree;</td></tr>
+<tr id="L5762" class="s1"><td class="ln"><a href="#L5762">5762</a></td><td class="code">        <span class="kw">if</span> (nstack || <a class="id" href="../source/c11.c.html#L6047">isfloat</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>) || <a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;type==LONG) {</td></tr>
+<tr id="L5763" class="s1"><td class="ln"><a href="#L5763">5763</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, sptab, <span class="nu">0</span>);</td></tr>
+<tr id="L5764" class="s1"><td class="ln"><a href="#L5764">5764</a></td><td class="code">                retval = <a class="id" href="../source/c11.c.html#L6083">arlength</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>-&gt;type);</td></tr>
+<tr id="L5765" class="s1"><td class="ln"><a href="#L5765">5765</a></td><td class="code">        } <span class="kw">else</span> {</td></tr>
+<tr id="L5766" class="s1"><td class="ln"><a href="#L5766">5766</a></td><td class="code">                (*flagp)++;</td></tr>
+<tr id="L5767" class="s1"><td class="ln"><a href="#L5767">5767</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L3847">rcexpr</a>(<a class="id" href="../source/c00.c.html#L1817">tree</a>, lsptab, <span class="nu">0</span>);</td></tr>
+<tr id="L5768" class="s1"><td class="ln"><a href="#L5768">5768</a></td><td class="code">                retval = <span class="nu">0</span>;</td></tr>
+<tr id="L5769" class="s1"><td class="ln"><a href="#L5769">5769</a></td><td class="code">        }</td></tr>
+<tr id="L5770" class="s1"><td class="ln"><a href="#L5770">5770</a></td><td class="code">        <span class="kw">return</span>(retval);</td></tr>
+<tr id="L5771" class="s1"><td class="ln"><a href="#L5771">5771</a></td><td class="code">}</td></tr></table></div>
+<nav class="pager"><a href="c1h.c.html">&larr; c1h.c</a><a href="c11.c.html">c11.c &rarr;</a></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>

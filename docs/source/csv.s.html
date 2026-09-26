@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>csv.s · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>csv.s</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 218 &middot; lines 10900&ndash;10921</p>
+<h1><code>csv.s</code></h1>
+<p class="desc">Library: function entry and exit</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L10900" class="s0"><td class="ln"><a href="#L10900">10900</a></td><td class="code"><span class="cm">/ C register save and restore -- version 12/74</span></td></tr>
+<tr id="L10901" class="s0"><td class="ln"><a href="#L10901">10901</a></td><td class="code"> </td></tr>
+<tr id="L10902" class="s0"><td class="ln"><a href="#L10902">10902</a></td><td class="code">.globl  csv</td></tr>
+<tr id="L10903" class="s0"><td class="ln"><a href="#L10903">10903</a></td><td class="code">.globl  cret</td></tr>
+<tr id="L10904" class="s0"><td class="ln"><a href="#L10904">10904</a></td><td class="code"> </td></tr>
+<tr id="L10905" class="s0"><td class="ln"><a href="#L10905">10905</a></td><td class="code">csv:</td></tr>
+<tr id="L10906" class="s0"><td class="ln"><a href="#L10906">10906</a></td><td class="code">        mov     r5,r0</td></tr>
+<tr id="L10907" class="s0"><td class="ln"><a href="#L10907">10907</a></td><td class="code">        mov     sp,r5</td></tr>
+<tr id="L10908" class="s0"><td class="ln"><a href="#L10908">10908</a></td><td class="code">        mov     r4,-(sp)</td></tr>
+<tr id="L10909" class="s0"><td class="ln"><a href="#L10909">10909</a></td><td class="code">        mov     r3,-(sp)</td></tr>
+<tr id="L10910" class="s0"><td class="ln"><a href="#L10910">10910</a></td><td class="code">        mov     r2,-(sp)</td></tr>
+<tr id="L10911" class="s0"><td class="ln"><a href="#L10911">10911</a></td><td class="code">        tst     -(sp)</td></tr>
+<tr id="L10912" class="s0"><td class="ln"><a href="#L10912">10912</a></td><td class="code">        jmp     (r0)</td></tr>
+<tr id="L10913" class="s0"><td class="ln"><a href="#L10913">10913</a></td><td class="code"> </td></tr>
+<tr id="L10914" class="s0"><td class="ln"><a href="#L10914">10914</a></td><td class="code">cret:</td></tr>
+<tr id="L10915" class="s0"><td class="ln"><a href="#L10915">10915</a></td><td class="code">        mov     r5,r1</td></tr>
+<tr id="L10916" class="s0"><td class="ln"><a href="#L10916">10916</a></td><td class="code">        mov     -(r1),r4</td></tr>
+<tr id="L10917" class="s0"><td class="ln"><a href="#L10917">10917</a></td><td class="code">        mov     -(r1),r3</td></tr>
+<tr id="L10918" class="s0"><td class="ln"><a href="#L10918">10918</a></td><td class="code">        mov     -(r1),r2</td></tr>
+<tr id="L10919" class="s0"><td class="ln"><a href="#L10919">10919</a></td><td class="code">        mov     r5,sp</td></tr>
+<tr id="L10920" class="s0"><td class="ln"><a href="#L10920">10920</a></td><td class="code">        mov     (sp)+,r5</td></tr>
+<tr id="L10921" class="s0"><td class="ln"><a href="#L10921">10921</a></td><td class="code">        rts     pc</td></tr></table></div>
+<nav class="pager"><a href="c21.c.html">&larr; c21.c</a><a href="run.html">run &rarr;</a></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>

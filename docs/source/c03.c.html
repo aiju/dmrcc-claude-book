@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>c03.c · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>c03.c</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 67 &middot; lines 3350&ndash;3761</p>
+<h1><code>c03.c</code></h1>
+<p class="desc">Pass 0: declarations</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L3350" class="s1"><td class="ln"><a href="#L3350">3350</a></td><td class="code"><span class="pp">#</span></td></tr>
+<tr id="L3351" class="s1"><td class="ln"><a href="#L3351">3351</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3352" class="s1"><td class="ln"><a href="#L3352">3352</a></td><td class="code"><span class="cm"> * C compiler, phase 1</span></td></tr>
+<tr id="L3353" class="s1"><td class="ln"><a href="#L3353">3353</a></td><td class="code"><span class="cm"> *</span></td></tr>
+<tr id="L3354" class="s1"><td class="ln"><a href="#L3354">3354</a></td><td class="code"><span class="cm"> *</span></td></tr>
+<tr id="L3355" class="s1"><td class="ln"><a href="#L3355">3355</a></td><td class="code"><span class="cm"> * Handles processing of declarations,</span></td></tr>
+<tr id="L3356" class="s1"><td class="ln"><a href="#L3356">3356</a></td><td class="code"><span class="cm"> * except for top-level processing of</span></td></tr>
+<tr id="L3357" class="s1"><td class="ln"><a href="#L3357">3357</a></td><td class="code"><span class="cm"> * externals.</span></td></tr>
+<tr id="L3358" class="s1"><td class="ln"><a href="#L3358">3358</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3359" class="s1"><td class="ln"><a href="#L3359">3359</a></td><td class="code"> </td></tr>
+<tr id="L3360" class="s1"><td class="ln"><a href="#L3360">3360</a></td><td class="code"><span class="pp">#include "c0h.c"</span></td></tr>
+<tr id="L3361" class="s1"><td class="ln"><a href="#L3361">3361</a></td><td class="code"> </td></tr>
+<tr id="L3362" class="s1"><td class="ln"><a href="#L3362">3362</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3363" class="s1"><td class="ln"><a href="#L3363">3363</a></td><td class="code"><span class="cm"> * Process a sequence of declaration statements</span></td></tr>
+<tr id="L3364" class="s1"><td class="ln"><a href="#L3364">3364</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3365" class="s1"><td class="ln"><a href="#L3365">3365</a></td><td class="code"><span class="def">declist</span>(sclass)</td></tr>
+<tr id="L3366" class="s1"><td class="ln"><a href="#L3366">3366</a></td><td class="code">{</td></tr>
+<tr id="L3367" class="s1"><td class="ln"><a href="#L3367">3367</a></td><td class="code">        <span class="kw">register</span> sc, elsize, offset;</td></tr>
+<tr id="L3368" class="s1"><td class="ln"><a href="#L3368">3368</a></td><td class="code">        <span class="kw">int</span> type;</td></tr>
+<tr id="L3369" class="s1"><td class="ln"><a href="#L3369">3369</a></td><td class="code"> </td></tr>
+<tr id="L3370" class="s1"><td class="ln"><a href="#L3370">3370</a></td><td class="code">        offset = <span class="nu">0</span>;</td></tr>
+<tr id="L3371" class="s1"><td class="ln"><a href="#L3371">3371</a></td><td class="code">        sc = sclass;</td></tr>
+<tr id="L3372" class="s1"><td class="ln"><a href="#L3372">3372</a></td><td class="code">        <span class="kw">while</span> ((elsize = <a class="id" href="../source/c03.c.html#L3382">getkeywords</a>(&amp;sclass, &amp;type)) != -<span class="nu">1</span>) {</td></tr>
+<tr id="L3373" class="s1"><td class="ln"><a href="#L3373">3373</a></td><td class="code">                offset = <a class="id" href="../source/c03.c.html#L3522">declare</a>(sclass, type, offset, elsize);</td></tr>
+<tr id="L3374" class="s1"><td class="ln"><a href="#L3374">3374</a></td><td class="code">                sclass = sc;</td></tr>
+<tr id="L3375" class="s1"><td class="ln"><a href="#L3375">3375</a></td><td class="code">        }</td></tr>
+<tr id="L3376" class="s1"><td class="ln"><a href="#L3376">3376</a></td><td class="code">        <span class="kw">return</span>(offset+<a class="id" href="../source/c03.c.html#L3705">align</a>(INT, offset, <span class="nu">0</span>));</td></tr>
+<tr id="L3377" class="s1"><td class="ln"><a href="#L3377">3377</a></td><td class="code">}</td></tr>
+<tr id="L3378" class="s1"><td class="ln"><a href="#L3378">3378</a></td><td class="code"> </td></tr>
+<tr id="L3379" class="s1"><td class="ln"><a href="#L3379">3379</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3380" class="s1"><td class="ln"><a href="#L3380">3380</a></td><td class="code"><span class="cm"> * Read the keywords introducing a declaration statement</span></td></tr>
+<tr id="L3381" class="s1"><td class="ln"><a href="#L3381">3381</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3382" class="s1"><td class="ln"><a href="#L3382">3382</a></td><td class="code"><span class="def">getkeywords</span>(scptr, tptr)</td></tr>
+<tr id="L3383" class="s1"><td class="ln"><a href="#L3383">3383</a></td><td class="code"><span class="kw">int</span> *scptr, *tptr;</td></tr>
+<tr id="L3384" class="s1"><td class="ln"><a href="#L3384">3384</a></td><td class="code">{</td></tr>
+<tr id="L3385" class="s1"><td class="ln"><a href="#L3385">3385</a></td><td class="code">        <span class="kw">register</span> skw, tkw, longf;</td></tr>
+<tr id="L3386" class="s1"><td class="ln"><a href="#L3386">3386</a></td><td class="code">        <span class="kw">int</span> o, elsize, isadecl, ismos;</td></tr>
+<tr id="L3387" class="s1"><td class="ln"><a href="#L3387">3387</a></td><td class="code"> </td></tr>
+<tr id="L3388" class="s1"><td class="ln"><a href="#L3388">3388</a></td><td class="code">        isadecl = <span class="nu">0</span>;</td></tr>
+<tr id="L3389" class="s1"><td class="ln"><a href="#L3389">3389</a></td><td class="code">        longf = <span class="nu">0</span>;</td></tr>
+<tr id="L3390" class="s1"><td class="ln"><a href="#L3390">3390</a></td><td class="code">        tkw = -<span class="nu">1</span>;</td></tr>
+<tr id="L3391" class="s1"><td class="ln"><a href="#L3391">3391</a></td><td class="code">        skw = *scptr;</td></tr>
+<tr id="L3392" class="s1"><td class="ln"><a href="#L3392">3392</a></td><td class="code">        elsize = <span class="nu">0</span>;</td></tr>
+<tr id="L3393" class="s1"><td class="ln"><a href="#L3393">3393</a></td><td class="code">        ismos = skw==MOS;</td></tr>
+<tr id="L3394" class="s1"><td class="ln"><a href="#L3394">3394</a></td><td class="code">        <span class="kw">for</span> (;;) {</td></tr>
+<tr id="L3395" class="s1"><td class="ln"><a href="#L3395">3395</a></td><td class="code">                mosflg = ismos;</td></tr>
+<tr id="L3396" class="s1"><td class="ln"><a href="#L3396">3396</a></td><td class="code">                <span class="kw">switch</span> ((o=<a class="id" href="../source/c00.c.html#L1534">symbol</a>())==KEYW? cval: -<span class="nu">1</span>) {</td></tr>
+<tr id="L3397" class="s1"><td class="ln"><a href="#L3397">3397</a></td><td class="code"> </td></tr>
+<tr id="L3398" class="s1"><td class="ln"><a href="#L3398">3398</a></td><td class="code">                <span class="kw">case</span> AUTO:</td></tr>
+<tr id="L3399" class="s1"><td class="ln"><a href="#L3399">3399</a></td><td class="code">                <span class="kw">case</span> STATIC:</td></tr>
+<tr id="L3400" class="s0"><td class="ln"><a href="#L3400">3400</a></td><td class="code">                <span class="kw">case</span> EXTERN:</td></tr>
+<tr id="L3401" class="s0"><td class="ln"><a href="#L3401">3401</a></td><td class="code">                <span class="kw">case</span> REG:</td></tr>
+<tr id="L3402" class="s0"><td class="ln"><a href="#L3402">3402</a></td><td class="code">                        <span class="kw">if</span> (skw &amp;&amp; skw!=cval)</td></tr>
+<tr id="L3403" class="s0"><td class="ln"><a href="#L3403">3403</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Conflict in storage class"</span>);</td></tr>
+<tr id="L3404" class="s0"><td class="ln"><a href="#L3404">3404</a></td><td class="code">                        skw = cval;</td></tr>
+<tr id="L3405" class="s0"><td class="ln"><a href="#L3405">3405</a></td><td class="code">                        <span class="kw">break</span>;</td></tr>
+<tr id="L3406" class="s0"><td class="ln"><a href="#L3406">3406</a></td><td class="code">        </td></tr>
+<tr id="L3407" class="s0"><td class="ln"><a href="#L3407">3407</a></td><td class="code">                <span class="kw">case</span> LONG:</td></tr>
+<tr id="L3408" class="s0"><td class="ln"><a href="#L3408">3408</a></td><td class="code">                        longf++;</td></tr>
+<tr id="L3409" class="s0"><td class="ln"><a href="#L3409">3409</a></td><td class="code">                        <span class="kw">break</span>;</td></tr>
+<tr id="L3410" class="s0"><td class="ln"><a href="#L3410">3410</a></td><td class="code"> </td></tr>
+<tr id="L3411" class="s0"><td class="ln"><a href="#L3411">3411</a></td><td class="code">                <span class="kw">case</span> STRUCT:</td></tr>
+<tr id="L3412" class="s0"><td class="ln"><a href="#L3412">3412</a></td><td class="code">                        o = STRUCT;</td></tr>
+<tr id="L3413" class="s0"><td class="ln"><a href="#L3413">3413</a></td><td class="code">                        elsize = <a class="id" href="../source/c03.c.html#L3452">strdec</a>(&amp;o, ismos);</td></tr>
+<tr id="L3414" class="s0"><td class="ln"><a href="#L3414">3414</a></td><td class="code">                        cval = o;</td></tr>
+<tr id="L3415" class="s0"><td class="ln"><a href="#L3415">3415</a></td><td class="code">                <span class="kw">case</span> INT:</td></tr>
+<tr id="L3416" class="s0"><td class="ln"><a href="#L3416">3416</a></td><td class="code">                <span class="kw">case</span> CHAR:</td></tr>
+<tr id="L3417" class="s0"><td class="ln"><a href="#L3417">3417</a></td><td class="code">                <span class="kw">case</span> FLOAT:</td></tr>
+<tr id="L3418" class="s0"><td class="ln"><a href="#L3418">3418</a></td><td class="code">                <span class="kw">case</span> DOUBLE:</td></tr>
+<tr id="L3419" class="s0"><td class="ln"><a href="#L3419">3419</a></td><td class="code">                        <span class="kw">if</span> (tkw&gt;=<span class="nu">0</span>)</td></tr>
+<tr id="L3420" class="s0"><td class="ln"><a href="#L3420">3420</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Type clash"</span>);</td></tr>
+<tr id="L3421" class="s0"><td class="ln"><a href="#L3421">3421</a></td><td class="code">                        tkw = cval;</td></tr>
+<tr id="L3422" class="s0"><td class="ln"><a href="#L3422">3422</a></td><td class="code">                        <span class="kw">break</span>;</td></tr>
+<tr id="L3423" class="s0"><td class="ln"><a href="#L3423">3423</a></td><td class="code">        </td></tr>
+<tr id="L3424" class="s0"><td class="ln"><a href="#L3424">3424</a></td><td class="code">                <span class="kw">default</span>:</td></tr>
+<tr id="L3425" class="s0"><td class="ln"><a href="#L3425">3425</a></td><td class="code">                        peeksym = o;</td></tr>
+<tr id="L3426" class="s0"><td class="ln"><a href="#L3426">3426</a></td><td class="code">                        <span class="kw">if</span> (isadecl==<span class="nu">0</span>)</td></tr>
+<tr id="L3427" class="s0"><td class="ln"><a href="#L3427">3427</a></td><td class="code">                                <span class="kw">return</span>(-<span class="nu">1</span>);</td></tr>
+<tr id="L3428" class="s0"><td class="ln"><a href="#L3428">3428</a></td><td class="code">                        <span class="kw">if</span> (tkw&lt;<span class="nu">0</span>)</td></tr>
+<tr id="L3429" class="s0"><td class="ln"><a href="#L3429">3429</a></td><td class="code">                                tkw = INT;</td></tr>
+<tr id="L3430" class="s0"><td class="ln"><a href="#L3430">3430</a></td><td class="code">                        <span class="kw">if</span> (skw==<span class="nu">0</span>)</td></tr>
+<tr id="L3431" class="s0"><td class="ln"><a href="#L3431">3431</a></td><td class="code">                                skw = AUTO;</td></tr>
+<tr id="L3432" class="s0"><td class="ln"><a href="#L3432">3432</a></td><td class="code">                        <span class="kw">if</span> (longf) {</td></tr>
+<tr id="L3433" class="s0"><td class="ln"><a href="#L3433">3433</a></td><td class="code">                                <span class="kw">if</span> (tkw==FLOAT)</td></tr>
+<tr id="L3434" class="s0"><td class="ln"><a href="#L3434">3434</a></td><td class="code">                                        tkw = DOUBLE;</td></tr>
+<tr id="L3435" class="s0"><td class="ln"><a href="#L3435">3435</a></td><td class="code">                                <span class="kw">else</span> <span class="kw">if</span> (tkw==INT)</td></tr>
+<tr id="L3436" class="s0"><td class="ln"><a href="#L3436">3436</a></td><td class="code">                                        tkw = LONG;</td></tr>
+<tr id="L3437" class="s0"><td class="ln"><a href="#L3437">3437</a></td><td class="code">                                <span class="kw">else</span></td></tr>
+<tr id="L3438" class="s0"><td class="ln"><a href="#L3438">3438</a></td><td class="code">                                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Misplaced 'long'"</span>);</td></tr>
+<tr id="L3439" class="s0"><td class="ln"><a href="#L3439">3439</a></td><td class="code">                        }</td></tr>
+<tr id="L3440" class="s0"><td class="ln"><a href="#L3440">3440</a></td><td class="code">                        *scptr = skw;</td></tr>
+<tr id="L3441" class="s0"><td class="ln"><a href="#L3441">3441</a></td><td class="code">                        *tptr = tkw;</td></tr>
+<tr id="L3442" class="s0"><td class="ln"><a href="#L3442">3442</a></td><td class="code">                        <span class="kw">return</span>(elsize);</td></tr>
+<tr id="L3443" class="s0"><td class="ln"><a href="#L3443">3443</a></td><td class="code">                }</td></tr>
+<tr id="L3444" class="s0"><td class="ln"><a href="#L3444">3444</a></td><td class="code">                isadecl++;</td></tr>
+<tr id="L3445" class="s0"><td class="ln"><a href="#L3445">3445</a></td><td class="code">        }</td></tr>
+<tr id="L3446" class="s0"><td class="ln"><a href="#L3446">3446</a></td><td class="code">}</td></tr>
+<tr id="L3447" class="s0"><td class="ln"><a href="#L3447">3447</a></td><td class="code"> </td></tr>
+<tr id="L3448" class="s0"><td class="ln"><a href="#L3448">3448</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3449" class="s0"><td class="ln"><a href="#L3449">3449</a></td><td class="code"><span class="cm"> * Process a structure declaration; a subroutine</span></td></tr>
+<tr id="L3450" class="s1"><td class="ln"><a href="#L3450">3450</a></td><td class="code"><span class="cm"> * of getkeywords.</span></td></tr>
+<tr id="L3451" class="s1"><td class="ln"><a href="#L3451">3451</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3452" class="s1"><td class="ln"><a href="#L3452">3452</a></td><td class="code"><span class="def">strdec</span>(tkwp, mosf)</td></tr>
+<tr id="L3453" class="s1"><td class="ln"><a href="#L3453">3453</a></td><td class="code"><span class="kw">int</span> *tkwp;</td></tr>
+<tr id="L3454" class="s1"><td class="ln"><a href="#L3454">3454</a></td><td class="code">{</td></tr>
+<tr id="L3455" class="s1"><td class="ln"><a href="#L3455">3455</a></td><td class="code">        <span class="kw">register</span> elsize, o;</td></tr>
+<tr id="L3456" class="s1"><td class="ln"><a href="#L3456">3456</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> hshtab *ssym;</td></tr>
+<tr id="L3457" class="s1"><td class="ln"><a href="#L3457">3457</a></td><td class="code">        <span class="kw">int</span> savebits;</td></tr>
+<tr id="L3458" class="s1"><td class="ln"><a href="#L3458">3458</a></td><td class="code">        <span class="kw">struct</span> hshtab *ds;</td></tr>
+<tr id="L3459" class="s1"><td class="ln"><a href="#L3459">3459</a></td><td class="code"> </td></tr>
+<tr id="L3460" class="s1"><td class="ln"><a href="#L3460">3460</a></td><td class="code">        mosflg = <span class="nu">1</span>;</td></tr>
+<tr id="L3461" class="s1"><td class="ln"><a href="#L3461">3461</a></td><td class="code">        ssym = <span class="nu">0</span>;</td></tr>
+<tr id="L3462" class="s1"><td class="ln"><a href="#L3462">3462</a></td><td class="code">        <span class="kw">if</span> ((o=<a class="id" href="../source/c00.c.html#L1534">symbol</a>())==NAME) {</td></tr>
+<tr id="L3463" class="s1"><td class="ln"><a href="#L3463">3463</a></td><td class="code">                ssym = csym;</td></tr>
+<tr id="L3464" class="s1"><td class="ln"><a href="#L3464">3464</a></td><td class="code">                <span class="kw">if</span> (ssym-&gt;hclass==<span class="nu">0</span>) {</td></tr>
+<tr id="L3465" class="s1"><td class="ln"><a href="#L3465">3465</a></td><td class="code">                        ssym-&gt;hclass = STRTAG;</td></tr>
+<tr id="L3466" class="s1"><td class="ln"><a href="#L3466">3466</a></td><td class="code">                        ssym-&gt;lenp = dimp;</td></tr>
+<tr id="L3467" class="s1"><td class="ln"><a href="#L3467">3467</a></td><td class="code">                        <a class="id" href="../source/c03.c.html#L3511">chkdim</a>();</td></tr>
+<tr id="L3468" class="s1"><td class="ln"><a href="#L3468">3468</a></td><td class="code">                        dimtab[dimp++] = <span class="nu">0</span>;</td></tr>
+<tr id="L3469" class="s1"><td class="ln"><a href="#L3469">3469</a></td><td class="code">                }</td></tr>
+<tr id="L3470" class="s1"><td class="ln"><a href="#L3470">3470</a></td><td class="code">                <span class="kw">if</span> (ssym-&gt;hclass != STRTAG)</td></tr>
+<tr id="L3471" class="s1"><td class="ln"><a href="#L3471">3471</a></td><td class="code">                        <a class="id" href="../source/c03.c.html#L3758">redec</a>();</td></tr>
+<tr id="L3472" class="s1"><td class="ln"><a href="#L3472">3472</a></td><td class="code">                mosflg = mosf;</td></tr>
+<tr id="L3473" class="s1"><td class="ln"><a href="#L3473">3473</a></td><td class="code">                o = <a class="id" href="../source/c00.c.html#L1534">symbol</a>();</td></tr>
+<tr id="L3474" class="s1"><td class="ln"><a href="#L3474">3474</a></td><td class="code">        }</td></tr>
+<tr id="L3475" class="s1"><td class="ln"><a href="#L3475">3475</a></td><td class="code">        mosflg = <span class="nu">0</span>;</td></tr>
+<tr id="L3476" class="s1"><td class="ln"><a href="#L3476">3476</a></td><td class="code">        <span class="kw">if</span> (o != LBRACE) {</td></tr>
+<tr id="L3477" class="s1"><td class="ln"><a href="#L3477">3477</a></td><td class="code">                <span class="kw">if</span> (ssym==<span class="nu">0</span>) {</td></tr>
+<tr id="L3478" class="s1"><td class="ln"><a href="#L3478">3478</a></td><td class="code">                syntax:</td></tr>
+<tr id="L3479" class="s1"><td class="ln"><a href="#L3479">3479</a></td><td class="code">                        <a class="id" href="../source/c03.c.html#L3749">decsyn</a>(o);</td></tr>
+<tr id="L3480" class="s1"><td class="ln"><a href="#L3480">3480</a></td><td class="code">                        <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L3481" class="s1"><td class="ln"><a href="#L3481">3481</a></td><td class="code">                }</td></tr>
+<tr id="L3482" class="s1"><td class="ln"><a href="#L3482">3482</a></td><td class="code">                <span class="kw">if</span> (ssym-&gt;hclass!=STRTAG)</td></tr>
+<tr id="L3483" class="s1"><td class="ln"><a href="#L3483">3483</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Bad structure name"</span>);</td></tr>
+<tr id="L3484" class="s1"><td class="ln"><a href="#L3484">3484</a></td><td class="code">                <span class="kw">if</span> ((elsize = dimtab[ssym-&gt;lenp&amp;<span class="nu">0377</span>])==<span class="nu">0</span>) {</td></tr>
+<tr id="L3485" class="s1"><td class="ln"><a href="#L3485">3485</a></td><td class="code">                        *tkwp = RSTRUCT;</td></tr>
+<tr id="L3486" class="s1"><td class="ln"><a href="#L3486">3486</a></td><td class="code">                        elsize = ssym;</td></tr>
+<tr id="L3487" class="s1"><td class="ln"><a href="#L3487">3487</a></td><td class="code">                }</td></tr>
+<tr id="L3488" class="s1"><td class="ln"><a href="#L3488">3488</a></td><td class="code">                peeksym = o;</td></tr>
+<tr id="L3489" class="s1"><td class="ln"><a href="#L3489">3489</a></td><td class="code">        } <span class="kw">else</span> {</td></tr>
+<tr id="L3490" class="s1"><td class="ln"><a href="#L3490">3490</a></td><td class="code">                ds = defsym;</td></tr>
+<tr id="L3491" class="s1"><td class="ln"><a href="#L3491">3491</a></td><td class="code">                mosflg = <span class="nu">0</span>;</td></tr>
+<tr id="L3492" class="s1"><td class="ln"><a href="#L3492">3492</a></td><td class="code">                savebits = bitoffs;</td></tr>
+<tr id="L3493" class="s1"><td class="ln"><a href="#L3493">3493</a></td><td class="code">                bitoffs = <span class="nu">0</span>;</td></tr>
+<tr id="L3494" class="s1"><td class="ln"><a href="#L3494">3494</a></td><td class="code">                elsize = <a class="id" href="../source/c03.c.html#L3365">declist</a>(MOS);</td></tr>
+<tr id="L3495" class="s1"><td class="ln"><a href="#L3495">3495</a></td><td class="code">                bitoffs = savebits;</td></tr>
+<tr id="L3496" class="s1"><td class="ln"><a href="#L3496">3496</a></td><td class="code">                defsym = ds;</td></tr>
+<tr id="L3497" class="s1"><td class="ln"><a href="#L3497">3497</a></td><td class="code">                <span class="kw">if</span> ((o = <a class="id" href="../source/c00.c.html#L1534">symbol</a>()) != RBRACE)</td></tr>
+<tr id="L3498" class="s1"><td class="ln"><a href="#L3498">3498</a></td><td class="code">                        <span class="kw">goto</span> syntax;</td></tr>
+<tr id="L3499" class="s1"><td class="ln"><a href="#L3499">3499</a></td><td class="code">                <span class="kw">if</span> (ssym) {</td></tr>
+<tr id="L3500" class="s0"><td class="ln"><a href="#L3500">3500</a></td><td class="code">                        <span class="kw">if</span> (dimtab[ssym-&gt;lenp&amp;<span class="nu">0377</span>])</td></tr>
+<tr id="L3501" class="s0"><td class="ln"><a href="#L3501">3501</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"%.8s redeclared"</span>, ssym-&gt;name);</td></tr>
+<tr id="L3502" class="s0"><td class="ln"><a href="#L3502">3502</a></td><td class="code">                        dimtab[ssym-&gt;lenp&amp;<span class="nu">0377</span>] = elsize;</td></tr>
+<tr id="L3503" class="s0"><td class="ln"><a href="#L3503">3503</a></td><td class="code">                }</td></tr>
+<tr id="L3504" class="s0"><td class="ln"><a href="#L3504">3504</a></td><td class="code">        }</td></tr>
+<tr id="L3505" class="s0"><td class="ln"><a href="#L3505">3505</a></td><td class="code">        <span class="kw">return</span>(elsize);</td></tr>
+<tr id="L3506" class="s0"><td class="ln"><a href="#L3506">3506</a></td><td class="code">}</td></tr>
+<tr id="L3507" class="s0"><td class="ln"><a href="#L3507">3507</a></td><td class="code"> </td></tr>
+<tr id="L3508" class="s0"><td class="ln"><a href="#L3508">3508</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3509" class="s0"><td class="ln"><a href="#L3509">3509</a></td><td class="code"><span class="cm"> * Check that the dimension table has not overflowed</span></td></tr>
+<tr id="L3510" class="s0"><td class="ln"><a href="#L3510">3510</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3511" class="s0"><td class="ln"><a href="#L3511">3511</a></td><td class="code"><span class="def">chkdim</span>()</td></tr>
+<tr id="L3512" class="s0"><td class="ln"><a href="#L3512">3512</a></td><td class="code">{</td></tr>
+<tr id="L3513" class="s0"><td class="ln"><a href="#L3513">3513</a></td><td class="code">        <span class="kw">if</span> (dimp &gt;= dimsiz) {</td></tr>
+<tr id="L3514" class="s0"><td class="ln"><a href="#L3514">3514</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Dimension/struct table overflow"</span>);</td></tr>
+<tr id="L3515" class="s0"><td class="ln"><a href="#L3515">3515</a></td><td class="code">                exit(<span class="nu">1</span>);</td></tr>
+<tr id="L3516" class="s0"><td class="ln"><a href="#L3516">3516</a></td><td class="code">        }</td></tr>
+<tr id="L3517" class="s0"><td class="ln"><a href="#L3517">3517</a></td><td class="code">}</td></tr>
+<tr id="L3518" class="s0"><td class="ln"><a href="#L3518">3518</a></td><td class="code"> </td></tr>
+<tr id="L3519" class="s0"><td class="ln"><a href="#L3519">3519</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3520" class="s0"><td class="ln"><a href="#L3520">3520</a></td><td class="code"><span class="cm"> * Process a comma-separated list of declarators</span></td></tr>
+<tr id="L3521" class="s0"><td class="ln"><a href="#L3521">3521</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3522" class="s0"><td class="ln"><a href="#L3522">3522</a></td><td class="code"><span class="def">declare</span>(askw, tkw, offset, elsize)</td></tr>
+<tr id="L3523" class="s0"><td class="ln"><a href="#L3523">3523</a></td><td class="code">{</td></tr>
+<tr id="L3524" class="s0"><td class="ln"><a href="#L3524">3524</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> o;</td></tr>
+<tr id="L3525" class="s0"><td class="ln"><a href="#L3525">3525</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> skw;</td></tr>
+<tr id="L3526" class="s0"><td class="ln"><a href="#L3526">3526</a></td><td class="code"> </td></tr>
+<tr id="L3527" class="s0"><td class="ln"><a href="#L3527">3527</a></td><td class="code">        skw = askw;</td></tr>
+<tr id="L3528" class="s0"><td class="ln"><a href="#L3528">3528</a></td><td class="code">        <span class="kw">do</span> {</td></tr>
+<tr id="L3529" class="s0"><td class="ln"><a href="#L3529">3529</a></td><td class="code">                offset =+ <a class="id" href="../source/c03.c.html#L3539">decl1</a>(skw, tkw, offset, elsize);</td></tr>
+<tr id="L3530" class="s0"><td class="ln"><a href="#L3530">3530</a></td><td class="code">        } <span class="kw">while</span> ((o=<a class="id" href="../source/c00.c.html#L1534">symbol</a>()) == COMMA);</td></tr>
+<tr id="L3531" class="s0"><td class="ln"><a href="#L3531">3531</a></td><td class="code">        <span class="kw">if</span> (o==SEMI || o==RPARN &amp;&amp; skw==ARG1)</td></tr>
+<tr id="L3532" class="s0"><td class="ln"><a href="#L3532">3532</a></td><td class="code">                <span class="kw">return</span>(offset);</td></tr>
+<tr id="L3533" class="s0"><td class="ln"><a href="#L3533">3533</a></td><td class="code">        <a class="id" href="../source/c03.c.html#L3749">decsyn</a>(o);</td></tr>
+<tr id="L3534" class="s0"><td class="ln"><a href="#L3534">3534</a></td><td class="code">}</td></tr>
+<tr id="L3535" class="s0"><td class="ln"><a href="#L3535">3535</a></td><td class="code"> </td></tr>
+<tr id="L3536" class="s0"><td class="ln"><a href="#L3536">3536</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3537" class="s0"><td class="ln"><a href="#L3537">3537</a></td><td class="code"><span class="cm"> * Process a single declarator</span></td></tr>
+<tr id="L3538" class="s0"><td class="ln"><a href="#L3538">3538</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3539" class="s0"><td class="ln"><a href="#L3539">3539</a></td><td class="code"><span class="def">decl1</span>(askw, tkw, offset, elsize)</td></tr>
+<tr id="L3540" class="s0"><td class="ln"><a href="#L3540">3540</a></td><td class="code">{</td></tr>
+<tr id="L3541" class="s0"><td class="ln"><a href="#L3541">3541</a></td><td class="code">        <span class="kw">int</span> t1, chkoff, a;</td></tr>
+<tr id="L3542" class="s0"><td class="ln"><a href="#L3542">3542</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> type, skw;</td></tr>
+<tr id="L3543" class="s0"><td class="ln"><a href="#L3543">3543</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> hshtab *dsym;</td></tr>
+<tr id="L3544" class="s0"><td class="ln"><a href="#L3544">3544</a></td><td class="code"> </td></tr>
+<tr id="L3545" class="s0"><td class="ln"><a href="#L3545">3545</a></td><td class="code">        skw = askw;</td></tr>
+<tr id="L3546" class="s0"><td class="ln"><a href="#L3546">3546</a></td><td class="code">        chkoff = <span class="nu">0</span>;</td></tr>
+<tr id="L3547" class="s0"><td class="ln"><a href="#L3547">3547</a></td><td class="code">        mosflg = skw==MOS;</td></tr>
+<tr id="L3548" class="s0"><td class="ln"><a href="#L3548">3548</a></td><td class="code">        <span class="kw">if</span> ((peeksym=<a class="id" href="../source/c00.c.html#L1534">symbol</a>())==SEMI || peeksym==RPARN)</td></tr>
+<tr id="L3549" class="s0"><td class="ln"><a href="#L3549">3549</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L3550" class="s1"><td class="ln"><a href="#L3550">3550</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L3551" class="s1"><td class="ln"><a href="#L3551">3551</a></td><td class="code"><span class="cm">         * Filler field</span></td></tr>
+<tr id="L3552" class="s1"><td class="ln"><a href="#L3552">3552</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L3553" class="s1"><td class="ln"><a href="#L3553">3553</a></td><td class="code">        <span class="kw">if</span> (peeksym==COLON &amp;&amp; skw==MOS) {</td></tr>
+<tr id="L3554" class="s1"><td class="ln"><a href="#L3554">3554</a></td><td class="code">                peeksym = -<span class="nu">1</span>;</td></tr>
+<tr id="L3555" class="s1"><td class="ln"><a href="#L3555">3555</a></td><td class="code">                t1 = <a class="id" href="../source/c01.c.html#L2610">conexp</a>();</td></tr>
+<tr id="L3556" class="s1"><td class="ln"><a href="#L3556">3556</a></td><td class="code">                elsize = <a class="id" href="../source/c03.c.html#L3705">align</a>(tkw, offset, t1);</td></tr>
+<tr id="L3557" class="s1"><td class="ln"><a href="#L3557">3557</a></td><td class="code">                bitoffs =+ t1;</td></tr>
+<tr id="L3558" class="s1"><td class="ln"><a href="#L3558">3558</a></td><td class="code">                <span class="kw">return</span>(elsize);</td></tr>
+<tr id="L3559" class="s1"><td class="ln"><a href="#L3559">3559</a></td><td class="code">        }</td></tr>
+<tr id="L3560" class="s1"><td class="ln"><a href="#L3560">3560</a></td><td class="code">        <span class="kw">if</span> ((t1=<a class="id" href="../source/c03.c.html#L3642">getype</a>()) &lt; <span class="nu">0</span>)</td></tr>
+<tr id="L3561" class="s1"><td class="ln"><a href="#L3561">3561</a></td><td class="code">                <span class="kw">goto</span> syntax;</td></tr>
+<tr id="L3562" class="s1"><td class="ln"><a href="#L3562">3562</a></td><td class="code">        type = <span class="nu">0</span>;</td></tr>
+<tr id="L3563" class="s1"><td class="ln"><a href="#L3563">3563</a></td><td class="code">        <span class="kw">do</span></td></tr>
+<tr id="L3564" class="s1"><td class="ln"><a href="#L3564">3564</a></td><td class="code">                type = type&lt;&lt;TYLEN | (t1 &amp; XTYPE);</td></tr>
+<tr id="L3565" class="s1"><td class="ln"><a href="#L3565">3565</a></td><td class="code">        <span class="kw">while</span> (((t1=&gt;&gt;TYLEN) &amp; XTYPE)!=<span class="nu">0</span>);</td></tr>
+<tr id="L3566" class="s1"><td class="ln"><a href="#L3566">3566</a></td><td class="code">        type =| tkw;</td></tr>
+<tr id="L3567" class="s1"><td class="ln"><a href="#L3567">3567</a></td><td class="code">        dsym = defsym;</td></tr>
+<tr id="L3568" class="s1"><td class="ln"><a href="#L3568">3568</a></td><td class="code">        <span class="kw">if</span> (!(dsym-&gt;hclass==<span class="nu">0</span></td></tr>
+<tr id="L3569" class="s1"><td class="ln"><a href="#L3569">3569</a></td><td class="code">           || (skw==ARG &amp;&amp; dsym-&gt;hclass==ARG1)</td></tr>
+<tr id="L3570" class="s1"><td class="ln"><a href="#L3570">3570</a></td><td class="code">           || (skw==EXTERN &amp;&amp; dsym-&gt;hclass==EXTERN &amp;&amp; dsym-&gt;htype==type)))</td></tr>
+<tr id="L3571" class="s1"><td class="ln"><a href="#L3571">3571</a></td><td class="code">                <span class="kw">if</span> (skw==MOS &amp;&amp; dsym-&gt;hclass==MOS &amp;&amp; dsym-&gt;htype==type)</td></tr>
+<tr id="L3572" class="s1"><td class="ln"><a href="#L3572">3572</a></td><td class="code">                        chkoff = <span class="nu">1</span>;</td></tr>
+<tr id="L3573" class="s1"><td class="ln"><a href="#L3573">3573</a></td><td class="code">                <span class="kw">else</span> {</td></tr>
+<tr id="L3574" class="s1"><td class="ln"><a href="#L3574">3574</a></td><td class="code">                        <a class="id" href="../source/c03.c.html#L3758">redec</a>();</td></tr>
+<tr id="L3575" class="s1"><td class="ln"><a href="#L3575">3575</a></td><td class="code">                        <span class="kw">goto</span> syntax;</td></tr>
+<tr id="L3576" class="s1"><td class="ln"><a href="#L3576">3576</a></td><td class="code">                }</td></tr>
+<tr id="L3577" class="s1"><td class="ln"><a href="#L3577">3577</a></td><td class="code">        dsym-&gt;htype = type;</td></tr>
+<tr id="L3578" class="s1"><td class="ln"><a href="#L3578">3578</a></td><td class="code">        <span class="kw">if</span> (skw)</td></tr>
+<tr id="L3579" class="s1"><td class="ln"><a href="#L3579">3579</a></td><td class="code">                dsym-&gt;hclass = skw;</td></tr>
+<tr id="L3580" class="s1"><td class="ln"><a href="#L3580">3580</a></td><td class="code">        <span class="kw">if</span> (skw==ARG1) {</td></tr>
+<tr id="L3581" class="s1"><td class="ln"><a href="#L3581">3581</a></td><td class="code">                <span class="kw">if</span> (paraml==<span class="nu">0</span>)</td></tr>
+<tr id="L3582" class="s1"><td class="ln"><a href="#L3582">3582</a></td><td class="code">                        paraml = dsym;</td></tr>
+<tr id="L3583" class="s1"><td class="ln"><a href="#L3583">3583</a></td><td class="code">                <span class="kw">else</span></td></tr>
+<tr id="L3584" class="s1"><td class="ln"><a href="#L3584">3584</a></td><td class="code">                        parame-&gt;hoffset = dsym;</td></tr>
+<tr id="L3585" class="s1"><td class="ln"><a href="#L3585">3585</a></td><td class="code">                parame = dsym;</td></tr>
+<tr id="L3586" class="s1"><td class="ln"><a href="#L3586">3586</a></td><td class="code">        }</td></tr>
+<tr id="L3587" class="s1"><td class="ln"><a href="#L3587">3587</a></td><td class="code">        <span class="kw">if</span> (elsize &amp;&amp; ((type&amp;TYPE)==RSTRUCT || (type&amp;TYPE)==STRUCT)) {</td></tr>
+<tr id="L3588" class="s1"><td class="ln"><a href="#L3588">3588</a></td><td class="code">                dsym-&gt;lenp = dimp;</td></tr>
+<tr id="L3589" class="s1"><td class="ln"><a href="#L3589">3589</a></td><td class="code">                <a class="id" href="../source/c03.c.html#L3511">chkdim</a>();</td></tr>
+<tr id="L3590" class="s1"><td class="ln"><a href="#L3590">3590</a></td><td class="code">                dimtab[dimp++] = elsize;</td></tr>
+<tr id="L3591" class="s1"><td class="ln"><a href="#L3591">3591</a></td><td class="code">        }</td></tr>
+<tr id="L3592" class="s1"><td class="ln"><a href="#L3592">3592</a></td><td class="code">        elsize = <span class="nu">0</span>;</td></tr>
+<tr id="L3593" class="s1"><td class="ln"><a href="#L3593">3593</a></td><td class="code">        <span class="kw">if</span> (skw==MOS) {</td></tr>
+<tr id="L3594" class="s1"><td class="ln"><a href="#L3594">3594</a></td><td class="code">                elsize = <a class="id" href="../source/c04.c.html#L3939">length</a>(dsym);</td></tr>
+<tr id="L3595" class="s1"><td class="ln"><a href="#L3595">3595</a></td><td class="code">                t1 = <span class="nu">0</span>;</td></tr>
+<tr id="L3596" class="s1"><td class="ln"><a href="#L3596">3596</a></td><td class="code">                <span class="kw">if</span> ((peeksym = <a class="id" href="../source/c00.c.html#L1534">symbol</a>())==COLON) {</td></tr>
+<tr id="L3597" class="s1"><td class="ln"><a href="#L3597">3597</a></td><td class="code">                        elsize = <span class="nu">0</span>;</td></tr>
+<tr id="L3598" class="s1"><td class="ln"><a href="#L3598">3598</a></td><td class="code">                        peeksym = -<span class="nu">1</span>;</td></tr>
+<tr id="L3599" class="s1"><td class="ln"><a href="#L3599">3599</a></td><td class="code">                        t1 = <a class="id" href="../source/c01.c.html#L2610">conexp</a>();</td></tr>
+<tr id="L3600" class="s0"><td class="ln"><a href="#L3600">3600</a></td><td class="code">                        dsym-&gt;hflag =| FFIELD;</td></tr>
+<tr id="L3601" class="s0"><td class="ln"><a href="#L3601">3601</a></td><td class="code">                }</td></tr>
+<tr id="L3602" class="s0"><td class="ln"><a href="#L3602">3602</a></td><td class="code">                a = <a class="id" href="../source/c03.c.html#L3705">align</a>(type, offset, t1);</td></tr>
+<tr id="L3603" class="s0"><td class="ln"><a href="#L3603">3603</a></td><td class="code">                elsize =+ a;</td></tr>
+<tr id="L3604" class="s0"><td class="ln"><a href="#L3604">3604</a></td><td class="code">                offset =+ a;</td></tr>
+<tr id="L3605" class="s0"><td class="ln"><a href="#L3605">3605</a></td><td class="code">                <span class="kw">if</span> (t1) {</td></tr>
+<tr id="L3606" class="s0"><td class="ln"><a href="#L3606">3606</a></td><td class="code">                        <span class="kw">if</span> (chkoff &amp;&amp; (dsym-&gt;bitoffs!=bitoffs</td></tr>
+<tr id="L3607" class="s0"><td class="ln"><a href="#L3607">3607</a></td><td class="code">                         || dsym-&gt;flen!=t1))</td></tr>
+<tr id="L3608" class="s0"><td class="ln"><a href="#L3608">3608</a></td><td class="code">                                <a class="id" href="../source/c03.c.html#L3758">redec</a>();</td></tr>
+<tr id="L3609" class="s0"><td class="ln"><a href="#L3609">3609</a></td><td class="code">                        dsym-&gt;bitoffs = bitoffs;</td></tr>
+<tr id="L3610" class="s0"><td class="ln"><a href="#L3610">3610</a></td><td class="code">                        dsym-&gt;flen = t1;</td></tr>
+<tr id="L3611" class="s0"><td class="ln"><a href="#L3611">3611</a></td><td class="code">                        bitoffs =+ t1;</td></tr>
+<tr id="L3612" class="s0"><td class="ln"><a href="#L3612">3612</a></td><td class="code">                }</td></tr>
+<tr id="L3613" class="s0"><td class="ln"><a href="#L3613">3613</a></td><td class="code">                <span class="kw">if</span> (chkoff &amp;&amp; dsym-&gt;hoffset != offset)</td></tr>
+<tr id="L3614" class="s0"><td class="ln"><a href="#L3614">3614</a></td><td class="code">                        <a class="id" href="../source/c03.c.html#L3758">redec</a>();</td></tr>
+<tr id="L3615" class="s0"><td class="ln"><a href="#L3615">3615</a></td><td class="code">                dsym-&gt;hoffset = offset;</td></tr>
+<tr id="L3616" class="s0"><td class="ln"><a href="#L3616">3616</a></td><td class="code">        }</td></tr>
+<tr id="L3617" class="s0"><td class="ln"><a href="#L3617">3617</a></td><td class="code">        <span class="kw">if</span> ((dsym-&gt;htype&amp;XTYPE)==FUNC) {</td></tr>
+<tr id="L3618" class="s0"><td class="ln"><a href="#L3618">3618</a></td><td class="code">                <span class="kw">if</span> (dsym-&gt;hclass!=EXTERN &amp;&amp; dsym-&gt;hclass!=AUTO)</td></tr>
+<tr id="L3619" class="s0"><td class="ln"><a href="#L3619">3619</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Bad function"</span>);</td></tr>
+<tr id="L3620" class="s0"><td class="ln"><a href="#L3620">3620</a></td><td class="code">                dsym-&gt;hclass = EXTERN;</td></tr>
+<tr id="L3621" class="s0"><td class="ln"><a href="#L3621">3621</a></td><td class="code">        }</td></tr>
+<tr id="L3622" class="s0"><td class="ln"><a href="#L3622">3622</a></td><td class="code">        <span class="kw">if</span> (dsym-&gt;hclass==AUTO) {</td></tr>
+<tr id="L3623" class="s0"><td class="ln"><a href="#L3623">3623</a></td><td class="code">                autolen =+ <a class="id" href="../source/c04.c.html#L3984">rlength</a>(dsym);</td></tr>
+<tr id="L3624" class="s0"><td class="ln"><a href="#L3624">3624</a></td><td class="code">                dsym-&gt;hoffset = -autolen;</td></tr>
+<tr id="L3625" class="s0"><td class="ln"><a href="#L3625">3625</a></td><td class="code">        } <span class="kw">else</span> <span class="kw">if</span> (dsym-&gt;hclass==STATIC) {</td></tr>
+<tr id="L3626" class="s0"><td class="ln"><a href="#L3626">3626</a></td><td class="code">                dsym-&gt;hoffset = isn;</td></tr>
+<tr id="L3627" class="s0"><td class="ln"><a href="#L3627">3627</a></td><td class="code">                <a class="id" href="../source/c04.c.html#L4100">outcode</a>(<span class="st">"BBNBNB"</span>, BSS, LABEL, isn++,</td></tr>
+<tr id="L3628" class="s0"><td class="ln"><a href="#L3628">3628</a></td><td class="code">                    SSPACE, <a class="id" href="../source/c04.c.html#L3984">rlength</a>(dsym), PROG);</td></tr>
+<tr id="L3629" class="s0"><td class="ln"><a href="#L3629">3629</a></td><td class="code">        } <span class="kw">else</span> <span class="kw">if</span> (dsym-&gt;hclass==REG) {</td></tr>
+<tr id="L3630" class="s0"><td class="ln"><a href="#L3630">3630</a></td><td class="code">                <span class="kw">if</span> ((type&amp;TYPE)&gt;CHAR &amp;&amp; (type&amp;XTYPE)==<span class="nu">0</span></td></tr>
+<tr id="L3631" class="s0"><td class="ln"><a href="#L3631">3631</a></td><td class="code">                 || (type&amp;XTYPE)&gt;PTR || regvar&lt;<span class="nu">3</span>)</td></tr>
+<tr id="L3632" class="s0"><td class="ln"><a href="#L3632">3632</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Bad register %o"</span>, type);</td></tr>
+<tr id="L3633" class="s0"><td class="ln"><a href="#L3633">3633</a></td><td class="code">                dsym-&gt;hoffset = --regvar;</td></tr>
+<tr id="L3634" class="s0"><td class="ln"><a href="#L3634">3634</a></td><td class="code">        }</td></tr>
+<tr id="L3635" class="s0"><td class="ln"><a href="#L3635">3635</a></td><td class="code">syntax:</td></tr>
+<tr id="L3636" class="s0"><td class="ln"><a href="#L3636">3636</a></td><td class="code">        <span class="kw">return</span>(elsize);</td></tr>
+<tr id="L3637" class="s0"><td class="ln"><a href="#L3637">3637</a></td><td class="code">}</td></tr>
+<tr id="L3638" class="s0"><td class="ln"><a href="#L3638">3638</a></td><td class="code"> </td></tr>
+<tr id="L3639" class="s0"><td class="ln"><a href="#L3639">3639</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3640" class="s0"><td class="ln"><a href="#L3640">3640</a></td><td class="code"><span class="cm"> * Read a declarator and get the implied type</span></td></tr>
+<tr id="L3641" class="s0"><td class="ln"><a href="#L3641">3641</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3642" class="s0"><td class="ln"><a href="#L3642">3642</a></td><td class="code"><span class="def">getype</span>()</td></tr>
+<tr id="L3643" class="s0"><td class="ln"><a href="#L3643">3643</a></td><td class="code">{</td></tr>
+<tr id="L3644" class="s0"><td class="ln"><a href="#L3644">3644</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> o, type;</td></tr>
+<tr id="L3645" class="s0"><td class="ln"><a href="#L3645">3645</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> hshtab *ds;</td></tr>
+<tr id="L3646" class="s0"><td class="ln"><a href="#L3646">3646</a></td><td class="code"> </td></tr>
+<tr id="L3647" class="s0"><td class="ln"><a href="#L3647">3647</a></td><td class="code">        <span class="kw">switch</span>(o=<a class="id" href="../source/c00.c.html#L1534">symbol</a>()) {</td></tr>
+<tr id="L3648" class="s0"><td class="ln"><a href="#L3648">3648</a></td><td class="code"> </td></tr>
+<tr id="L3649" class="s0"><td class="ln"><a href="#L3649">3649</a></td><td class="code">        <span class="kw">case</span> TIMES:</td></tr>
+<tr id="L3650" class="s1"><td class="ln"><a href="#L3650">3650</a></td><td class="code">                <span class="kw">return</span>(<a class="id" href="../source/c03.c.html#L3642">getype</a>()&lt;&lt;TYLEN | PTR);</td></tr>
+<tr id="L3651" class="s1"><td class="ln"><a href="#L3651">3651</a></td><td class="code"> </td></tr>
+<tr id="L3652" class="s1"><td class="ln"><a href="#L3652">3652</a></td><td class="code">        <span class="kw">case</span> LPARN:</td></tr>
+<tr id="L3653" class="s1"><td class="ln"><a href="#L3653">3653</a></td><td class="code">                type = <a class="id" href="../source/c03.c.html#L3642">getype</a>();</td></tr>
+<tr id="L3654" class="s1"><td class="ln"><a href="#L3654">3654</a></td><td class="code">                <span class="kw">if</span> ((o=<a class="id" href="../source/c00.c.html#L1534">symbol</a>()) != RPARN)</td></tr>
+<tr id="L3655" class="s1"><td class="ln"><a href="#L3655">3655</a></td><td class="code">                        <span class="kw">goto</span> syntax;</td></tr>
+<tr id="L3656" class="s1"><td class="ln"><a href="#L3656">3656</a></td><td class="code">                <span class="kw">goto</span> getf;</td></tr>
+<tr id="L3657" class="s1"><td class="ln"><a href="#L3657">3657</a></td><td class="code"> </td></tr>
+<tr id="L3658" class="s1"><td class="ln"><a href="#L3658">3658</a></td><td class="code">        <span class="kw">case</span> NAME:</td></tr>
+<tr id="L3659" class="s1"><td class="ln"><a href="#L3659">3659</a></td><td class="code">                defsym = ds = csym;</td></tr>
+<tr id="L3660" class="s1"><td class="ln"><a href="#L3660">3660</a></td><td class="code">                type = <span class="nu">0</span>;</td></tr>
+<tr id="L3661" class="s1"><td class="ln"><a href="#L3661">3661</a></td><td class="code">                ds-&gt;ssp = dimp;</td></tr>
+<tr id="L3662" class="s1"><td class="ln"><a href="#L3662">3662</a></td><td class="code">        getf:</td></tr>
+<tr id="L3663" class="s1"><td class="ln"><a href="#L3663">3663</a></td><td class="code">                <span class="kw">switch</span>(o=<a class="id" href="../source/c00.c.html#L1534">symbol</a>()) {</td></tr>
+<tr id="L3664" class="s1"><td class="ln"><a href="#L3664">3664</a></td><td class="code"> </td></tr>
+<tr id="L3665" class="s1"><td class="ln"><a href="#L3665">3665</a></td><td class="code">                <span class="kw">case</span> LPARN:</td></tr>
+<tr id="L3666" class="s1"><td class="ln"><a href="#L3666">3666</a></td><td class="code">                        <span class="kw">if</span> (xdflg) {</td></tr>
+<tr id="L3667" class="s1"><td class="ln"><a href="#L3667">3667</a></td><td class="code">                                xdflg = <span class="nu">0</span>;</td></tr>
+<tr id="L3668" class="s1"><td class="ln"><a href="#L3668">3668</a></td><td class="code">                                ds = defsym;</td></tr>
+<tr id="L3669" class="s1"><td class="ln"><a href="#L3669">3669</a></td><td class="code">                                <a class="id" href="../source/c03.c.html#L3522">declare</a>(ARG1, <span class="nu">0</span>, <span class="nu">0</span>, <span class="nu">0</span>);</td></tr>
+<tr id="L3670" class="s1"><td class="ln"><a href="#L3670">3670</a></td><td class="code">                                defsym = ds;</td></tr>
+<tr id="L3671" class="s1"><td class="ln"><a href="#L3671">3671</a></td><td class="code">                                xdflg++;</td></tr>
+<tr id="L3672" class="s1"><td class="ln"><a href="#L3672">3672</a></td><td class="code">                        } <span class="kw">else</span></td></tr>
+<tr id="L3673" class="s1"><td class="ln"><a href="#L3673">3673</a></td><td class="code">                                <span class="kw">if</span> ((o=<a class="id" href="../source/c00.c.html#L1534">symbol</a>()) != RPARN)</td></tr>
+<tr id="L3674" class="s1"><td class="ln"><a href="#L3674">3674</a></td><td class="code">                                        <span class="kw">goto</span> syntax;</td></tr>
+<tr id="L3675" class="s1"><td class="ln"><a href="#L3675">3675</a></td><td class="code">                        type = type&lt;&lt;TYLEN | FUNC;</td></tr>
+<tr id="L3676" class="s1"><td class="ln"><a href="#L3676">3676</a></td><td class="code">                        <span class="kw">goto</span> getf;</td></tr>
+<tr id="L3677" class="s1"><td class="ln"><a href="#L3677">3677</a></td><td class="code"> </td></tr>
+<tr id="L3678" class="s1"><td class="ln"><a href="#L3678">3678</a></td><td class="code">                <span class="kw">case</span> LBRACK:</td></tr>
+<tr id="L3679" class="s1"><td class="ln"><a href="#L3679">3679</a></td><td class="code">                        <a class="id" href="../source/c03.c.html#L3511">chkdim</a>();</td></tr>
+<tr id="L3680" class="s1"><td class="ln"><a href="#L3680">3680</a></td><td class="code">                        <span class="kw">if</span> ((o=<a class="id" href="../source/c00.c.html#L1534">symbol</a>()) != RBRACK) {</td></tr>
+<tr id="L3681" class="s1"><td class="ln"><a href="#L3681">3681</a></td><td class="code">                                peeksym = o;</td></tr>
+<tr id="L3682" class="s1"><td class="ln"><a href="#L3682">3682</a></td><td class="code">                                cval = <a class="id" href="../source/c01.c.html#L2610">conexp</a>();</td></tr>
+<tr id="L3683" class="s1"><td class="ln"><a href="#L3683">3683</a></td><td class="code">                                <span class="kw">for</span> (o=ds-&gt;ssp&amp;<span class="nu">0377</span>; o&lt;dimp; o++)</td></tr>
+<tr id="L3684" class="s1"><td class="ln"><a href="#L3684">3684</a></td><td class="code">                                        dimtab[o] =* cval;</td></tr>
+<tr id="L3685" class="s1"><td class="ln"><a href="#L3685">3685</a></td><td class="code">                                dimtab[dimp++] = cval;</td></tr>
+<tr id="L3686" class="s1"><td class="ln"><a href="#L3686">3686</a></td><td class="code">                                <span class="kw">if</span> ((o=<a class="id" href="../source/c00.c.html#L1534">symbol</a>())!=RBRACK)</td></tr>
+<tr id="L3687" class="s1"><td class="ln"><a href="#L3687">3687</a></td><td class="code">                                        <span class="kw">goto</span> syntax;</td></tr>
+<tr id="L3688" class="s1"><td class="ln"><a href="#L3688">3688</a></td><td class="code">                        } <span class="kw">else</span></td></tr>
+<tr id="L3689" class="s1"><td class="ln"><a href="#L3689">3689</a></td><td class="code">                                dimtab[dimp++] = <span class="nu">1</span>;</td></tr>
+<tr id="L3690" class="s1"><td class="ln"><a href="#L3690">3690</a></td><td class="code">                        type = type&lt;&lt;TYLEN | ARRAY;</td></tr>
+<tr id="L3691" class="s1"><td class="ln"><a href="#L3691">3691</a></td><td class="code">                        <span class="kw">goto</span> getf;</td></tr>
+<tr id="L3692" class="s1"><td class="ln"><a href="#L3692">3692</a></td><td class="code">                }</td></tr>
+<tr id="L3693" class="s1"><td class="ln"><a href="#L3693">3693</a></td><td class="code">                peeksym = o;</td></tr>
+<tr id="L3694" class="s1"><td class="ln"><a href="#L3694">3694</a></td><td class="code">                <span class="kw">return</span>(type);</td></tr>
+<tr id="L3695" class="s1"><td class="ln"><a href="#L3695">3695</a></td><td class="code">        }</td></tr>
+<tr id="L3696" class="s1"><td class="ln"><a href="#L3696">3696</a></td><td class="code">syntax:</td></tr>
+<tr id="L3697" class="s1"><td class="ln"><a href="#L3697">3697</a></td><td class="code">        <a class="id" href="../source/c03.c.html#L3749">decsyn</a>(o);</td></tr>
+<tr id="L3698" class="s1"><td class="ln"><a href="#L3698">3698</a></td><td class="code">        <span class="kw">return</span>(-<span class="nu">1</span>);</td></tr>
+<tr id="L3699" class="s1"><td class="ln"><a href="#L3699">3699</a></td><td class="code">}</td></tr>
+<tr id="L3700" class="s0"><td class="ln"><a href="#L3700">3700</a></td><td class="code"> </td></tr>
+<tr id="L3701" class="s0"><td class="ln"><a href="#L3701">3701</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3702" class="s0"><td class="ln"><a href="#L3702">3702</a></td><td class="code"><span class="cm"> * Enforce alignment restrictions in structures,</span></td></tr>
+<tr id="L3703" class="s0"><td class="ln"><a href="#L3703">3703</a></td><td class="code"><span class="cm"> * including bit-field considerations.</span></td></tr>
+<tr id="L3704" class="s0"><td class="ln"><a href="#L3704">3704</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3705" class="s0"><td class="ln"><a href="#L3705">3705</a></td><td class="code"><span class="def">align</span>(type, offset, aflen)</td></tr>
+<tr id="L3706" class="s0"><td class="ln"><a href="#L3706">3706</a></td><td class="code">{</td></tr>
+<tr id="L3707" class="s0"><td class="ln"><a href="#L3707">3707</a></td><td class="code">        <span class="kw">register</span> a, t, flen;</td></tr>
+<tr id="L3708" class="s0"><td class="ln"><a href="#L3708">3708</a></td><td class="code">        <span class="kw">char</span> *ftl;</td></tr>
+<tr id="L3709" class="s0"><td class="ln"><a href="#L3709">3709</a></td><td class="code"> </td></tr>
+<tr id="L3710" class="s0"><td class="ln"><a href="#L3710">3710</a></td><td class="code">        flen = aflen;</td></tr>
+<tr id="L3711" class="s0"><td class="ln"><a href="#L3711">3711</a></td><td class="code">        a = offset;</td></tr>
+<tr id="L3712" class="s0"><td class="ln"><a href="#L3712">3712</a></td><td class="code">        t = type;</td></tr>
+<tr id="L3713" class="s0"><td class="ln"><a href="#L3713">3713</a></td><td class="code">        ftl = <span class="st">"Field too long"</span>;</td></tr>
+<tr id="L3714" class="s0"><td class="ln"><a href="#L3714">3714</a></td><td class="code">        <span class="kw">if</span> (flen==<span class="nu">0</span> &amp;&amp; bitoffs) {</td></tr>
+<tr id="L3715" class="s0"><td class="ln"><a href="#L3715">3715</a></td><td class="code">                a =+ (bitoffs-<span class="nu">1</span>) / NBPC;</td></tr>
+<tr id="L3716" class="s0"><td class="ln"><a href="#L3716">3716</a></td><td class="code">                bitoffs = <span class="nu">0</span>;</td></tr>
+<tr id="L3717" class="s0"><td class="ln"><a href="#L3717">3717</a></td><td class="code">        }</td></tr>
+<tr id="L3718" class="s0"><td class="ln"><a href="#L3718">3718</a></td><td class="code">        <span class="kw">while</span> ((t&amp;XTYPE)==ARRAY)</td></tr>
+<tr id="L3719" class="s0"><td class="ln"><a href="#L3719">3719</a></td><td class="code">                t = <a class="id" href="../source/c04.c.html#L3813">decref</a>(t);</td></tr>
+<tr id="L3720" class="s0"><td class="ln"><a href="#L3720">3720</a></td><td class="code">        <span class="kw">if</span> (t!=CHAR) {</td></tr>
+<tr id="L3721" class="s0"><td class="ln"><a href="#L3721">3721</a></td><td class="code">                a = (a+ALIGN) &amp; ~ALIGN;</td></tr>
+<tr id="L3722" class="s0"><td class="ln"><a href="#L3722">3722</a></td><td class="code">                <span class="kw">if</span> (a&gt;offset)</td></tr>
+<tr id="L3723" class="s0"><td class="ln"><a href="#L3723">3723</a></td><td class="code">                        bitoffs = <span class="nu">0</span>;</td></tr>
+<tr id="L3724" class="s0"><td class="ln"><a href="#L3724">3724</a></td><td class="code">        }</td></tr>
+<tr id="L3725" class="s0"><td class="ln"><a href="#L3725">3725</a></td><td class="code">        <span class="kw">if</span> (flen) {</td></tr>
+<tr id="L3726" class="s0"><td class="ln"><a href="#L3726">3726</a></td><td class="code">                <span class="kw">if</span> (type==INT) {</td></tr>
+<tr id="L3727" class="s0"><td class="ln"><a href="#L3727">3727</a></td><td class="code">                        <span class="kw">if</span> (flen &gt; NBPW)</td></tr>
+<tr id="L3728" class="s0"><td class="ln"><a href="#L3728">3728</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L510">error</a>(ftl);</td></tr>
+<tr id="L3729" class="s0"><td class="ln"><a href="#L3729">3729</a></td><td class="code">                        <span class="kw">if</span> (flen+bitoffs &gt; NBPW) {</td></tr>
+<tr id="L3730" class="s0"><td class="ln"><a href="#L3730">3730</a></td><td class="code">                                bitoffs = <span class="nu">0</span>;</td></tr>
+<tr id="L3731" class="s0"><td class="ln"><a href="#L3731">3731</a></td><td class="code">                                a =+ NCPW;</td></tr>
+<tr id="L3732" class="s0"><td class="ln"><a href="#L3732">3732</a></td><td class="code">                        }</td></tr>
+<tr id="L3733" class="s0"><td class="ln"><a href="#L3733">3733</a></td><td class="code">                } <span class="kw">else</span> <span class="kw">if</span> (type==CHAR) {</td></tr>
+<tr id="L3734" class="s0"><td class="ln"><a href="#L3734">3734</a></td><td class="code">                        <span class="kw">if</span> (flen &gt; NBPC)</td></tr>
+<tr id="L3735" class="s0"><td class="ln"><a href="#L3735">3735</a></td><td class="code">                                <a class="id" href="../source/cc.c.html#L510">error</a>(ftl);</td></tr>
+<tr id="L3736" class="s0"><td class="ln"><a href="#L3736">3736</a></td><td class="code">                        <span class="kw">if</span> (flen+bitoffs &gt; NCPW) {</td></tr>
+<tr id="L3737" class="s0"><td class="ln"><a href="#L3737">3737</a></td><td class="code">                                bitoffs = <span class="nu">0</span>;</td></tr>
+<tr id="L3738" class="s0"><td class="ln"><a href="#L3738">3738</a></td><td class="code">                                a =+ <span class="nu">1</span>;</td></tr>
+<tr id="L3739" class="s0"><td class="ln"><a href="#L3739">3739</a></td><td class="code">                        }</td></tr>
+<tr id="L3740" class="s0"><td class="ln"><a href="#L3740">3740</a></td><td class="code">                } <span class="kw">else</span></td></tr>
+<tr id="L3741" class="s0"><td class="ln"><a href="#L3741">3741</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Bad type for field"</span>);</td></tr>
+<tr id="L3742" class="s0"><td class="ln"><a href="#L3742">3742</a></td><td class="code">        }</td></tr>
+<tr id="L3743" class="s0"><td class="ln"><a href="#L3743">3743</a></td><td class="code">        <span class="kw">return</span>(a-offset);</td></tr>
+<tr id="L3744" class="s0"><td class="ln"><a href="#L3744">3744</a></td><td class="code">}</td></tr>
+<tr id="L3745" class="s0"><td class="ln"><a href="#L3745">3745</a></td><td class="code"> </td></tr>
+<tr id="L3746" class="s0"><td class="ln"><a href="#L3746">3746</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3747" class="s0"><td class="ln"><a href="#L3747">3747</a></td><td class="code"><span class="cm"> * Complain about syntax error in declaration</span></td></tr>
+<tr id="L3748" class="s0"><td class="ln"><a href="#L3748">3748</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3749" class="s0"><td class="ln"><a href="#L3749">3749</a></td><td class="code"><span class="def">decsyn</span>(o)</td></tr>
+<tr id="L3750" class="s1"><td class="ln"><a href="#L3750">3750</a></td><td class="code">{</td></tr>
+<tr id="L3751" class="s1"><td class="ln"><a href="#L3751">3751</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Declaration syntax"</span>);</td></tr>
+<tr id="L3752" class="s1"><td class="ln"><a href="#L3752">3752</a></td><td class="code">        <a class="id" href="../source/c02.c.html#L3314">errflush</a>(o);</td></tr>
+<tr id="L3753" class="s1"><td class="ln"><a href="#L3753">3753</a></td><td class="code">}</td></tr>
+<tr id="L3754" class="s1"><td class="ln"><a href="#L3754">3754</a></td><td class="code"> </td></tr>
+<tr id="L3755" class="s1"><td class="ln"><a href="#L3755">3755</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L3756" class="s1"><td class="ln"><a href="#L3756">3756</a></td><td class="code"><span class="cm"> * Complain about a redeclaration</span></td></tr>
+<tr id="L3757" class="s1"><td class="ln"><a href="#L3757">3757</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L3758" class="s1"><td class="ln"><a href="#L3758">3758</a></td><td class="code"><span class="def">redec</span>()</td></tr>
+<tr id="L3759" class="s1"><td class="ln"><a href="#L3759">3759</a></td><td class="code">{</td></tr>
+<tr id="L3760" class="s1"><td class="ln"><a href="#L3760">3760</a></td><td class="code">        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"%.8s redeclared"</span>, defsym-&gt;name);</td></tr>
+<tr id="L3761" class="s1"><td class="ln"><a href="#L3761">3761</a></td><td class="code">}</td></tr></table></div>
+<nav class="pager"><a href="c02.c.html">&larr; c02.c</a><a href="c04.c.html">c04.c &rarr;</a></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Types and Conversions · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="chpage">
+<header class="topbar"><nav><a class="home" href="index.html">The Sixth Edition C Compiler</a><span class="sep">/</span>Chapter 6</nav><div class="tools"><a href="contents.html">Contents</a><a href="source/index.html">Listing</a><a href="xref.html">Index</a></div></header>
+<div class="reader">
+<main class="prose chapter">
+<header class="chead">
+<p class="eyebrow">Chapter 6</p>
+<h1>Types and Conversions</h1>
+<nav class="local"><ol><li><a href="#typeword">A type in sixteen bits</a></li><li><a href="#build">What <code>build</code> does</a></li><li><a href="#conversions">Conversions</a></li><li><a href="#fold">Constant folding</a></li></ol></nav>
+</header>
+<!-- title: Types and Conversions -->
+<!-- number: 6 -->
+<!-- short: Types -->
+<!-- scripts: types.js -->
+<!-- blurb: How a C type fits in sixteen bits, and how build() checks every operator and inserts conversions, scaling and rewrites as the tree is made. -->
+
+<p>The parser of the last chapter decides the shape of an expression. Every time it applies an
+operator it calls <code>build</code> (<a class="lref" data-file="c01.c" data-line="2116" href="source/c01.c.html#L2116">2116&ndash;2315</a>), and it is <code>build</code> that makes the
+tree a C tree rather than just an arithmetic one: it works out the type of every node, inserts
+conversions where the operand types differ, multiplies integers added to pointers by the size of
+what they point to, and rewrites subscripts, structure references and function names into
+simpler operations. This chapter describes the type representation first and then
+<code>build</code>.</p>
+
+<h2 id="typeword">A type in sixteen bits</h2>
+
+<p>A type is a single <code>int</code>. The low three bits give the basic type (<a class="lref" data-file="c0h.c" data-line="1182" href="source/c0h.c.html#L1182">1182&ndash;1190</a>):</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Value</th><th>Name</th><th>Size</th></tr></thead>
+<tbody>
+<tr><td class="num">0</td><td><code>INT</code></td><td>2</td></tr>
+<tr><td class="num">1</td><td><code>CHAR</code></td><td>1</td></tr>
+<tr><td class="num">2</td><td><code>FLOAT</code></td><td>4</td></tr>
+<tr><td class="num">3</td><td><code>DOUBLE</code></td><td>8</td></tr>
+<tr><td class="num">4</td><td><code>STRUCT</code></td><td>from <code>dimtab</code></td></tr>
+<tr><td class="num">5</td><td><code>RSTRUCT</code>, a structure not yet defined</td><td>unknown</td></tr>
+<tr><td class="num">6</td><td><code>LONG</code></td><td>4</td></tr>
+<tr><td class="num">7</td><td><code>NOTYPE</code>, used internally</td><td></td></tr>
+</tbody></table></div>
+
+<p>Above them, starting at bit 3, come two-bit fields, each of which is a type modifier:
+<code>PTR</code> (1), <code>FUNC</code> (2) or <code>ARRAY</code> (3) (<a class="lref" data-file="c0h.c" data-line="1197" href="source/c0h.c.html#L1197">1197&ndash;1199</a>). The field in bits
+3 and 4 is the outermost modifier, the one you meet first when using the object. So a pointer to
+<code>char</code> is <code>010|1</code>, 011 octal; an array of pointers to <code>char</code>, such as
+<code>argv</code>, has <code>ARRAY</code> in bits 3 and 4 and <code>PTR</code> in bits 5 and 6, making 071; and
+a function returning a pointer to <code>char</code> is 061. Six modifiers fit, which is more than
+anyone needed.</p>
+
+<p>With this layout, the two operations that the compiler needs most are shifts.
+<code>decref</code> (<a class="lref" data-file="c04.c" data-line="3813" href="source/c04.c.html#L3813">3813&ndash;3823</a>) removes the outermost modifier, as the <code>*</code> operator does to
+a pointer or a call does to a function, by shifting the modifier bits right by two and keeping
+the base. <code>incref</code> (<a class="lref" data-file="c04.c" data-line="3829" href="source/c04.c.html#L3829">3829&ndash;3832</a>) shifts them left and puts <code>PTR</code> in the vacated
+field, as <code>&amp;</code> does. The test &ldquo;is this a pointer?&rdquo; is <code>(t&amp;XTYPE)==PTR</code>,
+and several places use the shortcut <code>t&gt;=PTR</code> to mean &ldquo;is any kind of
+reference&rdquo;, which works because every modified type is numerically larger than every basic
+one.</p>
+
+<p>The type word does not say how big an array is, or which structure a <code>STRUCT</code> is. That
+information lives in <code>dimtab</code>, and each node and symbol carries an index into it
+(<a href="03-c0.html#symtab">chapter 3</a>). <code>length</code> (<a class="lref" data-file="c04.c" data-line="3939" href="source/c04.c.html#L3939">3939&ndash;3979</a>) combines the two to
+give the size of an object in bytes, and <code>plength</code> (<a class="lref" data-file="c04.c" data-line="3920" href="source/c04.c.html#L3920">3920&ndash;3933</a>) the size of the object a
+pointer points to, which is what pointer arithmetic needs.</p>
+
+<div class="widget" data-widget="typeword">
+<div class="wbar"><span class="wt">The type word</span></div>
+<div class="wbody">
+<p class="small muted" style="margin-top:0">Choose a basic type, then wrap it in modifiers. Each wrap makes the current type the thing
+pointed to, returned, or stored in the array, and so pushes the existing modifiers up two bits.
+You can also click individual bits.</p>
+<div class="row" style="margin-bottom:.6rem">
+<button type="button" class="chip base" data-b="0">int</button>
+<button type="button" class="chip base" data-b="1">char</button>
+<button type="button" class="chip base" data-b="2">float</button>
+<button type="button" class="chip base" data-b="3">double</button>
+<button type="button" class="chip base" data-b="4">struct</button>
+<button type="button" class="chip base" data-b="6">long</button>
+</div>
+<div class="row" style="margin-bottom:1rem">
+<button type="button" class="btn wrap" data-m="1">Pointer to&hellip;</button>
+<button type="button" class="btn wrap" data-m="2">Function returning&hellip;</button>
+<button type="button" class="btn wrap" data-m="3">Array of&hellip;</button>
+<button type="button" class="btn incref">incref</button>
+<button type="button" class="btn decref">decref</button>
+</div>
+<div class="bits"></div>
+<div class="tout" style="margin-top:1rem"></div>
+</div>
+</div>
+
+<h2 id="build">What <code>build</code> does</h2>
+
+<p><code>build(op)</code> pops one or two operands from the parser's operand stack, makes a node with
+operator <code>op</code>, and pushes it. In between, it does a good deal. It is easiest to follow in the
+order the code is written.</p>
+
+<h3>Rewrites before anything else</h3>
+
+<p>A subscript is not an operator in its own right. <code>a[i]</code> is turned into <code>*(a+i)</code> by
+building a <code>+</code> and then a <code>*</code> (<a class="lref" data-file="c01.c" data-line="2123" href="source/c01.c.html#L2123">2123&ndash;2129</a>), so that everything that follows,
+including the scaling of <code>i</code>, is the ordinary treatment of addition and indirection.
+This is the identity that defines subscripting in C, applied literally, and it is why
+<code>i[a]</code> works too.</p>
+
+<p>Next, the operands are normalised (<a class="lref" data-file="c01.c" data-line="2131" href="source/c01.c.html#L2131">2131&ndash;2155</a>). <code>disarray</code> (<a class="lref" data-file="c01.c" data-line="2413" href="source/c01.c.html#L2413">2413&ndash;2428</a>)
+turns an operand whose type is an array into a pointer to its first element, by changing the
+node's type to the element type and applying <code>&amp;</code>. <code>chkfun</code> (<a class="lref" data-file="c01.c" data-line="2397" href="source/c01.c.html#L2397">2397&ndash;2407</a>) does
+the same for a function name, which becomes a pointer to the function. These two rules are why an
+array name, used in an expression, is a pointer. The exceptions are the operand of
+<code>sizeof</code>, which is dealt with before this point, the operand of <code>&amp;</code>, a structure
+member name, and the function of a call, which must stay a function.</p>
+
+<p><code>sizeof</code> is resolved here too, simply by replacing the operand with a constant equal
+to its length (<a class="lref" data-file="c01.c" data-line="2136" href="source/c01.c.html#L2136">2136&ndash;2149</a>). The comment admits a bug. When the member of a structure is an array,
+the <code>.</code> operator produces its address, a pointer, rather than the array itself (see below), so
+by the time <code>sizeof</code> sees it, the operand is a pointer and its size is 2. The real compiler
+agrees; in <code>decl.c</code>, below, <code>sizeof np-&gt;name</code> prints as 2 although <code>name</code> is
+<code>char[5]</code>.</p>
+
+<h3>Operators that need no conversion</h3>
+
+<p>A group of operators is dealt with immediately (<a class="lref" data-file="c01.c" data-line="2158" href="source/c01.c.html#L2158">2158&ndash;2241</a>). <code>,</code>, <code>&amp;&amp;</code>,
+<code>||</code> and <code>?</code> just make a node. A call checks that its operand is a function and takes
+its type from the function's return type.</p>
+
+<p><code>*</code> and <code>&amp;</code> cancel each other: <code>*&amp;x</code> is <code>x</code>, and <code>&amp;*p</code> is <code>p</code>
+with its type adjusted. <code>&amp;</code> may otherwise only be applied to a name; anything else is an
+&ldquo;Illegal lvalue&rdquo;. Since array subscripts and structure members all become
+<code>*</code> of something, this one rule covers <code>&amp;a[i]</code> and <code>&amp;s.m</code>.</p>
+
+<h3>Structure references</h3>
+
+<p><code>a-&gt;b</code> is rewritten as <code>(*a).b</code> (<a class="lref" data-file="c01.c" data-line="2207" href="source/c01.c.html#L2207">2207&ndash;2215</a>). The operand <code>a</code> is given the
+type &ldquo;pointer to structure&rdquo; whatever it really was, which is how the language lets
+any pointer, or even an integer, be used on the left of <code>-&gt;</code>. Then the <code>.</code> case
+(<a class="lref" data-file="c01.c" data-line="2217" href="source/c01.c.html#L2217">2217&ndash;2241</a>) does what its comment calls a fairly complicated process. The member name on
+the right carries the member's type and its offset in the structure. The left operand is retyped
+as if it were an object of the member's type, its address is taken, the offset is added as a
+constant of the special type <code>NOTYPE</code>, and the sum is dereferenced. So</p>
+
+<pre>s.m      becomes    *(&amp;s + offset of m)
+p-&gt;m     becomes    *(p + offset of m)</pre>
+
+<p>where the addition is a plain byte addition. The <code>NOTYPE</code> on the constant is how the
+addition knows not to scale it (<a class="lref" data-file="c01.c" data-line="2263" href="source/c01.c.html#L2263">2263&ndash;2266</a>). For an array member the final <code>*</code> is
+omitted, since the address is already what is wanted, and for a bit-field the result is wrapped in
+a field-selection node, <code>FSEL</code>, that records the field's width and position for the second
+pass. Neither <code>.</code> nor <code>-&gt;</code> survives into the intermediate file.</p>
+
+<p>Because the member carries its own offset, the structure on the left is never consulted. Any
+member name can be applied to any object, a property the Sixth Edition kernel relied on
+heavily, for example to treat a pointer to a buffer header as an array of integers.</p>
+
+<h3>Checks</h3>
+
+<p>For the remaining operators the flag bits in <code>opdope</code> decide what to check
+(<a class="lref" data-file="c01.c" data-line="2243" href="source/c01.c.html#L2243">2243&ndash;2248</a>). An operator with <code>LVALUE</code> set, which includes the assignments,
+<code>++</code> and <code>--</code>, calls <code>chklval</code> (<a class="lref" data-file="c01.c" data-line="2521" href="source/c01.c.html#L2521">2521&ndash;2529</a>): its operand must be a name or a
+<code>*</code> node. This is where the bit-field restriction comes from. A field is neither, it is an
+<code>FSEL</code> node, so assigning to a field fails with &ldquo;Lvalue required&rdquo;, and the Sixth
+Edition compiler can read bit-fields but never store into them. <code>LWORD</code> and <code>RWORD</code>
+mark operators that need integer operands, such as <code>&amp;</code> and <code>&lt;&lt;</code>, and
+<code>chkw</code> (<a class="lref" data-file="c01.c" data-line="2436" href="source/c01.c.html#L2436">2436&ndash;2444</a>) enforces them.</p>
+
+<p>Unary operators then need only a type: the same as the operand's, except for the two
+conversion operators (<a class="lref" data-file="c01.c" data-line="2249" href="source/c01.c.html#L2249">2249&ndash;2257</a>).</p>
+
+<h2 id="conversions">Conversions</h2>
+
+<p>For a binary operator, <code>build</code> looks up the pair of operand types in a four-by-four
+table, <code>cvtab</code> (<a class="lref" data-file="c05.c" data-line="4280" href="source/c05.c.html#L4280">4280&ndash;4302</a>). <code>lintyp</code> (<a class="lref" data-file="c01.c" data-line="2450" href="source/c01.c.html#L2450">2450&ndash;2468</a>) sorts types into four
+classes: integer (including <code>char</code>), floating, <code>long</code>, and pointer.</p>
+
+<pre class="excerpt"><span class="xf">c05.c</span>
+<span class="xl"><a class="lref" data-file="c05.c" data-line="4297" href="source/c05.c.html#L4297"> 4297</a>  <span class="kw">char</span> cvtab[<span class="nu">4</span>][<span class="nu">4</span>] {</span>
+<span class="xl"><a class="lref" data-file="c05.c" data-line="4298" href="source/c05.c.html#L4298"> 4298</a>  <span class="cm">/*              int     double          long            ptr */</span></span>
+<span class="xl"><a class="lref" data-file="c05.c" data-line="4299" href="source/c05.c.html#L4299"> 4299</a>  <span class="cm">/* int */</span>       <span class="nu">0</span>,      (FTI&lt;&lt;<span class="nu">4</span>)+ITF,   (LTI&lt;&lt;<span class="nu">4</span>)+ITL,   (ITP&lt;&lt;<span class="nu">4</span>)+ITP,   </span>
+<span class="xl"><a class="lref" data-file="c05.c" data-line="4300" href="source/c05.c.html#L4300"> 4300</a>  <span class="cm">/* double */</span>    ITF,    <span class="nu">0</span>,              LTF,            XX,</span>
+<span class="xl"><a class="lref" data-file="c05.c" data-line="4301" href="source/c05.c.html#L4301"> 4301</a>  <span class="cm">/* long */</span>      ITL,    (FTL&lt;&lt;<span class="nu">4</span>)+LTF,   <span class="nu">0</span>,              XX,</span>
+<span class="xl"><a class="lref" data-file="c05.c" data-line="4302" href="source/c05.c.html#L4302"> 4302</a>  <span class="cm">/* ptr */</span>       ITP,    XX,             XX,             PTI</span></pre>
+
+<p>Each entry is a conversion code (<a class="lref" data-file="c0h.c" data-line="1281" href="source/c0h.c.html#L1281">1281&ndash;1291</a>). An entry whose high four bits are set means
+&ldquo;convert the <em>left</em> operand&rdquo;, with the low four bits saying how. For
+<code>int + double</code> the entry is <code>(FTI&lt;&lt;4)+ITF</code>: the left operand is the one to convert,
+and the conversion is <code>ITF</code>, integer to floating. The <code>FTI</code> in the high half matters for
+assignments. The left side of an assignment cannot be converted, so the result type is the left
+side's, and the conversion in the high half, <code>FTI</code>, is applied to the right side instead
+(<a class="lref" data-file="c01.c" data-line="2272" href="source/c01.c.html#L2272">2272&ndash;2278</a>). The comment above the table explains this in its own words
+(<a class="lref" data-file="c05.c" data-line="4280" href="source/c05.c.html#L4280">4280&ndash;4296</a>).</p>
+
+<p>Pointers need their own rules (<a class="lref" data-file="c01.c" data-line="2279" href="source/c01.c.html#L2279">2279&ndash;2296</a>):</p>
+
+<ul>
+<li>Integer and pointer (<code>ITP</code>): the integer is multiplied by the size of the object
+the pointer points to. <code>convert</code> (<a class="lref" data-file="c01.c" data-line="2322" href="source/c01.c.html#L2322">2322&ndash;2356</a>) does this by building a <code>*</code> node,
+which the second pass will turn into a shift when the size is a power of two. A plain
+assignment of an integer to a pointer, or the reverse, is accepted with no conversion at all.</li>
+<li>Pointer and pointer (<code>PTI</code>): allowed for subtraction, which gives an <code>int</code> that is
+then divided by the object size, and for comparison, which uses the unsigned comparison operators
+<code>LESSP</code> and so on. Plain assignment of one pointer to another is accepted with no
+conversion whatever the pointers point to, and so are the two arms of <code>?:</code> when their types
+are identical. Other operations are illegal, except, oddly, between two <code>char</code> pointers.</li>
+<li>Pointer and floating or <code>long</code> (<code>XX</code>): &ldquo;Illegal conversion&rdquo;.</li>
+</ul>
+
+<p>Structures cannot be operands of anything but <code>.</code> and <code>&amp;</code>: there is no structure
+assignment, and the attempt draws &ldquo;Unimplemented structure operation&rdquo;
+(<a class="lref" data-file="c01.c" data-line="2259" href="source/c01.c.html#L2259">2259&ndash;2262</a>).</p>
+
+<p>After the conversion, a relational operator's result is made <code>int</code>, <code>fold</code> is given a
+chance to evaluate the node if both operands are constants, and otherwise the node is made
+(<a class="lref" data-file="c01.c" data-line="2307" href="source/c01.c.html#L2307">2307&ndash;2314</a>).</p>
+
+<div class="widget" data-widget="convert">
+<div class="wbar"><span class="wt">build() on a binary operator</span></div>
+<div class="wbody">
+<p class="small muted" style="margin-top:0">Pick the types of <code>a</code> and <code>b</code> and an operator to see what <code>build</code>
+does with <code>a op b</code>. The logic follows <a class="lref" data-file="c01.c" data-line="2258" href="source/c01.c.html#L2258">2258&ndash;2314</a>.</p>
+<div class="row">
+<span><label for="cvl">a is</label><select id="cvl" class="cl"></select></span>
+<span><label for="cvo">operator</label><select id="cvo" class="co"></select></span>
+<span><label for="cvr">b is</label><select id="cvr" class="cr"></select></span>
+</div>
+<div class="cout" style="margin-top:1rem"></div>
+</div>
+</div>
+
+<p>The effect of these rules shows clearly in the generated code. Here is a small program doing
+pointer arithmetic, its output, and part of the code for it.</p>
+
+<div class="pair">
+<div><p class="lbl">ptr.c</p><pre>int v[10];
+
+main()
+{
+        int *p, *q;
+        char *s, *t;
+
+        p = &amp;v[1];
+        q = &amp;v[7];
+        s = "abcdef";
+        t = s + 4;
+        printf("%d %d\n", q - p, t - s);
+        p = p + 3;
+        printf("%d\n", p - v);
+}</pre><p class="lbl">a.out</p><pre>6 4
+4</pre></div>
+<div><p class="lbl">ptr.s (part)</p><pre>mov	$2+_v,-10(r5)      <span class="cm">/ p = &amp;v[1]</span>
+mov	$16+_v,-12(r5)     <span class="cm">/ q = &amp;v[7]</span>
+...
+mov	-12(r5),r0         <span class="cm">/ q - p</span>
+sub	-10(r5),r0
+asr	r0                 <span class="cm">/ divided by 2</span>
+...
+mov	-10(r5),r0         <span class="cm">/ p = p + 3</span>
+add	$6,r0              <span class="cm">/ 3 scaled to 6 bytes</span>
+mov	r0,-10(r5)</pre></div>
+</div>
+
+<p><code>&amp;v[1]</code> became the constant address <code>2+_v</code>: the subscript turned into
+<code>*(v+1)</code>, the <code>1</code> was scaled to 2, and <code>&amp;*</code> cancelled, leaving an address the
+second pass could fold into a single operand. <code>t - s</code>, the difference of two <code>char</code>
+pointers, needed no division at all.</p>
+
+<p>And here is the structure example that shows both the <code>sizeof</code> bug and the bit-field
+layout problem described in the next chapter.</p>
+
+<div class="pair">
+<div><p class="lbl">decl.c</p><pre>struct node {
+        int     value;
+        char    flag;
+        int     kind:3;
+        int     mark:1;
+        int     count;
+        struct  node *next;
+        char    name[5];
+};
+
+struct node tab[10];
+int (*fp)();
+char *argv[4];
+int matrix[3][4];
+
+main()
+{
+        struct node *np;
+
+        np = &amp;tab[2];
+        printf("%d %d %d\n", sizeof tab[0], sizeof matrix, sizeof np-&gt;name);
+        printf("%d %d\n", &amp;np-&gt;count - &amp;np-&gt;value, &amp;np-&gt;next - &amp;np-&gt;value);
+        printf("%d\n", np-&gt;kind);
+}</pre></div>
+<div><p class="lbl">a.out</p><pre>14 24 2
+2 3
+0</pre>
+<p class="small muted">The first line gives the size of a <code>struct node</code> (14), of <code>matrix</code> (24),
+and <code>sizeof np-&gt;name</code>, which should be 5 but is 2. The second gives the distance in words
+from <code>value</code> to <code>count</code> and to <code>next</code>: 2 and 3, which puts <code>count</code> on top of the
+bit-fields. <a href="07-declarations.html#fields">Chapter 7</a> explains.</p></div>
+</div>
+
+<h2 id="fold">Constant folding</h2>
+
+<p><code>fold</code> (<a class="lref" data-file="c01.c" data-line="2537" href="source/c01.c.html#L2537">2537&ndash;2604</a>) evaluates an operator whose operands are integer constants,
+replacing the node by a constant. It handles the arithmetic and logical operators and unary minus
+and complement. Its comment says that more folding happens in the second pass, and this one exists
+mainly so that constant expressions can be used where the first pass needs a number: array
+bounds, <code>case</code> labels and bit-field widths, all read by <code>conexp</code>. Relational operators
+are not folded, which is why the <code>max(10, 7)</code> of <a href="02-cc.html">chapter 2</a> compiled
+into an actual comparison of two constants:</p>
+
+<pre>.globl  _onunix
+.data
+_onunix:
+1
+.globl  _main
+.text
+_main:
+~~main:
+jsr     r5,csv
+cmp     $7,$12
+jge     L10000
+mov     $12,(sp)
+jbr     L10001
+L10000:mov      $7,(sp)
+L10001:mov      $L2,-(sp)
+jsr     pc,*$_printf
+tst     (sp)+
+L1:jmp  cret
+.globl
+.data
+L2:.byte 45,144,12,0</pre>
+
+<p>Nothing in either pass folds <code>10 &gt; 7</code>, so the code compares <code>$7</code> with <code>$12</code> and
+branches, every time the function is called.</p>
+
+<nav class="pager"><a href="05-expressions.html">&larr; Expressions</a><a href="07-declarations.html">Declarations &rarr;</a></nav>
+</main>
+<aside class="panel" id="panel" hidden>
+<div class="panelbar"><span class="pfile"></span><button type="button" class="pclose" aria-label="Close listing">Close</button></div>
+<div class="pbody"></div>
+</aside>
+</div>
+<script src="assets/book.js"></script>
+<script src="assets/listing-data.js"></script><script src="assets/reader.js"></script><script src="assets/types.js"></script>
+</body>
+</html>

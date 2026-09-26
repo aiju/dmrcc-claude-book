@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>c2h.c · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>c2h.c</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 187 &middot; lines 9350&ndash;9474</p>
+<h1><code>c2h.c</code></h1>
+<p class="desc">Pass 2 header</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L9350" class="s1"><td class="ln"><a href="#L9350">9350</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L9351" class="s1"><td class="ln"><a href="#L9351">9351</a></td><td class="code"><span class="cm"> * Header for object code improver</span></td></tr>
+<tr id="L9352" class="s1"><td class="ln"><a href="#L9352">9352</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L9353" class="s1"><td class="ln"><a href="#L9353">9353</a></td><td class="code"> </td></tr>
+<tr id="L9354" class="s1"><td class="ln"><a href="#L9354">9354</a></td><td class="code"><span class="pp">#define JBR     1</span></td></tr>
+<tr id="L9355" class="s1"><td class="ln"><a href="#L9355">9355</a></td><td class="code"><span class="pp">#define CBR     2</span></td></tr>
+<tr id="L9356" class="s1"><td class="ln"><a href="#L9356">9356</a></td><td class="code"><span class="pp">#define JMP     3</span></td></tr>
+<tr id="L9357" class="s1"><td class="ln"><a href="#L9357">9357</a></td><td class="code"><span class="pp">#define LABEL   4</span></td></tr>
+<tr id="L9358" class="s1"><td class="ln"><a href="#L9358">9358</a></td><td class="code"><span class="pp">#define DLABEL  5</span></td></tr>
+<tr id="L9359" class="s1"><td class="ln"><a href="#L9359">9359</a></td><td class="code"><span class="pp">#define EROU    7</span></td></tr>
+<tr id="L9360" class="s1"><td class="ln"><a href="#L9360">9360</a></td><td class="code"><span class="pp">#define JSW     9</span></td></tr>
+<tr id="L9361" class="s1"><td class="ln"><a href="#L9361">9361</a></td><td class="code"><span class="pp">#define MOV     10</span></td></tr>
+<tr id="L9362" class="s1"><td class="ln"><a href="#L9362">9362</a></td><td class="code"><span class="pp">#define CLR     11</span></td></tr>
+<tr id="L9363" class="s1"><td class="ln"><a href="#L9363">9363</a></td><td class="code"><span class="pp">#define COM     12</span></td></tr>
+<tr id="L9364" class="s1"><td class="ln"><a href="#L9364">9364</a></td><td class="code"><span class="pp">#define INC     13</span></td></tr>
+<tr id="L9365" class="s1"><td class="ln"><a href="#L9365">9365</a></td><td class="code"><span class="pp">#define DEC     14</span></td></tr>
+<tr id="L9366" class="s1"><td class="ln"><a href="#L9366">9366</a></td><td class="code"><span class="pp">#define NEG     15</span></td></tr>
+<tr id="L9367" class="s1"><td class="ln"><a href="#L9367">9367</a></td><td class="code"><span class="pp">#define TST     16</span></td></tr>
+<tr id="L9368" class="s1"><td class="ln"><a href="#L9368">9368</a></td><td class="code"><span class="pp">#define ASR     17</span></td></tr>
+<tr id="L9369" class="s1"><td class="ln"><a href="#L9369">9369</a></td><td class="code"><span class="pp">#define ASL     18</span></td></tr>
+<tr id="L9370" class="s1"><td class="ln"><a href="#L9370">9370</a></td><td class="code"><span class="pp">#define SXT     19</span></td></tr>
+<tr id="L9371" class="s1"><td class="ln"><a href="#L9371">9371</a></td><td class="code"><span class="pp">#define CMP     20</span></td></tr>
+<tr id="L9372" class="s1"><td class="ln"><a href="#L9372">9372</a></td><td class="code"><span class="pp">#define ADD     21</span></td></tr>
+<tr id="L9373" class="s1"><td class="ln"><a href="#L9373">9373</a></td><td class="code"><span class="pp">#define SUB     22</span></td></tr>
+<tr id="L9374" class="s1"><td class="ln"><a href="#L9374">9374</a></td><td class="code"><span class="pp">#define BIT     23</span></td></tr>
+<tr id="L9375" class="s1"><td class="ln"><a href="#L9375">9375</a></td><td class="code"><span class="pp">#define BIC     24</span></td></tr>
+<tr id="L9376" class="s1"><td class="ln"><a href="#L9376">9376</a></td><td class="code"><span class="pp">#define BIS     25</span></td></tr>
+<tr id="L9377" class="s1"><td class="ln"><a href="#L9377">9377</a></td><td class="code"><span class="pp">#define MUL     26</span></td></tr>
+<tr id="L9378" class="s1"><td class="ln"><a href="#L9378">9378</a></td><td class="code"><span class="pp">#define DIV     27</span></td></tr>
+<tr id="L9379" class="s1"><td class="ln"><a href="#L9379">9379</a></td><td class="code"><span class="pp">#define ASH     28</span></td></tr>
+<tr id="L9380" class="s1"><td class="ln"><a href="#L9380">9380</a></td><td class="code"><span class="pp">#define XOR     29</span></td></tr>
+<tr id="L9381" class="s1"><td class="ln"><a href="#L9381">9381</a></td><td class="code"><span class="pp">#define TEXT    30</span></td></tr>
+<tr id="L9382" class="s1"><td class="ln"><a href="#L9382">9382</a></td><td class="code"><span class="pp">#define DATA    31</span></td></tr>
+<tr id="L9383" class="s1"><td class="ln"><a href="#L9383">9383</a></td><td class="code"><span class="pp">#define BSS     32</span></td></tr>
+<tr id="L9384" class="s1"><td class="ln"><a href="#L9384">9384</a></td><td class="code"><span class="pp">#define EVEN    33</span></td></tr>
+<tr id="L9385" class="s1"><td class="ln"><a href="#L9385">9385</a></td><td class="code"><span class="pp">#define MOVF    34</span></td></tr>
+<tr id="L9386" class="s1"><td class="ln"><a href="#L9386">9386</a></td><td class="code"><span class="pp">#define MOVOF   35</span></td></tr>
+<tr id="L9387" class="s1"><td class="ln"><a href="#L9387">9387</a></td><td class="code"><span class="pp">#define MOVFO   36</span></td></tr>
+<tr id="L9388" class="s1"><td class="ln"><a href="#L9388">9388</a></td><td class="code"><span class="pp">#define ADDF    37</span></td></tr>
+<tr id="L9389" class="s1"><td class="ln"><a href="#L9389">9389</a></td><td class="code"><span class="pp">#define SUBF    38</span></td></tr>
+<tr id="L9390" class="s1"><td class="ln"><a href="#L9390">9390</a></td><td class="code"><span class="pp">#define DIVF    39</span></td></tr>
+<tr id="L9391" class="s1"><td class="ln"><a href="#L9391">9391</a></td><td class="code"><span class="pp">#define MULF    40</span></td></tr>
+<tr id="L9392" class="s1"><td class="ln"><a href="#L9392">9392</a></td><td class="code"><span class="pp">#define CLRF    41</span></td></tr>
+<tr id="L9393" class="s1"><td class="ln"><a href="#L9393">9393</a></td><td class="code"><span class="pp">#define CMPF    42</span></td></tr>
+<tr id="L9394" class="s1"><td class="ln"><a href="#L9394">9394</a></td><td class="code"><span class="pp">#define NEGF    43</span></td></tr>
+<tr id="L9395" class="s1"><td class="ln"><a href="#L9395">9395</a></td><td class="code"><span class="pp">#define TSTF    44</span></td></tr>
+<tr id="L9396" class="s1"><td class="ln"><a href="#L9396">9396</a></td><td class="code"><span class="pp">#define CFCC    45</span></td></tr>
+<tr id="L9397" class="s1"><td class="ln"><a href="#L9397">9397</a></td><td class="code"><span class="pp">#define SOB     46</span></td></tr>
+<tr id="L9398" class="s1"><td class="ln"><a href="#L9398">9398</a></td><td class="code"><span class="pp">#define JSR     47</span></td></tr>
+<tr id="L9399" class="s1"><td class="ln"><a href="#L9399">9399</a></td><td class="code"><span class="pp">#define END     48</span></td></tr>
+<tr id="L9400" class="s0"><td class="ln"><a href="#L9400">9400</a></td><td class="code"> </td></tr>
+<tr id="L9401" class="s0"><td class="ln"><a href="#L9401">9401</a></td><td class="code"><span class="pp">#define JEQ     0</span></td></tr>
+<tr id="L9402" class="s0"><td class="ln"><a href="#L9402">9402</a></td><td class="code"><span class="pp">#define JNE     1</span></td></tr>
+<tr id="L9403" class="s0"><td class="ln"><a href="#L9403">9403</a></td><td class="code"><span class="pp">#define JLE     2</span></td></tr>
+<tr id="L9404" class="s0"><td class="ln"><a href="#L9404">9404</a></td><td class="code"><span class="pp">#define JGE     3</span></td></tr>
+<tr id="L9405" class="s0"><td class="ln"><a href="#L9405">9405</a></td><td class="code"><span class="pp">#define JLT     4</span></td></tr>
+<tr id="L9406" class="s0"><td class="ln"><a href="#L9406">9406</a></td><td class="code"><span class="pp">#define JGT     5</span></td></tr>
+<tr id="L9407" class="s0"><td class="ln"><a href="#L9407">9407</a></td><td class="code"><span class="pp">#define JLO     6</span></td></tr>
+<tr id="L9408" class="s0"><td class="ln"><a href="#L9408">9408</a></td><td class="code"><span class="pp">#define JHI     7</span></td></tr>
+<tr id="L9409" class="s0"><td class="ln"><a href="#L9409">9409</a></td><td class="code"><span class="pp">#define JLOS    8</span></td></tr>
+<tr id="L9410" class="s0"><td class="ln"><a href="#L9410">9410</a></td><td class="code"><span class="pp">#define JHIS    9</span></td></tr>
+<tr id="L9411" class="s0"><td class="ln"><a href="#L9411">9411</a></td><td class="code"> </td></tr>
+<tr id="L9412" class="s0"><td class="ln"><a href="#L9412">9412</a></td><td class="code"><span class="pp">#define BYTE    100</span></td></tr>
+<tr id="L9413" class="s0"><td class="ln"><a href="#L9413">9413</a></td><td class="code"> </td></tr>
+<tr id="L9414" class="s0"><td class="ln"><a href="#L9414">9414</a></td><td class="code"><span class="kw">struct</span> node {</td></tr>
+<tr id="L9415" class="s0"><td class="ln"><a href="#L9415">9415</a></td><td class="code">        <span class="kw">char</span>    op;</td></tr>
+<tr id="L9416" class="s0"><td class="ln"><a href="#L9416">9416</a></td><td class="code">        <span class="kw">char</span>    subop;</td></tr>
+<tr id="L9417" class="s0"><td class="ln"><a href="#L9417">9417</a></td><td class="code">        <span class="kw">struct</span>  node    *forw;</td></tr>
+<tr id="L9418" class="s0"><td class="ln"><a href="#L9418">9418</a></td><td class="code">        <span class="kw">struct</span>  node    *back;</td></tr>
+<tr id="L9419" class="s0"><td class="ln"><a href="#L9419">9419</a></td><td class="code">        <span class="kw">struct</span>  node    *ref;</td></tr>
+<tr id="L9420" class="s0"><td class="ln"><a href="#L9420">9420</a></td><td class="code">        <span class="kw">int</span>     labno;</td></tr>
+<tr id="L9421" class="s0"><td class="ln"><a href="#L9421">9421</a></td><td class="code">        <span class="kw">char</span>    *code;</td></tr>
+<tr id="L9422" class="s0"><td class="ln"><a href="#L9422">9422</a></td><td class="code">        <span class="kw">int</span>     refc;</td></tr>
+<tr id="L9423" class="s0"><td class="ln"><a href="#L9423">9423</a></td><td class="code">};</td></tr>
+<tr id="L9424" class="s0"><td class="ln"><a href="#L9424">9424</a></td><td class="code"> </td></tr>
+<tr id="L9425" class="s0"><td class="ln"><a href="#L9425">9425</a></td><td class="code"><span class="kw">struct</span> {</td></tr>
+<tr id="L9426" class="s0"><td class="ln"><a href="#L9426">9426</a></td><td class="code">        <span class="kw">int</span>     combop;</td></tr>
+<tr id="L9427" class="s0"><td class="ln"><a href="#L9427">9427</a></td><td class="code">};</td></tr>
+<tr id="L9428" class="s0"><td class="ln"><a href="#L9428">9428</a></td><td class="code"> </td></tr>
+<tr id="L9429" class="s0"><td class="ln"><a href="#L9429">9429</a></td><td class="code"><span class="kw">struct</span> optab {</td></tr>
+<tr id="L9430" class="s0"><td class="ln"><a href="#L9430">9430</a></td><td class="code">        <span class="kw">char</span>    *opstring;</td></tr>
+<tr id="L9431" class="s0"><td class="ln"><a href="#L9431">9431</a></td><td class="code">        <span class="kw">int</span>     opcode;</td></tr>
+<tr id="L9432" class="s0"><td class="ln"><a href="#L9432">9432</a></td><td class="code">} optab[];</td></tr>
+<tr id="L9433" class="s0"><td class="ln"><a href="#L9433">9433</a></td><td class="code"> </td></tr>
+<tr id="L9434" class="s0"><td class="ln"><a href="#L9434">9434</a></td><td class="code"><span class="kw">char</span>    line[<span class="nu">512</span>];</td></tr>
+<tr id="L9435" class="s0"><td class="ln"><a href="#L9435">9435</a></td><td class="code"><span class="kw">struct</span>  node    first;</td></tr>
+<tr id="L9436" class="s0"><td class="ln"><a href="#L9436">9436</a></td><td class="code"><span class="kw">char</span>    *curlp;</td></tr>
+<tr id="L9437" class="s0"><td class="ln"><a href="#L9437">9437</a></td><td class="code"><span class="kw">int</span>     nbrbr;</td></tr>
+<tr id="L9438" class="s0"><td class="ln"><a href="#L9438">9438</a></td><td class="code"><span class="kw">int</span>     nsaddr;</td></tr>
+<tr id="L9439" class="s0"><td class="ln"><a href="#L9439">9439</a></td><td class="code"><span class="kw">int</span>     redunm;</td></tr>
+<tr id="L9440" class="s0"><td class="ln"><a href="#L9440">9440</a></td><td class="code"><span class="kw">int</span>     iaftbr;</td></tr>
+<tr id="L9441" class="s0"><td class="ln"><a href="#L9441">9441</a></td><td class="code"><span class="kw">int</span>     njp1;</td></tr>
+<tr id="L9442" class="s0"><td class="ln"><a href="#L9442">9442</a></td><td class="code"><span class="kw">int</span>     nrlab;</td></tr>
+<tr id="L9443" class="s0"><td class="ln"><a href="#L9443">9443</a></td><td class="code"><span class="kw">int</span>     nxjump;</td></tr>
+<tr id="L9444" class="s0"><td class="ln"><a href="#L9444">9444</a></td><td class="code"><span class="kw">int</span>     ncmot;</td></tr>
+<tr id="L9445" class="s0"><td class="ln"><a href="#L9445">9445</a></td><td class="code"><span class="kw">int</span>     nrevbr;</td></tr>
+<tr id="L9446" class="s0"><td class="ln"><a href="#L9446">9446</a></td><td class="code"><span class="kw">int</span>     loopiv;</td></tr>
+<tr id="L9447" class="s0"><td class="ln"><a href="#L9447">9447</a></td><td class="code"><span class="kw">int</span>     nredunj;</td></tr>
+<tr id="L9448" class="s0"><td class="ln"><a href="#L9448">9448</a></td><td class="code"><span class="kw">int</span>     nskip;</td></tr>
+<tr id="L9449" class="s0"><td class="ln"><a href="#L9449">9449</a></td><td class="code"><span class="kw">int</span>     ncomj;</td></tr>
+<tr id="L9450" class="s1"><td class="ln"><a href="#L9450">9450</a></td><td class="code"><span class="kw">int</span>     nsob;</td></tr>
+<tr id="L9451" class="s1"><td class="ln"><a href="#L9451">9451</a></td><td class="code"><span class="kw">int</span>     nrtst;</td></tr>
+<tr id="L9452" class="s1"><td class="ln"><a href="#L9452">9452</a></td><td class="code"><span class="kw">int</span>     nlit;</td></tr>
+<tr id="L9453" class="s1"><td class="ln"><a href="#L9453">9453</a></td><td class="code"> </td></tr>
+<tr id="L9454" class="s1"><td class="ln"><a href="#L9454">9454</a></td><td class="code"><span class="kw">int</span>     nchange;</td></tr>
+<tr id="L9455" class="s1"><td class="ln"><a href="#L9455">9455</a></td><td class="code"><span class="kw">int</span>     isn;</td></tr>
+<tr id="L9456" class="s1"><td class="ln"><a href="#L9456">9456</a></td><td class="code"><span class="kw">int</span>     debug;</td></tr>
+<tr id="L9457" class="s1"><td class="ln"><a href="#L9457">9457</a></td><td class="code"><span class="kw">char</span>    *lasta;</td></tr>
+<tr id="L9458" class="s1"><td class="ln"><a href="#L9458">9458</a></td><td class="code"><span class="kw">char</span>    *lastr;</td></tr>
+<tr id="L9459" class="s1"><td class="ln"><a href="#L9459">9459</a></td><td class="code"><span class="kw">char</span>    *firstr;</td></tr>
+<tr id="L9460" class="s1"><td class="ln"><a href="#L9460">9460</a></td><td class="code"><span class="kw">char</span>    revbr[];</td></tr>
+<tr id="L9461" class="s1"><td class="ln"><a href="#L9461">9461</a></td><td class="code"><span class="kw">char</span>    regs[<span class="nu">12</span>][<span class="nu">20</span>];</td></tr>
+<tr id="L9462" class="s1"><td class="ln"><a href="#L9462">9462</a></td><td class="code"><span class="kw">char</span>    conloc[<span class="nu">20</span>];</td></tr>
+<tr id="L9463" class="s1"><td class="ln"><a href="#L9463">9463</a></td><td class="code"><span class="kw">char</span>    conval[<span class="nu">20</span>];</td></tr>
+<tr id="L9464" class="s1"><td class="ln"><a href="#L9464">9464</a></td><td class="code"><span class="kw">char</span>    ccloc[<span class="nu">20</span>];</td></tr>
+<tr id="L9465" class="s1"><td class="ln"><a href="#L9465">9465</a></td><td class="code"> </td></tr>
+<tr id="L9466" class="s1"><td class="ln"><a href="#L9466">9466</a></td><td class="code"><span class="pp">#define RT1     10</span></td></tr>
+<tr id="L9467" class="s1"><td class="ln"><a href="#L9467">9467</a></td><td class="code"><span class="pp">#define RT2     11</span></td></tr>
+<tr id="L9468" class="s1"><td class="ln"><a href="#L9468">9468</a></td><td class="code"><span class="pp">#define FREG    5</span></td></tr>
+<tr id="L9469" class="s1"><td class="ln"><a href="#L9469">9469</a></td><td class="code"><span class="pp">#define NREG    5</span></td></tr>
+<tr id="L9470" class="s1"><td class="ln"><a href="#L9470">9470</a></td><td class="code"><span class="pp">#define LABHS   127</span></td></tr>
+<tr id="L9471" class="s1"><td class="ln"><a href="#L9471">9471</a></td><td class="code"><span class="pp">#define OPHS    57</span></td></tr>
+<tr id="L9472" class="s1"><td class="ln"><a href="#L9472">9472</a></td><td class="code"> </td></tr>
+<tr id="L9473" class="s1"><td class="ln"><a href="#L9473">9473</a></td><td class="code"><span class="kw">struct</span> optab *ophash[OPHS];</td></tr>
+<tr id="L9474" class="s1"><td class="ln"><a href="#L9474">9474</a></td><td class="code"><span class="kw">struct</span> { <span class="kw">char</span> lbyte; };</td></tr></table></div>
+<nav class="pager"><a href="cvopt.c.html">&larr; cvopt.c</a><a href="c20.c.html">c20.c &rarr;</a></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>

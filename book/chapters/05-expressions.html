@@ -1,0 +1,196 @@
+<!-- title: Parsing Expressions -->
+<!-- number: 5 -->
+<!-- short: Expressions -->
+<!-- scripts: lexer.js parser.js -->
+<!-- blurb: The operator-precedence parser tree(), its three stacks, and the table of priorities that decides where every operator binds. -->
+
+<p>Everything in <code>c0</code> that is not an expression is parsed by recursive descent: a routine
+for each kind of statement or declaration, reading tokens and calling other routines. Expressions
+are different. They are parsed by a single routine, <code>tree</code> ([[c00.c:468-670]]), using what
+its comment calls &ldquo;the classical bottom-up, priority-driven scheme&rdquo;. It is about two
+hundred lines long, has no recursion, and consists almost entirely of <code>goto</code>s.</p>
+
+<h2 id="method">The method</h2>
+
+<p>An operator-precedence parser keeps two stacks: one of operands, which are trees built so far,
+and one of operators not yet applied. It reads the expression from left to right. Operands are
+pushed onto their stack as they arrive. When an operator arrives it is compared with the operator
+on top of the stack. If the new one binds more tightly, it must be applied first, so it is
+pushed. If not, the one on the stack is applied now: it is popped, together with its operands,
+and the resulting tree is pushed back onto the operand stack. This is called a reduction, and
+reductions continue until the new operator does bind more tightly than whatever is left on
+top, at which point it is pushed.</p>
+
+<p><code>tree</code> keeps three stacks, declared at [[c00.c:472]]: <code>opst</code> for operators,
+<code>prst</code> for their priorities, and the global <code>cmst</code> for operands. The priority of an
+operator is normally a property of the operator, but keeping a separate stack of them lets
+<code>tree</code> push some operators with a priority different from the one they had on arrival,
+and that turns out to be the key to handling parentheses, calls and postfix operators.</p>
+
+<p>The bottom of the operator stack holds a marker, <code>SEOF</code>, with priority 6
+([[c00.c:481-482]]). Any token with a priority of 6 or less that arrives with nothing but
+<code>SEOF</code> above it ends the expression. That includes <code>;</code>, <code>)</code>, <code>]</code>,
+<code>{</code>, and every other token that is not an operator, since they all have priority 0. So the
+parser needs no knowledge of what may follow an expression: <code>if (a)</code>, <code>x[a]</code>,
+<code>return(a);</code> and <code>a;</code> all end the same way, with the terminating token pushed
+back for the caller ([[c00.c:629-632]]).</p>
+
+<h2 id="priorities">The priorities</h2>
+
+<p>Priorities come from the table <code>opdope</code> in <code>c05.c</code> ([[c05.c:16-128]]). Each entry is
+a word of flags describing the operator: whether it takes two operands, whether its operand must
+be an lvalue, whether it is a relational or an assignment operator, and so on
+([[c05.c:3-14]]). The high bits, starting at bit 9, hold the priority, which <code>tree</code>
+extracts with <code>(opdope[o]&gt;&gt;9) &amp; 077</code> ([[c00.c:601]]). Written in octal, as the table
+is, the priority is simply the first two digits: <code>+</code> is 030101, priority 030 or 24.</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Priority</th><th>Operators</th><th>Grouping</th></tr></thead>
+<tbody>
+<tr><td class="num">30</td><td><code>(</code> <code>[</code> <code>.</code> <code>-&gt;</code>, call</td><td>left</td></tr>
+<tr><td class="num">28</td><td>unary <code>*</code> <code>&amp;</code> <code>-</code> <code>!</code> <code>~</code> <code>++</code> <code>--</code> <code>sizeof</code></td><td>right</td></tr>
+<tr><td class="num">26</td><td><code>*</code> <code>/</code> <code>%</code></td><td>left</td></tr>
+<tr><td class="num">24</td><td><code>+</code> <code>-</code></td><td>left</td></tr>
+<tr><td class="num">22</td><td><code>&lt;&lt;</code> <code>&gt;&gt;</code></td><td>left</td></tr>
+<tr><td class="num">20</td><td><code>&lt;</code> <code>&lt;=</code> <code>&gt;</code> <code>&gt;=</code></td><td>left</td></tr>
+<tr><td class="num">18</td><td><code>==</code> <code>!=</code></td><td>left</td></tr>
+<tr><td class="num">16</td><td><code>&amp;</code></td><td>left</td></tr>
+<tr><td class="num">15</td><td><code>^</code> <code>|</code></td><td>left</td></tr>
+<tr><td class="num">14</td><td><code>&amp;&amp;</code></td><td>left</td></tr>
+<tr><td class="num">13</td><td><code>||</code></td><td>left</td></tr>
+<tr><td class="num">12</td><td><code>?</code> <code>:</code></td><td>right</td></tr>
+<tr><td class="num">10</td><td><code>=</code> <code>=+</code> <code>=-</code> and the other assignments</td><td>right</td></tr>
+<tr><td class="num">7</td><td><code>,</code></td><td>left</td></tr>
+<tr><td class="num">6</td><td>(end of expression)</td><td></td></tr>
+<tr><td class="num">2</td><td><code>)</code> <code>]</code></td><td></td></tr>
+</tbody></table></div>
+
+<p>Grouping is decided by the flag <code>RASSOC</code>, 0200. When the incoming operator has the same
+priority as the one on the stack, it is pushed if it groups to the right and the stacked one is
+reduced if it groups to the left ([[c00.c:606]]). So <code>a-b-c</code> reduces <code>a-b</code> before
+reading <code>c</code>, while <code>a=b=c</code> stacks both assignments.</p>
+
+<p>This table is almost exactly the precedence of C today, including the notorious placing of
+<code>&amp;</code> below <code>==</code>, which is a relic of the days when <code>&amp;</code> also served as
+<code>&amp;&amp;</code>. There is one difference. Modern C gives <code>&amp;</code>, <code>^</code> and <code>|</code> three
+distinct levels. Here <code>^</code> and <code>|</code> share one, so they simply group left to right.
+The real compiler confirms it:</p>
+
+<div class="pair">
+<div><p class="lbl">prec.c</p><pre>[[include:examples/prec.c]]</pre></div>
+<div><p class="lbl">a.out</p><pre>[[include:examples/out/prec.run]]</pre>
+<p class="small muted">In modern C the first number would be 1: <code>1 | (2 ^ 3)</code>. Here it is
+<code>(1 | 2) ^ 3</code>, which is 0. The compiler computed it at compile time; the generated code
+is just <code>clr -(sp)</code>.</p></div>
+</div>
+
+<h2 id="walk">Reading the code</h2>
+
+<p>The body of <code>tree</code> is a loop that starts at the label <code>advanc</code>, reads a token and
+switches on it ([[c00.c:485-594]]). The flag <code>andflg</code> records what kind of token is expected
+next. It is 0 when an operand is expected, at the start and after an operator, and 1 when an
+operator is expected, after an operand. Its name suggests an &ldquo;and&rdquo; of operands: once
+it is set, another operand would be a syntax error ([[c00.c:521-529]]).</p>
+
+<p>That one flag resolves all of the ambiguities the lexer left behind:</p>
+
+<ul>
+<li><code>*</code> and <code>&amp;</code> are binary when an operand has just been seen and unary otherwise
+([[c00.c:560-568]]).</li>
+<li><code>-</code> is binary or unary in the same way ([[c00.c:544-558]]). A unary minus directly in
+front of a floating constant is folded into the constant.</li>
+<li><code>++</code> and <code>--</code> after an operand are postfix, which is made by adding 2 to the token
+number to turn <code>INCBEF</code> into <code>INCAFT</code> ([[c00.c:531-535]]).</li>
+<li><code>(</code> after an operand starts a function call ([[c00.c:570-581]]). A <code>(</code> immediately
+followed by <code>)</code> is a call with no arguments, <code>MCALL</code>, which counts as an operand, so
+<code>andflg</code> stays 1.</li>
+</ul>
+
+<p>Operands are names, constants and strings. A name is turned into a tree node by
+<code>copname</code>. A name that has never been declared gets special treatment
+([[c00.c:488-504]]). If it is followed by <code>(</code> it is taken to be a function returning
+<code>int</code>, which is why functions need not be declared. In an initializer, it is taken to be an
+external. Otherwise it is assumed to be a label that has not been defined yet, which is how
+<code>goto</code> can refer forward: a label is represented as an array, and its label number is
+allocated now. If it never is defined, <code>blkend</code> reports it as undefined at the end of the
+function, the message seen in <a href="02-cc.html">chapter 2</a>. A string constant becomes the
+name of a static array of <code>char</code> labelled by the string's number, and its text is written
+out immediately ([[c00.c:516-519]]).</p>
+
+<p>Everything else goes to <code>oponst</code> ([[c00.c:600-625]]), the core of the algorithm:</p>
+
+[[src:c00.c:600-625]]
+
+<p>The comparison <code>p&gt;ps</code> decides between pushing and reducing. When the new operator is
+pushed, three kinds get a new priority as they go on the stack. Postfix <code>++</code> and <code>--</code>
+are stacked with priority 37, higher than anything that can arrive, so they are reduced as soon
+as the next token appears. <code>(</code>, <code>[</code> and the call operator arrive with priority 30,
+high enough to be pushed on top of anything, but are stacked with priority 4, lower than any
+operator that can follow them. So everything between the brackets is reduced down to the
+bracket, and nothing more, until the closing <code>)</code> or <code>]</code>, whose priority 2 is lower
+still, pops the bracket itself.</p>
+
+<p>The reduce side is at [[c00.c:626-664]]. Most operators are handed to <code>build</code>, which pops
+their operands, makes the node and pushes it; then control returns to <code>opon1</code> to compare the
+new operator with the next one down. The brackets are special. A <code>(</code> that meets its
+<code>)</code> simply disappears, and a <code>[</code> meeting <code>]</code> builds a subscript. A call is built
+when its <code>)</code> arrives, from the function and the tree of its arguments, which the comma
+operator has already joined into a left-leaning chain of <code>,</code> nodes. The increment
+operators are given a second operand, the constant 1; <code>build</code> will scale it if the operand
+is a pointer.</p>
+
+<h3>Commas and colons in initializers</h3>
+
+<p>One complication remains. In an initializer list, <code>{1, 2, 3}</code>, and after
+<code>case</code>, the comma and the colon are not operators but separators. When the global
+<code>initflg</code> is set, <code>tree</code> gives them priority 5 instead of their usual 7 and 12
+([[c00.c:602-603]]). Five is below the end marker's 6, so a comma or colon then ends the
+expression. <code>conexp</code>, which reads the constant expressions of array bounds, <code>case</code>
+labels and bit-field widths, sets the flag ([[c01.c:511-521]]).</p>
+
+<h2 id="try">Watch it work</h2>
+
+<p>The model below follows <code>tree</code> step by step. Each step shows the token being read, the
+operator stack with each operator's stacked priority, the operand stack with the trees built so
+far, and what the parser decided and why. It builds real tree shapes, including the rewriting of
+<code>a[i]</code> as <code>*(a+i)</code> and the folding of constant subexpressions, but it does not compute
+types, so the conversions of the next chapter are not shown.</p>
+
+<div class="widget" data-widget="parser">
+<div class="wbar"><span class="wt">tree() step by step</span>
+<span class="row">
+<button type="button" class="btn" data-expr="a = b + c*d">a = b + c*d</button>
+<button type="button" class="btn" data-expr="x = v[i+1] - f(y, 2*3)">subscript and call</button>
+<button type="button" class="btn" data-expr="*p++ = -*q">unary and postfix</button>
+<button type="button" class="btn" data-expr="a = b = c ? d : e">right grouping</button>
+</span></div>
+<div class="wbody">
+<label for="pexpr">Expression</label>
+<div class="row"><input type="text" id="pexpr" value="a = b + c*d" spellcheck="false" style="flex:1 1 16rem"><button type="button" class="btn primary prun">Parse</button></div>
+<div class="ptoks"></div>
+<div class="row"><button type="button" class="btn pprev">&larr; Back</button><button type="button" class="btn pnext">Step &rarr;</button><button type="button" class="btn pend">To the end</button><span class="small muted pcount"></span></div>
+<div class="log plog"></div>
+<div class="pgrid">
+<div><div class="stackhead">Operators (with stacked priority)</div><div class="stack pops"></div></div>
+<div><div class="stackhead">Operands (cmst)</div><div class="stack pcps"></div></div>
+</div>
+<div class="pfinal" hidden><div class="stackhead" style="margin-top:1rem">The finished tree</div><pre></pre></div>
+</div>
+</div>
+
+<p>Try an expression with a syntax error, such as <code>a b</code> or <code>a + * b</code>, to see where the
+parser gives up. The real parser then calls <code>errflush</code> to skip to the end of the
+statement.</p>
+
+<h2 id="missing">What is not here</h2>
+
+<p>Some things a modern reader expects are absent because the language did not have them yet.
+There are no casts, since there are no type names that could appear in an expression, and
+<code>sizeof</code> can only be applied to an expression, never to a type. There is no
+<code>unsigned</code>, so no conversions involving it. And there is no <code>typedef</code>, which spared
+the Sixth Edition compiler the problem that later bedevilled C parsers: deciding whether a name is
+a type or a variable.</p>
+
+<p>What <code>tree</code> leaves on the operand stack is not quite the tree that was written. As each
+node is made, <code>build</code> inserts conversions, scales pointer arithmetic, rewrites subscripts and
+structure references, checks types and folds constants. That is the subject of the next chapter.</p>

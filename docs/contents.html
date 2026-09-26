@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contents · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="">
+<header class="topbar"><nav><a class="home" href="index.html">The Sixth Edition C Compiler</a><span class="sep">/</span>Contents</nav><div class="tools"><a href="contents.html">Contents</a><a href="source/index.html">Listing</a><a href="xref.html">Index</a></div></header>
+<main class="prose narrow">
+<p class="eyebrow">Part two</p>
+<h1>Commentary</h1>
+<ol class="contents"><li><a href="00-preface.html"><span class="cnum"></span><span class="ctitle">Preface</span></a><p>Why this compiler is worth reading, what C looked like in 1975, and how the book is arranged.</p></li>
+<li><a href="01-overview.html"><span class="cnum">1</span><span class="ctitle">The Shape of the Thing</span></a><p>What happens when you type cc, why the compiler is split into passes, and just enough PDP-11 to read its output.</p></li>
+<li><a href="02-cc.html"><span class="cnum">2</span><span class="ctitle">The Driver and the Preprocessor</span></a><p>How cc runs the passes and cleans up after them, and the small preprocessor hidden inside it.</p></li>
+<li><a href="03-c0.html"><span class="cnum">3</span><span class="ctitle">The World of c0</span></a><p>The first pass's main loop, its symbol table, its tree nodes, and the intermediate file it writes for the second pass.</p></li>
+<li><a href="04-lexer.html"><span class="cnum">4</span><span class="ctitle">Lexical Analysis</span></a><p>How symbol() turns characters into tokens, why x=-1 draws a warning, and the number scanner written in assembly language.</p></li>
+<li><a href="05-expressions.html"><span class="cnum">5</span><span class="ctitle">Parsing Expressions</span></a><p>The operator-precedence parser tree(), its three stacks, and the table of priorities that decides where every operator binds.</p></li>
+<li><a href="06-types.html"><span class="cnum">6</span><span class="ctitle">Types and Conversions</span></a><p>How a C type fits in sixteen bits, and how build() checks every operator and inserts conversions, scaling and rewrites as the tree is made.</p></li>
+<li><a href="07-declarations.html"><span class="cnum">7</span><span class="ctitle">Declarations</span></a><p>Reading declarators inside out, laying out structures and bit-fields, allocating storage, and initializing external data; with three bugs found by running the compiler.</p></li>
+<li><a href="08-statements.html"><span class="cnum">8</span><span class="ctitle">Functions and Statements</span></a><p>How c0 lays out each kind of statement as labels, jumps and conditional branches, including the trick that moves a for loop's increment after its body.</p></li>
+<li><a href="09-c1-trees.html"><span class="cnum">9</span><span class="ctitle">Rewriting Trees</span></a><p>How c1 reads the trees back, and how optim() folds, reorders and reshapes them for the PDP-11 before any code is generated.</p></li>
+<li><a href="10-tables.html"><span class="cnum">10</span><span class="ctitle">The Code Tables</span></a><p>The four tables of code templates in table.s, the little language they are written in, and how match() picks one for each node.</p></li>
+<li><a href="11-codegen.html"><span class="cnum">11</span><span class="ctitle">Generating Code</span></a><p>rcexpr and cexpr: the special cases, the expansion of templates, the choice of registers, function calls, and the compilation of conditions into branches.</p></li>
+<li><a href="12-switch.html"><span class="cnum">12</span><span class="ctitle">The Switch Statement</span></a><p>The three ways c1 dispatches a switch: a jump table, a linear search with a sentinel, and a small hash table whose buckets hold quotients.</p></li>
+<li><a href="13-c2.html"><span class="cnum">13</span><span class="ctitle">The Object Code Improver</span></a><p>c2 reads the assembly language back in and rewrites it: jumps to jumps, dead code, merged tails, inverted loops, registers remembered, and a trick borrowed from BLISS-11.</p></li>
+<li><a href="14-walkthrough.html"><span class="cnum">14</span><span class="ctitle">One Program, Start to Finish</span></a><p>A small program followed through every stage of the compiler, with the real intermediate file, trees, templates and code at each step.</p></li>
+<li><a href="15-curiosities.html"><span class="cnum">Appendix</span><span class="ctitle">Bugs, Limits and Curiosities</span></a><p>Everything odd found while writing this book, each checked against the real compiler: eight bugs, several limits, and a few things that are simply surprising.</p></li></ol>
+<h2 id="also">Also in this book</h2>
+<ul class="plain">
+<li><a href="source/index.html">The listing</a>: all 10273 lines of source, numbered as in the commentary.</li>
+<li><a href="xref.html">The cross-reference index</a>: where every identifier is used.</li>
+</ul>
+</main>
+<script src="assets/book.js"></script>
+
+</body>
+</html>

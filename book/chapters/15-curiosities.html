@@ -1,0 +1,185 @@
+<!-- title: Bugs, Limits and Curiosities -->
+<!-- number: Appendix -->
+<!-- short: Curiosities -->
+<!-- blurb: Everything odd found while writing this book, each checked against the real compiler: eight bugs, several limits, and a few things that are simply surprising. -->
+
+<p>Running the original compiler while reading its source turned up a number of things that are
+wrong, or strange, or both. They are collected here, with the evidence. None of them should be read
+as a criticism. This compiler was written by one person, for a machine with 64 kilobytes, and it
+compiled an operating system that is still studied fifty years later; most of these are in parts
+of the language that were new at the time and little used. They are interesting because of what
+they show about how the compiler works.</p>
+
+<p>Each entry says where the behaviour comes from and where the book discusses it. Outputs are from
+the Sixth Edition system described in the <a href="00-preface.html#real">preface</a>.</p>
+
+<h2 id="bugs">Bugs</h2>
+
+<h3>Division by a power of two rounds the wrong way</h3>
+
+<p><code>x / 4</code> is compiled as an arithmetic shift, <code>ash $-2</code>, which rounds towards minus
+infinity; division rounds towards zero. So <code>-1/4</code> is &minus;1 and <code>-7/4</code> is &minus;2 when the
+divisor is a constant. With the same divisor in a variable, the answers are 0 and &minus;1. The
+rewrite is in <code>pow2</code> ([[c11.c:473-490]]), which does not consider the sign.
+<a href="09-c1-trees.html#acommute">Chapter 9</a>.</p>
+
+<div class="pair"><div><pre>[[include:examples/div.c]]</pre></div><div><pre>[[include:examples/out/div.run]]</pre></div></div>
+
+<h3>An initialized <code>char</code> array is too short</h3>
+
+<p><code>char s[10] "hi";</code> reserves only the three bytes of the string. The padding for the rest of
+the array is written to the string file instead of the main one, because <code>cinit1</code> sets
+<code>strflg</code> around it ([[c02.c:176-181]]), so it ends up at the end of the output. Whatever is
+declared next overlaps the array. <a href="07-declarations.html#externals">Chapter 7</a>.</p>
+
+<div class="pair"><div><pre>[[include:examples/strinit.c]]</pre></div><div><pre>[[include:examples/out/strinit.run]]</pre></div></div>
+
+<h3>A small group of bit-fields is overlapped by the next member</h3>
+
+<p>After bit-fields totalling eight bits or fewer, the next ordinary member is placed at the same
+offset as the fields, because <code>align</code> advances by <code>(bitoffs-1)/NBPC</code>, which is 0 for
+eight bits or fewer, instead of by the number of bytes used ([[c03.c:365-368]]). In
+<code>decl.c</code>, <code>count</code> lands on top of <code>kind</code> and <code>mark</code>.
+<a href="07-declarations.html#fields">Chapter 7</a>.</p>
+
+<h3>A <code>char</code> bit-field is measured in the wrong unit</h3>
+
+<p>The check that a <code>char</code> field fits in the current byte compares with <code>NCPW</code>, characters per
+word, which is 2, instead of <code>NBPC</code>, bits per character ([[c03.c:387]]). Any <code>char</code> field
+after the first two bits starts a new byte.</p>
+
+<h3>The size of an array member is 2</h3>
+
+<p><code>sizeof</code> applied to a structure member that is an array gives 2, the size of a pointer,
+because <code>.</code> produces the member's address when the member is an array. The comment in
+<code>build</code> admits it ([[c01.c:37-41]]). In <code>decl.c</code>, <code>sizeof np-&gt;name</code> is 2 although
+<code>name</code> is <code>char[5]</code>. <a href="06-types.html#build">Chapter 6</a>.</p>
+
+<h3><code>-O</code> breaks computed <code>goto</code></h3>
+
+<p>A label whose address is taken is referenced only by an ordinary operand, which <code>c2</code> does not
+count. It deletes the label and the code after the preceding <code>jmp</code>, and the program no longer
+links. <a href="13-c2.html#goto">Chapter 13</a>.</p>
+
+<pre>% cc -O cgoto.c; a.out
+[[include:examples/extra/cgoto.O.run]]</pre>
+
+<h3>A variable that is never assigned</h3>
+
+<p><code>redunbr</code> in <code>c2</code> uses a register variable <code>p</code> that it never sets, where it means its
+parameter <code>ap</code> ([[c21.c:495-503]]). It works because both it and its only caller keep their
+<code>p</code> in <code>r4</code>, and <code>csv</code> saves registers without clearing them.
+<a href="13-c2.html#registers">Chapter 13</a>.</p>
+
+<h3>A pointer compared with a number</h3>
+
+<p>The <code>INIT</code> case of <code>rcexpr</code> tests <code>tree-&gt;tr1==CON</code> where it means
+<code>tree-&gt;tr1-&gt;op==CON</code> ([[c10.c:203]]), comparing a pointer with the number 21. It does no
+harm, because <code>c0</code> writes constant initializers directly and never sends them to <code>c1</code> as
+trees.</p>
+
+<h2 id="limits">Limits</h2>
+
+<h3>Bit-fields cannot be assigned</h3>
+
+<p>A field reference is an <code>FSEL</code> node, which is neither a name nor an indirection, so
+<code>chklval</code> reports &ldquo;Lvalue required&rdquo; ([[c01.c:422-430]]), and <code>c1</code> can only
+translate <code>FSEL</code> into a shift and a mask, which produce a value
+([[c12.c:184-190]]). Fields can be read but never written.
+<a href="09-c1-trees.html#names">Chapter 9</a>.</p>
+
+<h3>External <code>long</code>s cannot be initialized</h3>
+
+<p><code>cinit1</code> treats every four-byte object as a <code>float</code> and expects a floating constant
+([[c02.c:212-215]]). <code>long big 5;</code> is &ldquo;Inconsistent external initialization&rdquo;.
+<a href="07-declarations.html#externals">Chapter 7</a>.</p>
+
+<h3>The standard compiler has no floating constants</h3>
+
+<p>The <code>run</code> script builds <code>/lib/c0</code> with the floating-point part of the number scanner
+assembled out ([[run:9-16]]), so plain <code>cc</code> answers every floating constant with &ldquo;No
+floating point!&rdquo;; <code>cc -f</code> uses <code>/lib/fc0</code>, which has it.
+<a href="04-lexer.html#numbers">Chapter 4</a>.</p>
+
+<h3>Three register variables, and not one more</h3>
+
+<p>A fourth <code>register</code> declaration in a function is an error, &ldquo;Bad register&rdquo;, not
+a request quietly ignored ([[c03.c:280-285]]). <a href="07-declarations.html#decl1">Chapter 7</a>.</p>
+
+<h3>Fixed tables everywhere</h3>
+
+<p>200 symbols, 500 words of expression trees, 200 <code>case</code>s in all the active switches, 100
+dimensions and structures, 256 characters in a string, one level of <code>#include</code>
+([[c0h.c:13-22]], [[cc.c:383-384]]). <a href="03-c0.html#limits">Chapter 3</a>.</p>
+
+<h3>Seven characters for a member name</h3>
+
+<p>Names are significant to eight characters, but a structure member is stored with a <code>.</code> in
+front of it, so only seven of its own characters count ([[c00.c:289-297]]).
+<a href="03-c0.html#symtab">Chapter 3</a>.</p>
+
+<h2 id="curiosities">Curiosities</h2>
+
+<h3><code>|</code> and <code>^</code> have the same precedence</h3>
+
+<p>In <code>opdope</code> both have priority 15 ([[c05.c:65-66]]), so
+<code>1 | 2 ^ 3</code> is <code>(1|2)^3</code>, which is 0. In later C it is 1.
+<a href="05-expressions.html#priorities">Chapter 5</a>.</p>
+
+<h3><code>x=-1</code></h3>
+
+<p>Means <code>x =- 1</code>, with a warning, the only one in the compiler ([[c00.c:235-239]]).
+<a href="04-lexer.html#operators">Chapter 4</a>.</p>
+
+<h3>Computed <code>goto</code></h3>
+
+<p>Labels are treated as static arrays, and <code>goto</code> takes any expression that yields an address,
+so a label's address can be stored in a variable and jumped to later. It works, without <code>-O</code>.
+<a href="08-statements.html#labels">Chapter 8</a>.</p>
+
+<h3>A branch that is a comment</h3>
+
+<p>A pointer compared with 0 using <code>&lt;</code> can never be less, since pointers compare unsigned.
+The branch table's entry for &ldquo;jump if less&rdquo; in that case is <code>/nop</code>
+([[c1t.s:82]]), which the assembler reads as a comment. The code tests the pointer and then does
+nothing with the result. <a href="11-codegen.html#branches">Chapter 11</a>.</p>
+
+<h3>Two ways to call</h3>
+
+<p>A call is written <code>jsr pc,*$_f</code> when one of its arguments went into the free word at the top of the stack, and <code>jsr pc,_f</code> otherwise ([[c1t.s:50-51]]). The two instructions do the same thing.
+<a href="11-codegen.html#calls">Chapter 11</a>.</p>
+
+<h3>Octal nines</h3>
+
+<p>The number scanner accepts any decimal digit, so <code>09</code> is a legal octal constant whose value is
+nine ([[c0t.s:133-153]]). <a href="04-lexer.html#numbers">Chapter 4</a>.</p>
+
+<h3>Constant comparisons are not folded</h3>
+
+<p>Neither pass evaluates a relational operator with constant operands, so <code>max(10, 7)</code> produces
+<code>cmp $7,$12</code> and a branch, at run time. <a href="06-types.html#fold">Chapter 6</a>.</p>
+
+<h3>A size that is a pointer</h3>
+
+<p>When a structure is used before it is defined, the place in <code>dimtab</code> where its size belongs
+holds, for a while, a pointer to the structure's tag in the symbol table
+([[c03.c:135-138]]), which <code>blkhed</code> later follows and replaces ([[c02.c:590-594]]).
+<a href="07-declarations.html#structs">Chapter 7</a>.</p>
+
+<h3>A null pointer as a table</h3>
+
+<p><code>cregtab</code>, which <code>c1</code> passes to mean &ldquo;compile into a register, but do not move
+things around&rdquo;, is a table pointer that is never set, and is used only as a distinguishable
+value ([[c10.c:23]]). <a href="11-codegen.html#cexpr">Chapter 11</a>.</p>
+
+<h3>Self-modifying data</h3>
+
+<p>Every <code>switch</code> compiled as a search stores the value being switched on into its own table
+before searching, as a sentinel. The dispatch code writes to the data it is about to read.
+<a href="12-switch.html">Chapter 12</a>.</p>
+
+<h3>Arguments laid out like a node</h3>
+
+<p><code>block</code> in both passes builds a tree node by copying its own parameters, which the PDP-11
+calling convention leaves in consecutive words on the stack ([[c01.c:387-401]]).
+<a href="03-c0.html#trees">Chapter 3</a>.</p>

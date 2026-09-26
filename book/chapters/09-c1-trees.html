@@ -1,0 +1,234 @@
+<!-- title: Rewriting Trees -->
+<!-- number: 9 -->
+<!-- short: optim -->
+<!-- scripts: v6.js c1view.js -->
+<!-- blurb: How c1 reads the trees back, and how optim() folds, reorders and reshapes them for the PDP-11 before any code is generated. -->
+
+<p>The second pass begins where the first ended: with a file of records, most of them pieces of
+expression trees in postfix order. Before generating any code, <code>c1</code> rebuilds each tree and
+passes it through a set of routines that rewrite it into a shape better suited to the machine.
+This chapter covers that preparation. The next two cover code generation proper.</p>
+
+<p>From here on, much of what is said is illustrated by traces. For this book a copy of <code>c1</code>
+was rebuilt on the simulated PDP-11 with one extra source file that prints each tree as it is
+read, prints it again after optimization, and records every code-table entry used to compile it.
+With the trace records removed, its output is identical to the real <code>c1</code>'s for every
+example. The scripts are in the repository under <code>tools/c1trace</code>.</p>
+
+<h2 id="main">Reading the file</h2>
+
+<p><code>c1</code>'s <code>main</code> ([[c10.c:29-67]]) opens the two temporary files and the output file, and
+calls <code>getree</code> twice: once for the main file and once for the strings, with a
+<code>.data</code> between them. <code>getree</code> ([[c11.c:630-818]]) is a loop over records. Records
+that are simple commands print their assembly language immediately: a label, a jump, a segment
+change, the entry sequence for a function ([[c11.c:695-702]]). Tree records build nodes on an
+explicit stack, <code>expstack</code>, and <code>EXPR</code> hands the finished tree to the code generator
+([[c11.c:736-745]]):</p>
+
+[[src:c11.c:736-745]]
+
+<p><code>optim</code> is applied to the tree first, and then <code>rcexpr</code> compiles it with the table
+<code>efftab</code>, which means &ldquo;for its side effects&rdquo;, since the value of an expression
+statement is not wanted. The space for tree nodes is reclaimed after every expression, as in
+<code>c0</code>.</p>
+
+<p>The node layouts of <code>c1</code> ([[c1h.c:8-49]]) look like <code>c0</code>'s, but the third word of every
+node is now <code>degree</code>, an estimate of the number of registers needed to evaluate it, which
+the optimizer fills in. Name nodes are rearranged too: class and register number are packed into
+one word as two bytes, followed by an offset and a location, and an external name is stored, eight bytes of it, starting in the location word, so the
+node for <code>_printf</code> is nine words long ([[c11.c:747-754]]).</p>
+
+<h2 id="names">Names become addresses</h2>
+
+<p>The PDP-11 has several addressing modes that combine a register with an offset: <code>n(r)</code>,
+<code>_x(r)</code>, <code>(r)+</code> and so on. <code>c1</code> recognises such operands at the tree level and
+represents each by a single name node, so that by the time code is generated, an operand that can
+be written as one address is one leaf. To do this it adds three storage classes to those of
+<code>c0</code> ([[c1h.c:255-257]]):</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Class</th><th>Meaning</th><th>Written</th></tr></thead>
+<tbody>
+<tr><td><code>OFFS</code></td><td>offset from a register</td><td><code>-10(r5)</code>, <code>4(r2)</code>, <code>(r4)</code></td></tr>
+<tr><td><code>XOFFS</code></td><td>external name indexed by a register</td><td><code>_m(r1)</code></td></tr>
+<tr><td><code>SOFFS</code></td><td>static label indexed by a register</td><td><code>L5(r1)</code></td></tr>
+</tbody></table></div>
+
+<p>and two operators, <code>AUTOI</code> for <code>*r++</code>, written <code>(r)+</code>, and <code>AUTOD</code> for
+<code>*--r</code>, written <code>-(r)</code>. The very first thing <code>optim</code> does is turn every automatic
+variable into an <code>OFFS</code> name on <code>r5</code> ([[c12.c:21-25]]). The rest is done by
+<code>unoptim</code>, the optimizer for unary operators ([[c12.c:167-285]]), whose case for <code>*</code>
+does most of the work ([[c12.c:209-241]]):</p>
+
+<ul>
+<li><code>*&amp;x</code> is <code>x</code>.</li>
+<li><code>*r</code>, with <code>r</code> a register variable, is <code>OFFS</code> with offset 0: <code>(r4)</code>.</li>
+<li><code>*r++</code> and <code>*--r</code> become <code>AUTOI</code> and <code>AUTOD</code>, provided the register's type is the type of the increment node and the object is not a
+<code>long</code> ([[c12.c:219-220]]).</li>
+<li><code>*(r + c)</code> becomes <code>OFFS</code> with offset <code>c</code>.</li>
+<li><code>*(r + &amp;x)</code> becomes <code>XOFFS</code> or <code>SOFFS</code>: <code>_x(r)</code>, which is how arrays are
+subscripted with an index in a register.</li>
+</ul>
+
+<p>The reverse happens for <code>&amp;</code> ([[c12.c:192-207]]): the address of an automatic
+variable is not an operand the machine can express, so <code>&amp;x</code> of an <code>OFFS</code> name is turned
+into the addition of <code>r5</code> and a constant.</p>
+
+<p>Bit-fields are expanded here as well ([[c12.c:184-190]]). An <code>FSEL</code> node is replaced by
+<code>(x &gt;&gt; bitoffs) &amp; mask</code>, and the ordinary rules then turn the shift into an <code>ash</code> and
+the AND into a <code>bic</code>. Since the translation only produces a value, there is no way to store
+into a field: the second pass could not have compiled a field assignment even if the first had
+allowed it.</p>
+
+<h2 id="machine">Rewrites for the PDP-11</h2>
+
+<p>Several rewrites in <code>optim</code> ([[c12.c:9-165]]) are marked in the comments as &ldquo;PDP-11
+special&rdquo;. Each works around a gap in the instruction set.</p>
+
+<ul>
+<li><strong>AND.</strong> The PDP-11 has <code>bic</code>, which clears the bits of one operand that are set
+in the other, but no AND. So <code>a &amp; b</code> becomes <code>a NAND ~b</code>, where <code>NAND</code> is the
+compiler's name for <code>bic</code>'s operation ([[c12.c:38-47]]); similarly <code>=&amp;</code> becomes
+<code>=&amp;~</code> ([[c12.c:80-89]]). When <code>b</code> is a constant, the complement is folded into it, so
+<code>x &amp; 7</code> costs a single <code>bic $-10</code>. When the value is only being tested, as in
+<code>if (a &amp; 010)</code>, the code generator turns the operator into <code>TAND</code> to use the
+<code>bit</code> instruction instead ([[c10.c:227-237]]); see <code>gen.c</code> in chapter 11.</li>
+<li><strong>Right shifts.</strong> <code>ash</code> shifts left by a positive count and right by a
+negative one, so <code>x &gt;&gt; n</code> becomes <code>x &lt;&lt; -n</code>, except for a shift by one, for which
+there is <code>asr</code> ([[c12.c:133-150]]).</li>
+<li><strong>Subtraction of a constant</strong> becomes addition of its negation
+([[c12.c:105-115]]), so that it can join a chain of additions and be combined with other
+constants. For a <code>double</code> constant, negation means flipping the sign bit of its first word.</li>
+<li><strong>Long multiplication and division</strong> have no instructions, and become calls to
+library routines through <code>hardlongs</code> ([[c12.c:596-621]]).</li>
+</ul>
+
+<p>Relational operators get two treatments of their own ([[c12.c:52-64]]). The operands are swapped,
+with the operator reversed to compensate using the table <code>maprel</code>, so that the more
+complicated operand comes first. And a comparison of a <code>char</code> with a small constant marks the
+constant as a <code>char</code> too, so that a single <code>cmpb</code> can be used without widening the
+character first.</p>
+
+<h2 id="degree">Degrees</h2>
+
+<p>Every operator node leaves <code>optim</code> with its <code>degree</code> filled in. The degree approximates the
+number of registers the node needs, computed bottom up in the way now called Sethi-Ullman
+numbering: if both operands need the same number of registers, the node needs one more, since the
+first result must be held while the second is computed; otherwise it needs as many as the more
+demanding operand, which can be done first ([[c12.c:159-162]]):</p>
+
+<pre>tree-&gt;degree = d1==d2? d1+islong(tree-&gt;type): max(d1, d2);</pre>
+
+<p><code>islong</code> is 2 for a <code>long</code>, which lives in a pair of registers, and 1 otherwise. The degrees
+of leaves come from <code>degree</code> ([[c11.c:15-34]]):
+constants count &minus;3 and addresses &minus;2, since they need no register at all and can
+appear as immediate operands; other leaves count 0, except <code>char</code> and <code>float</code>, which must
+be converted in a register and count 1. Division and remainder add 2 to their operands' degrees, because they tie up a pair of
+registers, and multiplication adds 1, and a call counts 10, since it destroys the
+contents of every register the callee may use.</p>
+
+<p>Degrees are used in two places. The code tables choose between templates by comparing an
+operand's degree with the number of free registers (next chapter). And the reordering routines use
+them to evaluate the harder operand first, so that fewer intermediate results need to be held.</p>
+
+<h2 id="acommute">Associative and commutative operators</h2>
+
+<p><code>+</code>, <code>*</code>, <code>&amp;</code>, <code>|</code> and <code>^</code> are marked <code>COMMUTE</code> in <code>opdope</code>. For them,
+<code>optim</code> calls <code>acommute</code> ([[c12.c:294-369]]), which treats a whole chain of the same
+operator as a single list. <code>insert</code> ([[c12.c:507-554]]) flattens the chain: in
+<code>a + (b + (c + 3))</code> it collects the operands <code>a</code>, <code>b</code>, <code>c</code> and <code>3</code> and the
+three <code>+</code> nodes, and sorts the operands by decreasing degree. Then <code>acommute</code>:</p>
+
+<ul>
+<li>folds all the constants, which have the lowest degree and so are at the end of the list, into
+one ([[c12.c:309-316]]);</li>
+<li>drops <code>+ 0</code>, and a multiplication by 1, and replaces the whole chain by 0 if it is multiplied
+or ANDed by 0 ([[c12.c:317-340]]);</li>
+<li>adds a constant into the offset of an address: <code>&amp;x + 4</code> becomes the single address
+<code>4+_x</code> ([[c12.c:325-330]]); this is what turned <code>&amp;v[7]</code> into <code>$16+_v</code> in chapter 6;</li>
+<li>for addition, looks for common factors with <code>distrib</code>; and</li>
+<li>rebuilds the chain as a left-leaning tree, hardest operand first, recomputing the degrees
+([[c12.c:343-365]]).</li>
+</ul>
+
+<p><code>insert</code> also applies the distributive law in one direction: a product
+<code>c1 * (x + c2)</code> inside a sum is rewritten as <code>c1*x + c1*c2</code> ([[c12.c:527-543]]), so that the
+constant can join the others. This is aimed squarely at subscripts: <code>p[i+1]</code> is
+<code>*(p + (i+1)*2)</code>, which becomes <code>*(p + i*2 + 2)</code>, and the 2 then ends up as the offset
+in an addressing mode.</p>
+
+<p><code>distrib</code> ([[c12.c:371-442]]) goes the other way, factoring. Among the terms of a sum it
+looks for products by constants where one constant divides another, and rewrites
+<code>c1*c2*x + c1*y</code> as <code>c1*(c2*x + y)</code>, repeating until no more pairs are found. The target
+again is address arithmetic. A two-dimensional subscript <code>m[i][j]</code> of an <code>int m[10][10]</code>
+arrives as <code>m + i*20 + j*2</code>; <code>distrib</code> makes it <code>m + (i*10 + j)*2</code>, and multiplication
+by 2 becomes a shift:</p>
+
+<div class="pair">
+<div><p class="lbl">dist.c</p><pre>[[include:examples/dist.c]]</pre></div>
+<div><p class="lbl">dist.s (the function)</p><pre>_f:
+~~f:
+~i=4
+~j=6
+jsr	r5,csv
+mov	4(r5),r1
+mul	$12,r1
+add	6(r5),r1
+asl	r1
+mov	_m(r1),_x
+mov	_b,r0
+add	_a,r0
+ash	$2,r0
+mov	r0,_x
+mov	_a,r1
+mul	$3,r1
+add	_b,r1
+asl	r1
+mov	r1,_x
+mov	_a,r1
+add	$3,r1
+mul	$5,r1
+mov	r1,_x
+L1:jmp	cret</pre></div>
+</div>
+
+<p>The subscript costs one multiplication, by 10 (<code>$12</code> in octal), a shift, and an indexed
+addressing mode. <code>a*4 + b*4</code> becomes <code>(b + a)*4</code>, and the multiplication a shift by two.
+<code>a*6 + b*2</code> becomes <code>(a*3 + b)*2</code>. The last statement shows the limit of <code>insert</code>'s
+rule: <code>(a + 3) * 5</code> is not inside a sum, so it is left alone.</p>
+
+<h3>Powers of two</h3>
+
+<p>Multiplication and division by a power of two are turned into shifts by <code>pow2</code>
+([[c11.c:473-490]]), called from <code>rcexpr</code>. For multiplication this is always right. For
+division it is not. A shift rounds towards minus infinity, while the PDP-11's <code>div</code>, like C,
+rounds towards zero, so the two disagree for negative numbers:</p>
+
+<div class="pair">
+<div><p class="lbl">div.c</p><pre>[[include:examples/div.c]]</pre></div>
+<div><p class="lbl">a.out</p><pre>[[include:examples/out/div.run]]</pre>
+<p class="small muted">Dividing by the constant 4 gives &minus;1 and &minus;2; dividing by a variable holding 4
+gives the right answers, 0 and &minus;1. The first line was compiled to <code>ash $-2,r0</code>.</p></div>
+</div>
+
+<p>Since the language had no <code>unsigned</code> type, every <code>int</code> division by a constant power of
+two was affected. Later compilers took care to use a shift only where it gives the same answer.</p>
+
+<h2 id="trace">Trees before and after</h2>
+
+<p>The figure shows, for every expression in a few of the example programs, the tree <code>c1</code> read
+and the tree <code>optim</code> produced, with degrees. Numbers are in octal, as in the generated code,
+and <code>load</code> is <code>c1</code>'s <code>LOAD</code> operator, discussed in chapter 11. Worth looking at:
+<code>*p++ = *q++</code> in <code>expr.c</code>, where the increment <code>1*2</code> arrives unfolded from
+<code>c0</code>; <code>&amp;v[1]</code> in <code>ptr.c</code>; the bit-field in <code>decl.c</code>; and the two-dimensional
+subscript in <code>dist.c</code>.</p>
+
+<div class="widget" data-widget="c1trace" data-mode="optim">
+<div class="wbar"><span class="wt">Trees in c1</span><span class="row"><label for="tvsel1" class="small" style="color:inherit;margin:0">Program</label><select id="tvsel1" class="tvsel" style="width:auto"></select><button type="button" class="btn prev">&larr;</button><button type="button" class="btn next">&rarr;</button></span></div>
+<div class="wbody"><p class="muted">This figure needs JavaScript.</p></div>
+<script type="application/json">[[trace:expr]]</script>
+<script type="application/json">[[trace:ptr]]</script>
+<script type="application/json">[[trace:dist]]</script>
+<script type="application/json">[[trace:decl]]</script>
+<script type="application/json">[[trace:gen]]</script>
+</div>

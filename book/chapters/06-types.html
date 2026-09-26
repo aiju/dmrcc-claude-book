@@ -1,0 +1,259 @@
+<!-- title: Types and Conversions -->
+<!-- number: 6 -->
+<!-- short: Types -->
+<!-- scripts: types.js -->
+<!-- blurb: How a C type fits in sixteen bits, and how build() checks every operator and inserts conversions, scaling and rewrites as the tree is made. -->
+
+<p>The parser of the last chapter decides the shape of an expression. Every time it applies an
+operator it calls <code>build</code> ([[c01.c:17-216]]), and it is <code>build</code> that makes the
+tree a C tree rather than just an arithmetic one: it works out the type of every node, inserts
+conversions where the operand types differ, multiplies integers added to pointers by the size of
+what they point to, and rewrites subscripts, structure references and function names into
+simpler operations. This chapter describes the type representation first and then
+<code>build</code>.</p>
+
+<h2 id="typeword">A type in sixteen bits</h2>
+
+<p>A type is a single <code>int</code>. The low three bits give the basic type ([[c0h.c:233-241]]):</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Value</th><th>Name</th><th>Size</th></tr></thead>
+<tbody>
+<tr><td class="num">0</td><td><code>INT</code></td><td>2</td></tr>
+<tr><td class="num">1</td><td><code>CHAR</code></td><td>1</td></tr>
+<tr><td class="num">2</td><td><code>FLOAT</code></td><td>4</td></tr>
+<tr><td class="num">3</td><td><code>DOUBLE</code></td><td>8</td></tr>
+<tr><td class="num">4</td><td><code>STRUCT</code></td><td>from <code>dimtab</code></td></tr>
+<tr><td class="num">5</td><td><code>RSTRUCT</code>, a structure not yet defined</td><td>unknown</td></tr>
+<tr><td class="num">6</td><td><code>LONG</code></td><td>4</td></tr>
+<tr><td class="num">7</td><td><code>NOTYPE</code>, used internally</td><td></td></tr>
+</tbody></table></div>
+
+<p>Above them, starting at bit 3, come two-bit fields, each of which is a type modifier:
+<code>PTR</code> (1), <code>FUNC</code> (2) or <code>ARRAY</code> (3) ([[c0h.c:248-250]]). The field in bits
+3 and 4 is the outermost modifier, the one you meet first when using the object. So a pointer to
+<code>char</code> is <code>010|1</code>, 011 octal; an array of pointers to <code>char</code>, such as
+<code>argv</code>, has <code>ARRAY</code> in bits 3 and 4 and <code>PTR</code> in bits 5 and 6, making 071; and
+a function returning a pointer to <code>char</code> is 061. Six modifiers fit, which is more than
+anyone needed.</p>
+
+<p>With this layout, the two operations that the compiler needs most are shifts.
+<code>decref</code> ([[c04.c:14-24]]) removes the outermost modifier, as the <code>*</code> operator does to
+a pointer or a call does to a function, by shifting the modifier bits right by two and keeping
+the base. <code>incref</code> ([[c04.c:30-33]]) shifts them left and puts <code>PTR</code> in the vacated
+field, as <code>&amp;</code> does. The test &ldquo;is this a pointer?&rdquo; is <code>(t&amp;XTYPE)==PTR</code>,
+and several places use the shortcut <code>t&gt;=PTR</code> to mean &ldquo;is any kind of
+reference&rdquo;, which works because every modified type is numerically larger than every basic
+one.</p>
+
+<p>The type word does not say how big an array is, or which structure a <code>STRUCT</code> is. That
+information lives in <code>dimtab</code>, and each node and symbol carries an index into it
+(<a href="03-c0.html#symtab">chapter 3</a>). <code>length</code> ([[c04.c:140-180]]) combines the two to
+give the size of an object in bytes, and <code>plength</code> ([[c04.c:121-134]]) the size of the object a
+pointer points to, which is what pointer arithmetic needs.</p>
+
+<div class="widget" data-widget="typeword">
+<div class="wbar"><span class="wt">The type word</span></div>
+<div class="wbody">
+<p class="small muted" style="margin-top:0">Choose a basic type, then wrap it in modifiers. Each wrap makes the current type the thing
+pointed to, returned, or stored in the array, and so pushes the existing modifiers up two bits.
+You can also click individual bits.</p>
+<div class="row" style="margin-bottom:.6rem">
+<button type="button" class="chip base" data-b="0">int</button>
+<button type="button" class="chip base" data-b="1">char</button>
+<button type="button" class="chip base" data-b="2">float</button>
+<button type="button" class="chip base" data-b="3">double</button>
+<button type="button" class="chip base" data-b="4">struct</button>
+<button type="button" class="chip base" data-b="6">long</button>
+</div>
+<div class="row" style="margin-bottom:1rem">
+<button type="button" class="btn wrap" data-m="1">Pointer to&hellip;</button>
+<button type="button" class="btn wrap" data-m="2">Function returning&hellip;</button>
+<button type="button" class="btn wrap" data-m="3">Array of&hellip;</button>
+<button type="button" class="btn incref">incref</button>
+<button type="button" class="btn decref">decref</button>
+</div>
+<div class="bits"></div>
+<div class="tout" style="margin-top:1rem"></div>
+</div>
+</div>
+
+<h2 id="build">What <code>build</code> does</h2>
+
+<p><code>build(op)</code> pops one or two operands from the parser's operand stack, makes a node with
+operator <code>op</code>, and pushes it. In between, it does a good deal. It is easiest to follow in the
+order the code is written.</p>
+
+<h3>Rewrites before anything else</h3>
+
+<p>A subscript is not an operator in its own right. <code>a[i]</code> is turned into <code>*(a+i)</code> by
+building a <code>+</code> and then a <code>*</code> ([[c01.c:24-30]]), so that everything that follows,
+including the scaling of <code>i</code>, is the ordinary treatment of addition and indirection.
+This is the identity that defines subscripting in C, applied literally, and it is why
+<code>i[a]</code> works too.</p>
+
+<p>Next, the operands are normalised ([[c01.c:32-56]]). <code>disarray</code> ([[c01.c:314-329]])
+turns an operand whose type is an array into a pointer to its first element, by changing the
+node's type to the element type and applying <code>&amp;</code>. <code>chkfun</code> ([[c01.c:298-308]]) does
+the same for a function name, which becomes a pointer to the function. These two rules are why an
+array name, used in an expression, is a pointer. The exceptions are the operand of
+<code>sizeof</code>, which is dealt with before this point, the operand of <code>&amp;</code>, a structure
+member name, and the function of a call, which must stay a function.</p>
+
+<p><code>sizeof</code> is resolved here too, simply by replacing the operand with a constant equal
+to its length ([[c01.c:37-50]]). The comment admits a bug. When the member of a structure is an array,
+the <code>.</code> operator produces its address, a pointer, rather than the array itself (see below), so
+by the time <code>sizeof</code> sees it, the operand is a pointer and its size is 2. The real compiler
+agrees; in <code>decl.c</code>, below, <code>sizeof np-&gt;name</code> prints as 2 although <code>name</code> is
+<code>char[5]</code>.</p>
+
+<h3>Operators that need no conversion</h3>
+
+<p>A group of operators is dealt with immediately ([[c01.c:59-142]]). <code>,</code>, <code>&amp;&amp;</code>,
+<code>||</code> and <code>?</code> just make a node. A call checks that its operand is a function and takes
+its type from the function's return type.</p>
+
+<p><code>*</code> and <code>&amp;</code> cancel each other: <code>*&amp;x</code> is <code>x</code>, and <code>&amp;*p</code> is <code>p</code>
+with its type adjusted. <code>&amp;</code> may otherwise only be applied to a name; anything else is an
+&ldquo;Illegal lvalue&rdquo;. Since array subscripts and structure members all become
+<code>*</code> of something, this one rule covers <code>&amp;a[i]</code> and <code>&amp;s.m</code>.</p>
+
+<h3>Structure references</h3>
+
+<p><code>a-&gt;b</code> is rewritten as <code>(*a).b</code> ([[c01.c:108-116]]). The operand <code>a</code> is given the
+type &ldquo;pointer to structure&rdquo; whatever it really was, which is how the language lets
+any pointer, or even an integer, be used on the left of <code>-&gt;</code>. Then the <code>.</code> case
+([[c01.c:118-142]]) does what its comment calls a fairly complicated process. The member name on
+the right carries the member's type and its offset in the structure. The left operand is retyped
+as if it were an object of the member's type, its address is taken, the offset is added as a
+constant of the special type <code>NOTYPE</code>, and the sum is dereferenced. So</p>
+
+<pre>s.m      becomes    *(&amp;s + offset of m)
+p-&gt;m     becomes    *(p + offset of m)</pre>
+
+<p>where the addition is a plain byte addition. The <code>NOTYPE</code> on the constant is how the
+addition knows not to scale it ([[c01.c:164-167]]). For an array member the final <code>*</code> is
+omitted, since the address is already what is wanted, and for a bit-field the result is wrapped in
+a field-selection node, <code>FSEL</code>, that records the field's width and position for the second
+pass. Neither <code>.</code> nor <code>-&gt;</code> survives into the intermediate file.</p>
+
+<p>Because the member carries its own offset, the structure on the left is never consulted. Any
+member name can be applied to any object, a property the Sixth Edition kernel relied on
+heavily, for example to treat a pointer to a buffer header as an array of integers.</p>
+
+<h3>Checks</h3>
+
+<p>For the remaining operators the flag bits in <code>opdope</code> decide what to check
+([[c01.c:144-149]]). An operator with <code>LVALUE</code> set, which includes the assignments,
+<code>++</code> and <code>--</code>, calls <code>chklval</code> ([[c01.c:422-430]]): its operand must be a name or a
+<code>*</code> node. This is where the bit-field restriction comes from. A field is neither, it is an
+<code>FSEL</code> node, so assigning to a field fails with &ldquo;Lvalue required&rdquo;, and the Sixth
+Edition compiler can read bit-fields but never store into them. <code>LWORD</code> and <code>RWORD</code>
+mark operators that need integer operands, such as <code>&amp;</code> and <code>&lt;&lt;</code>, and
+<code>chkw</code> ([[c01.c:337-345]]) enforces them.</p>
+
+<p>Unary operators then need only a type: the same as the operand's, except for the two
+conversion operators ([[c01.c:150-158]]).</p>
+
+<h2 id="conversions">Conversions</h2>
+
+<p>For a binary operator, <code>build</code> looks up the pair of operand types in a four-by-four
+table, <code>cvtab</code> ([[c05.c:131-153]]). <code>lintyp</code> ([[c01.c:351-369]]) sorts types into four
+classes: integer (including <code>char</code>), floating, <code>long</code>, and pointer.</p>
+
+[[src:c05.c:148-153]]
+
+<p>Each entry is a conversion code ([[c0h.c:332-342]]). An entry whose high four bits are set means
+&ldquo;convert the <em>left</em> operand&rdquo;, with the low four bits saying how. For
+<code>int + double</code> the entry is <code>(FTI&lt;&lt;4)+ITF</code>: the left operand is the one to convert,
+and the conversion is <code>ITF</code>, integer to floating. The <code>FTI</code> in the high half matters for
+assignments. The left side of an assignment cannot be converted, so the result type is the left
+side's, and the conversion in the high half, <code>FTI</code>, is applied to the right side instead
+([[c01.c:173-179]]). The comment above the table explains this in its own words
+([[c05.c:131-147]]).</p>
+
+<p>Pointers need their own rules ([[c01.c:180-197]]):</p>
+
+<ul>
+<li>Integer and pointer (<code>ITP</code>): the integer is multiplied by the size of the object
+the pointer points to. <code>convert</code> ([[c01.c:223-257]]) does this by building a <code>*</code> node,
+which the second pass will turn into a shift when the size is a power of two. A plain
+assignment of an integer to a pointer, or the reverse, is accepted with no conversion at all.</li>
+<li>Pointer and pointer (<code>PTI</code>): allowed for subtraction, which gives an <code>int</code> that is
+then divided by the object size, and for comparison, which uses the unsigned comparison operators
+<code>LESSP</code> and so on. Plain assignment of one pointer to another is accepted with no
+conversion whatever the pointers point to, and so are the two arms of <code>?:</code> when their types
+are identical. Other operations are illegal, except, oddly, between two <code>char</code> pointers.</li>
+<li>Pointer and floating or <code>long</code> (<code>XX</code>): &ldquo;Illegal conversion&rdquo;.</li>
+</ul>
+
+<p>Structures cannot be operands of anything but <code>.</code> and <code>&amp;</code>: there is no structure
+assignment, and the attempt draws &ldquo;Unimplemented structure operation&rdquo;
+([[c01.c:160-163]]).</p>
+
+<p>After the conversion, a relational operator's result is made <code>int</code>, <code>fold</code> is given a
+chance to evaluate the node if both operands are constants, and otherwise the node is made
+([[c01.c:208-215]]).</p>
+
+<div class="widget" data-widget="convert">
+<div class="wbar"><span class="wt">build() on a binary operator</span></div>
+<div class="wbody">
+<p class="small muted" style="margin-top:0">Pick the types of <code>a</code> and <code>b</code> and an operator to see what <code>build</code>
+does with <code>a op b</code>. The logic follows [[c01.c:159-215]].</p>
+<div class="row">
+<span><label for="cvl">a is</label><select id="cvl" class="cl"></select></span>
+<span><label for="cvo">operator</label><select id="cvo" class="co"></select></span>
+<span><label for="cvr">b is</label><select id="cvr" class="cr"></select></span>
+</div>
+<div class="cout" style="margin-top:1rem"></div>
+</div>
+</div>
+
+<p>The effect of these rules shows clearly in the generated code. Here is a small program doing
+pointer arithmetic, its output, and part of the code for it.</p>
+
+<div class="pair">
+<div><p class="lbl">ptr.c</p><pre>[[include:examples/ptr.c]]</pre><p class="lbl">a.out</p><pre>[[include:examples/out/ptr.run]]</pre></div>
+<div><p class="lbl">ptr.s (part)</p><pre>mov	$2+_v,-10(r5)      <span class="cm">/ p = &amp;v[1]</span>
+mov	$16+_v,-12(r5)     <span class="cm">/ q = &amp;v[7]</span>
+...
+mov	-12(r5),r0         <span class="cm">/ q - p</span>
+sub	-10(r5),r0
+asr	r0                 <span class="cm">/ divided by 2</span>
+...
+mov	-10(r5),r0         <span class="cm">/ p = p + 3</span>
+add	$6,r0              <span class="cm">/ 3 scaled to 6 bytes</span>
+mov	r0,-10(r5)</pre></div>
+</div>
+
+<p><code>&amp;v[1]</code> became the constant address <code>2+_v</code>: the subscript turned into
+<code>*(v+1)</code>, the <code>1</code> was scaled to 2, and <code>&amp;*</code> cancelled, leaving an address the
+second pass could fold into a single operand. <code>t - s</code>, the difference of two <code>char</code>
+pointers, needed no division at all.</p>
+
+<p>And here is the structure example that shows both the <code>sizeof</code> bug and the bit-field
+layout problem described in the next chapter.</p>
+
+<div class="pair">
+<div><p class="lbl">decl.c</p><pre>[[include:examples/decl.c]]</pre></div>
+<div><p class="lbl">a.out</p><pre>[[include:examples/out/decl.run]]</pre>
+<p class="small muted">The first line gives the size of a <code>struct node</code> (14), of <code>matrix</code> (24),
+and <code>sizeof np-&gt;name</code>, which should be 5 but is 2. The second gives the distance in words
+from <code>value</code> to <code>count</code> and to <code>next</code>: 2 and 3, which puts <code>count</code> on top of the
+bit-fields. <a href="07-declarations.html#fields">Chapter 7</a> explains.</p></div>
+</div>
+
+<h2 id="fold">Constant folding</h2>
+
+<p><code>fold</code> ([[c01.c:438-505]]) evaluates an operator whose operands are integer constants,
+replacing the node by a constant. It handles the arithmetic and logical operators and unary minus
+and complement. Its comment says that more folding happens in the second pass, and this one exists
+mainly so that constant expressions can be used where the first pass needs a number: array
+bounds, <code>case</code> labels and bit-field widths, all read by <code>conexp</code>. Relational operators
+are not folded, which is why the <code>max(10, 7)</code> of <a href="02-cc.html">chapter 2</a> compiled
+into an actual comparison of two constants:</p>
+
+<pre>[[include:examples/out/pp.s]]</pre>
+
+<p>Nothing in either pass folds <code>10 &gt; 7</code>, so the code compares <code>$7</code> with <code>$12</code> and
+branches, every time the function is called.</p>

@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>c01.c · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body class="listpage">
+<header class="topbar"><nav><a class="home" href="../index.html">The Sixth Edition C Compiler</a><span class="sep">/</span><a href="index.html">Listing</a><span class="sep">/</span><code>c01.c</code></nav><div class="tools"><a href="../contents.html">Contents</a><a href="../source/index.html">Listing</a><a href="../xref.html">Index</a></div></header>
+<main class="listing">
+<div class="listhead">
+<p class="eyebrow">Sheet 42 &middot; lines 2100&ndash;2620</p>
+<h1><code>c01.c</code></h1>
+<p class="desc">Pass 0: tree building and conversions</p>
+</div>
+<div class="scroll"><table class="src"><tr id="L2100" class="s0"><td class="ln"><a href="#L2100">2100</a></td><td class="code"><span class="pp">#</span></td></tr>
+<tr id="L2101" class="s0"><td class="ln"><a href="#L2101">2101</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2102" class="s0"><td class="ln"><a href="#L2102">2102</a></td><td class="code"><span class="cm"> * C compiler</span></td></tr>
+<tr id="L2103" class="s0"><td class="ln"><a href="#L2103">2103</a></td><td class="code"><span class="cm"> *</span></td></tr>
+<tr id="L2104" class="s0"><td class="ln"><a href="#L2104">2104</a></td><td class="code"><span class="cm"> *</span></td></tr>
+<tr id="L2105" class="s0"><td class="ln"><a href="#L2105">2105</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2106" class="s0"><td class="ln"><a href="#L2106">2106</a></td><td class="code"> </td></tr>
+<tr id="L2107" class="s0"><td class="ln"><a href="#L2107">2107</a></td><td class="code"><span class="pp">#include "c0h.c"</span></td></tr>
+<tr id="L2108" class="s0"><td class="ln"><a href="#L2108">2108</a></td><td class="code"> </td></tr>
+<tr id="L2109" class="s0"><td class="ln"><a href="#L2109">2109</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2110" class="s0"><td class="ln"><a href="#L2110">2110</a></td><td class="code"><span class="cm"> * Called from tree, this routine takes the top 1, 2, or 3</span></td></tr>
+<tr id="L2111" class="s0"><td class="ln"><a href="#L2111">2111</a></td><td class="code"><span class="cm"> * operands on the expression stack, makes a new node with</span></td></tr>
+<tr id="L2112" class="s0"><td class="ln"><a href="#L2112">2112</a></td><td class="code"><span class="cm"> * the operator op, and puts it on the stack.</span></td></tr>
+<tr id="L2113" class="s0"><td class="ln"><a href="#L2113">2113</a></td><td class="code"><span class="cm"> * Essentially all the work is in inserting</span></td></tr>
+<tr id="L2114" class="s0"><td class="ln"><a href="#L2114">2114</a></td><td class="code"><span class="cm"> * appropriate conversions.</span></td></tr>
+<tr id="L2115" class="s0"><td class="ln"><a href="#L2115">2115</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2116" class="s0"><td class="ln"><a href="#L2116">2116</a></td><td class="code"><span class="def">build</span>(op) {</td></tr>
+<tr id="L2117" class="s0"><td class="ln"><a href="#L2117">2117</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> t1;</td></tr>
+<tr id="L2118" class="s0"><td class="ln"><a href="#L2118">2118</a></td><td class="code">        <span class="kw">int</span> t2, t3, t;</td></tr>
+<tr id="L2119" class="s0"><td class="ln"><a href="#L2119">2119</a></td><td class="code">        <span class="kw">struct</span> tnode *p3, *<a class="id" href="../source/c01.c.html#L2413">disarray</a>();</td></tr>
+<tr id="L2120" class="s0"><td class="ln"><a href="#L2120">2120</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p1, *p2;</td></tr>
+<tr id="L2121" class="s0"><td class="ln"><a href="#L2121">2121</a></td><td class="code">        <span class="kw">int</span> d, dope, leftc, cvn, pcvn;</td></tr>
+<tr id="L2122" class="s0"><td class="ln"><a href="#L2122">2122</a></td><td class="code"> </td></tr>
+<tr id="L2123" class="s0"><td class="ln"><a href="#L2123">2123</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L2124" class="s0"><td class="ln"><a href="#L2124">2124</a></td><td class="code"><span class="cm">         * a[i] =&gt; *(a+i)</span></td></tr>
+<tr id="L2125" class="s0"><td class="ln"><a href="#L2125">2125</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L2126" class="s0"><td class="ln"><a href="#L2126">2126</a></td><td class="code">        <span class="kw">if</span> (op==LBRACK) {</td></tr>
+<tr id="L2127" class="s0"><td class="ln"><a href="#L2127">2127</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2116">build</a>(PLUS);</td></tr>
+<tr id="L2128" class="s0"><td class="ln"><a href="#L2128">2128</a></td><td class="code">                op = STAR;</td></tr>
+<tr id="L2129" class="s0"><td class="ln"><a href="#L2129">2129</a></td><td class="code">        }</td></tr>
+<tr id="L2130" class="s0"><td class="ln"><a href="#L2130">2130</a></td><td class="code">        dope = opdope[op];</td></tr>
+<tr id="L2131" class="s0"><td class="ln"><a href="#L2131">2131</a></td><td class="code">        <span class="kw">if</span> ((dope&amp;BINARY)!=<span class="nu">0</span>) {</td></tr>
+<tr id="L2132" class="s0"><td class="ln"><a href="#L2132">2132</a></td><td class="code">                p2 = <a class="id" href="../source/c01.c.html#L2397">chkfun</a>(<a class="id" href="../source/c01.c.html#L2413">disarray</a>(*--cp));</td></tr>
+<tr id="L2133" class="s0"><td class="ln"><a href="#L2133">2133</a></td><td class="code">                t2 = p2-&gt;type;</td></tr>
+<tr id="L2134" class="s0"><td class="ln"><a href="#L2134">2134</a></td><td class="code">        }</td></tr>
+<tr id="L2135" class="s0"><td class="ln"><a href="#L2135">2135</a></td><td class="code">        p1 = *--cp;</td></tr>
+<tr id="L2136" class="s0"><td class="ln"><a href="#L2136">2136</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L2137" class="s0"><td class="ln"><a href="#L2137">2137</a></td><td class="code"><span class="cm">         * sizeof gets turned into a number here.</span></td></tr>
+<tr id="L2138" class="s0"><td class="ln"><a href="#L2138">2138</a></td><td class="code"><span class="cm">         * Bug: sizeof(structure-member-array) is 2 because</span></td></tr>
+<tr id="L2139" class="s0"><td class="ln"><a href="#L2139">2139</a></td><td class="code"><span class="cm">         * the array has been turned into a ptr already.</span></td></tr>
+<tr id="L2140" class="s0"><td class="ln"><a href="#L2140">2140</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L2141" class="s0"><td class="ln"><a href="#L2141">2141</a></td><td class="code">        <span class="kw">if</span> (op==SIZEOF) {</td></tr>
+<tr id="L2142" class="s0"><td class="ln"><a href="#L2142">2142</a></td><td class="code">                t1 = <a class="id" href="../source/c04.c.html#L3939">length</a>(p1);</td></tr>
+<tr id="L2143" class="s0"><td class="ln"><a href="#L2143">2143</a></td><td class="code">                p1-&gt;op = CON;</td></tr>
+<tr id="L2144" class="s0"><td class="ln"><a href="#L2144">2144</a></td><td class="code">                p1-&gt;type = INT;</td></tr>
+<tr id="L2145" class="s0"><td class="ln"><a href="#L2145">2145</a></td><td class="code">                p1-&gt;dimp = <span class="nu">0</span>;</td></tr>
+<tr id="L2146" class="s0"><td class="ln"><a href="#L2146">2146</a></td><td class="code">                p1-&gt;value = t1;</td></tr>
+<tr id="L2147" class="s0"><td class="ln"><a href="#L2147">2147</a></td><td class="code">                *cp++ = p1;</td></tr>
+<tr id="L2148" class="s0"><td class="ln"><a href="#L2148">2148</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L2149" class="s0"><td class="ln"><a href="#L2149">2149</a></td><td class="code">        }</td></tr>
+<tr id="L2150" class="s1"><td class="ln"><a href="#L2150">2150</a></td><td class="code">        <span class="kw">if</span> (op!=AMPER) {</td></tr>
+<tr id="L2151" class="s1"><td class="ln"><a href="#L2151">2151</a></td><td class="code">                p1 = <a class="id" href="../source/c01.c.html#L2413">disarray</a>(p1);</td></tr>
+<tr id="L2152" class="s1"><td class="ln"><a href="#L2152">2152</a></td><td class="code">                <span class="kw">if</span> (op!=CALL)</td></tr>
+<tr id="L2153" class="s1"><td class="ln"><a href="#L2153">2153</a></td><td class="code">                        p1 = <a class="id" href="../source/c01.c.html#L2397">chkfun</a>(p1);</td></tr>
+<tr id="L2154" class="s1"><td class="ln"><a href="#L2154">2154</a></td><td class="code">        }</td></tr>
+<tr id="L2155" class="s1"><td class="ln"><a href="#L2155">2155</a></td><td class="code">        t1 = p1-&gt;type;</td></tr>
+<tr id="L2156" class="s1"><td class="ln"><a href="#L2156">2156</a></td><td class="code">        pcvn = <span class="nu">0</span>;</td></tr>
+<tr id="L2157" class="s1"><td class="ln"><a href="#L2157">2157</a></td><td class="code">        t = INT;</td></tr>
+<tr id="L2158" class="s1"><td class="ln"><a href="#L2158">2158</a></td><td class="code">        <span class="kw">switch</span> (op) {</td></tr>
+<tr id="L2159" class="s1"><td class="ln"><a href="#L2159">2159</a></td><td class="code"> </td></tr>
+<tr id="L2160" class="s1"><td class="ln"><a href="#L2160">2160</a></td><td class="code">        <span class="cm">/* end of expression */</span></td></tr>
+<tr id="L2161" class="s1"><td class="ln"><a href="#L2161">2161</a></td><td class="code">        <span class="kw">case</span> <span class="nu">0</span>:</td></tr>
+<tr id="L2162" class="s1"><td class="ln"><a href="#L2162">2162</a></td><td class="code">                *cp++ = p1;</td></tr>
+<tr id="L2163" class="s1"><td class="ln"><a href="#L2163">2163</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L2164" class="s1"><td class="ln"><a href="#L2164">2164</a></td><td class="code"> </td></tr>
+<tr id="L2165" class="s1"><td class="ln"><a href="#L2165">2165</a></td><td class="code">        <span class="cm">/* no-conversion operators */</span></td></tr>
+<tr id="L2166" class="s1"><td class="ln"><a href="#L2166">2166</a></td><td class="code">        <span class="kw">case</span> QUEST:</td></tr>
+<tr id="L2167" class="s1"><td class="ln"><a href="#L2167">2167</a></td><td class="code">                <span class="kw">if</span> (p2-&gt;op!=COLON)</td></tr>
+<tr id="L2168" class="s1"><td class="ln"><a href="#L2168">2168</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Illegal conditional"</span>);</td></tr>
+<tr id="L2169" class="s1"><td class="ln"><a href="#L2169">2169</a></td><td class="code">                t = t2;</td></tr>
+<tr id="L2170" class="s1"><td class="ln"><a href="#L2170">2170</a></td><td class="code"> </td></tr>
+<tr id="L2171" class="s1"><td class="ln"><a href="#L2171">2171</a></td><td class="code">        <span class="kw">case</span> COMMA:</td></tr>
+<tr id="L2172" class="s1"><td class="ln"><a href="#L2172">2172</a></td><td class="code">        <span class="kw">case</span> LOGAND:</td></tr>
+<tr id="L2173" class="s1"><td class="ln"><a href="#L2173">2173</a></td><td class="code">        <span class="kw">case</span> LOGOR:</td></tr>
+<tr id="L2174" class="s1"><td class="ln"><a href="#L2174">2174</a></td><td class="code">                *cp++ = <a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">2</span>, op, t, <span class="nu">0</span>, p1, p2);</td></tr>
+<tr id="L2175" class="s1"><td class="ln"><a href="#L2175">2175</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L2176" class="s1"><td class="ln"><a href="#L2176">2176</a></td><td class="code"> </td></tr>
+<tr id="L2177" class="s1"><td class="ln"><a href="#L2177">2177</a></td><td class="code">        <span class="kw">case</span> CALL:</td></tr>
+<tr id="L2178" class="s1"><td class="ln"><a href="#L2178">2178</a></td><td class="code">                <span class="kw">if</span> ((t1&amp;XTYPE) != FUNC)</td></tr>
+<tr id="L2179" class="s1"><td class="ln"><a href="#L2179">2179</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Call of non-function"</span>);</td></tr>
+<tr id="L2180" class="s1"><td class="ln"><a href="#L2180">2180</a></td><td class="code">                *cp++ = <a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">2</span>,CALL,<a class="id" href="../source/c04.c.html#L3813">decref</a>(t1),p1-&gt;dimp,p1,p2);</td></tr>
+<tr id="L2181" class="s1"><td class="ln"><a href="#L2181">2181</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L2182" class="s1"><td class="ln"><a href="#L2182">2182</a></td><td class="code"> </td></tr>
+<tr id="L2183" class="s1"><td class="ln"><a href="#L2183">2183</a></td><td class="code">        <span class="kw">case</span> STAR:</td></tr>
+<tr id="L2184" class="s1"><td class="ln"><a href="#L2184">2184</a></td><td class="code">                <span class="kw">if</span> (p1-&gt;op==AMPER ) {</td></tr>
+<tr id="L2185" class="s1"><td class="ln"><a href="#L2185">2185</a></td><td class="code">                        *cp++ = p1-&gt;tr1;</td></tr>
+<tr id="L2186" class="s1"><td class="ln"><a href="#L2186">2186</a></td><td class="code">                        <span class="kw">return</span>;</td></tr>
+<tr id="L2187" class="s1"><td class="ln"><a href="#L2187">2187</a></td><td class="code">                }</td></tr>
+<tr id="L2188" class="s1"><td class="ln"><a href="#L2188">2188</a></td><td class="code">                <span class="kw">if</span> ((t1&amp;XTYPE) == FUNC)</td></tr>
+<tr id="L2189" class="s1"><td class="ln"><a href="#L2189">2189</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Illegal indirection"</span>);</td></tr>
+<tr id="L2190" class="s1"><td class="ln"><a href="#L2190">2190</a></td><td class="code">                *cp++ = <a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">1</span>,STAR,<a class="id" href="../source/c04.c.html#L3813">decref</a>(t1),p1-&gt;dimp,p1);</td></tr>
+<tr id="L2191" class="s1"><td class="ln"><a href="#L2191">2191</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L2192" class="s1"><td class="ln"><a href="#L2192">2192</a></td><td class="code"> </td></tr>
+<tr id="L2193" class="s1"><td class="ln"><a href="#L2193">2193</a></td><td class="code">        <span class="kw">case</span> AMPER:</td></tr>
+<tr id="L2194" class="s1"><td class="ln"><a href="#L2194">2194</a></td><td class="code">                <span class="kw">if</span> (p1-&gt;op==STAR) {</td></tr>
+<tr id="L2195" class="s1"><td class="ln"><a href="#L2195">2195</a></td><td class="code">                        p1-&gt;tr1-&gt;dimp = p1-&gt;dimp;</td></tr>
+<tr id="L2196" class="s1"><td class="ln"><a href="#L2196">2196</a></td><td class="code">                        p1-&gt;tr1-&gt;type = <a class="id" href="../source/c04.c.html#L3829">incref</a>(t1);</td></tr>
+<tr id="L2197" class="s1"><td class="ln"><a href="#L2197">2197</a></td><td class="code">                        *cp++ = p1-&gt;tr1;</td></tr>
+<tr id="L2198" class="s1"><td class="ln"><a href="#L2198">2198</a></td><td class="code">                        <span class="kw">return</span>;</td></tr>
+<tr id="L2199" class="s1"><td class="ln"><a href="#L2199">2199</a></td><td class="code">                }</td></tr>
+<tr id="L2200" class="s0"><td class="ln"><a href="#L2200">2200</a></td><td class="code">                <span class="kw">if</span> (p1-&gt;op==NAME) {</td></tr>
+<tr id="L2201" class="s0"><td class="ln"><a href="#L2201">2201</a></td><td class="code">                        *cp++ = <a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">1</span>,op,<a class="id" href="../source/c04.c.html#L3829">incref</a>(t1),p1-&gt;dimp,p1);</td></tr>
+<tr id="L2202" class="s0"><td class="ln"><a href="#L2202">2202</a></td><td class="code">                        <span class="kw">return</span>;</td></tr>
+<tr id="L2203" class="s0"><td class="ln"><a href="#L2203">2203</a></td><td class="code">                }</td></tr>
+<tr id="L2204" class="s0"><td class="ln"><a href="#L2204">2204</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Illegal lvalue"</span>);</td></tr>
+<tr id="L2205" class="s0"><td class="ln"><a href="#L2205">2205</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2206" class="s0"><td class="ln"><a href="#L2206">2206</a></td><td class="code"> </td></tr>
+<tr id="L2207" class="s0"><td class="ln"><a href="#L2207">2207</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L2208" class="s0"><td class="ln"><a href="#L2208">2208</a></td><td class="code"><span class="cm">         * a-&gt;b goes to (*a).b</span></td></tr>
+<tr id="L2209" class="s0"><td class="ln"><a href="#L2209">2209</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L2210" class="s0"><td class="ln"><a href="#L2210">2210</a></td><td class="code">        <span class="kw">case</span> ARROW:</td></tr>
+<tr id="L2211" class="s0"><td class="ln"><a href="#L2211">2211</a></td><td class="code">                *cp++ = p1;</td></tr>
+<tr id="L2212" class="s0"><td class="ln"><a href="#L2212">2212</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2436">chkw</a>(p1, -<span class="nu">1</span>);</td></tr>
+<tr id="L2213" class="s0"><td class="ln"><a href="#L2213">2213</a></td><td class="code">                p1-&gt;type = PTR+STRUCT;</td></tr>
+<tr id="L2214" class="s0"><td class="ln"><a href="#L2214">2214</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2116">build</a>(STAR);</td></tr>
+<tr id="L2215" class="s0"><td class="ln"><a href="#L2215">2215</a></td><td class="code">                p1 = *--cp;</td></tr>
+<tr id="L2216" class="s0"><td class="ln"><a href="#L2216">2216</a></td><td class="code"> </td></tr>
+<tr id="L2217" class="s0"><td class="ln"><a href="#L2217">2217</a></td><td class="code">        <span class="cm">/*</span></td></tr>
+<tr id="L2218" class="s0"><td class="ln"><a href="#L2218">2218</a></td><td class="code"><span class="cm">         * In a.b, a fairly complicated process has to</span></td></tr>
+<tr id="L2219" class="s0"><td class="ln"><a href="#L2219">2219</a></td><td class="code"><span class="cm">         * be used to make the left operand look</span></td></tr>
+<tr id="L2220" class="s0"><td class="ln"><a href="#L2220">2220</a></td><td class="code"><span class="cm">         * as if it had the type of the second.</span></td></tr>
+<tr id="L2221" class="s0"><td class="ln"><a href="#L2221">2221</a></td><td class="code"><span class="cm">         * Also, the offset in the structure has to be</span></td></tr>
+<tr id="L2222" class="s0"><td class="ln"><a href="#L2222">2222</a></td><td class="code"><span class="cm">         * given a special type to prevent conversion.</span></td></tr>
+<tr id="L2223" class="s0"><td class="ln"><a href="#L2223">2223</a></td><td class="code"><span class="cm">         */</span></td></tr>
+<tr id="L2224" class="s0"><td class="ln"><a href="#L2224">2224</a></td><td class="code">        <span class="kw">case</span> DOT:</td></tr>
+<tr id="L2225" class="s0"><td class="ln"><a href="#L2225">2225</a></td><td class="code">                <span class="kw">if</span> (p2-&gt;op!=NAME || (p2-&gt;class!=MOS &amp;&amp; p2-&gt;class!=FMOS))</td></tr>
+<tr id="L2226" class="s0"><td class="ln"><a href="#L2226">2226</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Illegal structure ref"</span>);</td></tr>
+<tr id="L2227" class="s0"><td class="ln"><a href="#L2227">2227</a></td><td class="code">                *cp++ = p1;</td></tr>
+<tr id="L2228" class="s0"><td class="ln"><a href="#L2228">2228</a></td><td class="code">                t = t2;</td></tr>
+<tr id="L2229" class="s0"><td class="ln"><a href="#L2229">2229</a></td><td class="code">                <span class="kw">if</span> ((t&amp;XTYPE) == ARRAY) {</td></tr>
+<tr id="L2230" class="s0"><td class="ln"><a href="#L2230">2230</a></td><td class="code">                        t = <a class="id" href="../source/c04.c.html#L3813">decref</a>(t);</td></tr>
+<tr id="L2231" class="s0"><td class="ln"><a href="#L2231">2231</a></td><td class="code">                        p2-&gt;ssp++;</td></tr>
+<tr id="L2232" class="s0"><td class="ln"><a href="#L2232">2232</a></td><td class="code">                }</td></tr>
+<tr id="L2233" class="s0"><td class="ln"><a href="#L2233">2233</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2365">setype</a>(p1, t, p2-&gt;dimp);</td></tr>
+<tr id="L2234" class="s0"><td class="ln"><a href="#L2234">2234</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2116">build</a>(AMPER);</td></tr>
+<tr id="L2235" class="s0"><td class="ln"><a href="#L2235">2235</a></td><td class="code">                *cp++ = <a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">1</span>,CON,NOTYPE,<span class="nu">0</span>,p2-&gt;nloc);</td></tr>
+<tr id="L2236" class="s0"><td class="ln"><a href="#L2236">2236</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2116">build</a>(PLUS);</td></tr>
+<tr id="L2237" class="s0"><td class="ln"><a href="#L2237">2237</a></td><td class="code">                <span class="kw">if</span> ((t2&amp;XTYPE) != ARRAY)</td></tr>
+<tr id="L2238" class="s0"><td class="ln"><a href="#L2238">2238</a></td><td class="code">                        <a class="id" href="../source/c01.c.html#L2116">build</a>(STAR);</td></tr>
+<tr id="L2239" class="s0"><td class="ln"><a href="#L2239">2239</a></td><td class="code">                <span class="kw">if</span> (p2-&gt;class == FMOS)</td></tr>
+<tr id="L2240" class="s0"><td class="ln"><a href="#L2240">2240</a></td><td class="code">                        *cp++ = <a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">2</span>, FSEL, t, <span class="nu">0</span>, *--cp, p2-&gt;dimp);</td></tr>
+<tr id="L2241" class="s0"><td class="ln"><a href="#L2241">2241</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L2242" class="s0"><td class="ln"><a href="#L2242">2242</a></td><td class="code">        }</td></tr>
+<tr id="L2243" class="s0"><td class="ln"><a href="#L2243">2243</a></td><td class="code">        <span class="kw">if</span> ((dope&amp;LVALUE)!=<span class="nu">0</span>)</td></tr>
+<tr id="L2244" class="s0"><td class="ln"><a href="#L2244">2244</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2521">chklval</a>(p1);</td></tr>
+<tr id="L2245" class="s0"><td class="ln"><a href="#L2245">2245</a></td><td class="code">        <span class="kw">if</span> ((dope&amp;LWORD)!=<span class="nu">0</span>)</td></tr>
+<tr id="L2246" class="s0"><td class="ln"><a href="#L2246">2246</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2436">chkw</a>(p1, LONG);</td></tr>
+<tr id="L2247" class="s0"><td class="ln"><a href="#L2247">2247</a></td><td class="code">        <span class="kw">if</span> ((dope&amp;RWORD)!=<span class="nu">0</span>)</td></tr>
+<tr id="L2248" class="s0"><td class="ln"><a href="#L2248">2248</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2436">chkw</a>(p2, LONG);</td></tr>
+<tr id="L2249" class="s0"><td class="ln"><a href="#L2249">2249</a></td><td class="code">        <span class="kw">if</span> ((dope&amp;BINARY)==<span class="nu">0</span>) {</td></tr>
+<tr id="L2250" class="s1"><td class="ln"><a href="#L2250">2250</a></td><td class="code">                <span class="kw">if</span> (op==ITOF)</td></tr>
+<tr id="L2251" class="s1"><td class="ln"><a href="#L2251">2251</a></td><td class="code">                        t1 = DOUBLE;</td></tr>
+<tr id="L2252" class="s1"><td class="ln"><a href="#L2252">2252</a></td><td class="code">                <span class="kw">else</span> <span class="kw">if</span> (op==FTOI)</td></tr>
+<tr id="L2253" class="s1"><td class="ln"><a href="#L2253">2253</a></td><td class="code">                        t1 = INT;</td></tr>
+<tr id="L2254" class="s1"><td class="ln"><a href="#L2254">2254</a></td><td class="code">                <span class="kw">if</span> (!<a class="id" href="../source/c01.c.html#L2537">fold</a>(op, p1, <span class="nu">0</span>))</td></tr>
+<tr id="L2255" class="s1"><td class="ln"><a href="#L2255">2255</a></td><td class="code">                        *cp++ = <a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">1</span>,op,t1,p1-&gt;dimp,p1);</td></tr>
+<tr id="L2256" class="s1"><td class="ln"><a href="#L2256">2256</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L2257" class="s1"><td class="ln"><a href="#L2257">2257</a></td><td class="code">        }</td></tr>
+<tr id="L2258" class="s1"><td class="ln"><a href="#L2258">2258</a></td><td class="code">        cvn = <span class="nu">0</span>;</td></tr>
+<tr id="L2259" class="s1"><td class="ln"><a href="#L2259">2259</a></td><td class="code">        <span class="kw">if</span> (t1==STRUCT || t2==STRUCT) {</td></tr>
+<tr id="L2260" class="s1"><td class="ln"><a href="#L2260">2260</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Unimplemented structure operation"</span>);</td></tr>
+<tr id="L2261" class="s1"><td class="ln"><a href="#L2261">2261</a></td><td class="code">                t1 = t2 = INT;</td></tr>
+<tr id="L2262" class="s1"><td class="ln"><a href="#L2262">2262</a></td><td class="code">        }</td></tr>
+<tr id="L2263" class="s1"><td class="ln"><a href="#L2263">2263</a></td><td class="code">        <span class="kw">if</span> (t2==NOTYPE) {</td></tr>
+<tr id="L2264" class="s1"><td class="ln"><a href="#L2264">2264</a></td><td class="code">                t = t1;</td></tr>
+<tr id="L2265" class="s1"><td class="ln"><a href="#L2265">2265</a></td><td class="code">                p2-&gt;type = INT; <span class="cm">/* no int cv for struct */</span></td></tr>
+<tr id="L2266" class="s1"><td class="ln"><a href="#L2266">2266</a></td><td class="code">                t2 = INT;</td></tr>
+<tr id="L2267" class="s1"><td class="ln"><a href="#L2267">2267</a></td><td class="code">        } <span class="kw">else</span></td></tr>
+<tr id="L2268" class="s1"><td class="ln"><a href="#L2268">2268</a></td><td class="code">                cvn = cvtab[<a class="id" href="../source/c01.c.html#L2450">lintyp</a>(t1)][<a class="id" href="../source/c01.c.html#L2450">lintyp</a>(t2)];</td></tr>
+<tr id="L2269" class="s1"><td class="ln"><a href="#L2269">2269</a></td><td class="code">        leftc = (cvn&gt;&gt;<span class="nu">4</span>)&amp;<span class="nu">017</span>;</td></tr>
+<tr id="L2270" class="s1"><td class="ln"><a href="#L2270">2270</a></td><td class="code">        cvn =&amp; <span class="nu">017</span>;</td></tr>
+<tr id="L2271" class="s1"><td class="ln"><a href="#L2271">2271</a></td><td class="code">        t = leftc? t2:t1;</td></tr>
+<tr id="L2272" class="s1"><td class="ln"><a href="#L2272">2272</a></td><td class="code">        <span class="kw">if</span> (dope&amp;ASSGOP) {</td></tr>
+<tr id="L2273" class="s1"><td class="ln"><a href="#L2273">2273</a></td><td class="code">                t = t1;</td></tr>
+<tr id="L2274" class="s1"><td class="ln"><a href="#L2274">2274</a></td><td class="code">                <span class="kw">if</span> (op==ASSIGN &amp;&amp; (cvn==ITP||cvn==PTI))</td></tr>
+<tr id="L2275" class="s1"><td class="ln"><a href="#L2275">2275</a></td><td class="code">                        cvn = leftc = <span class="nu">0</span>;</td></tr>
+<tr id="L2276" class="s1"><td class="ln"><a href="#L2276">2276</a></td><td class="code">                <span class="kw">if</span> (leftc)</td></tr>
+<tr id="L2277" class="s1"><td class="ln"><a href="#L2277">2277</a></td><td class="code">                        cvn = leftc;</td></tr>
+<tr id="L2278" class="s1"><td class="ln"><a href="#L2278">2278</a></td><td class="code">                leftc = <span class="nu">0</span>;</td></tr>
+<tr id="L2279" class="s1"><td class="ln"><a href="#L2279">2279</a></td><td class="code">        } <span class="kw">else</span> <span class="kw">if</span> (op==COLON &amp;&amp; t1&gt;=PTR &amp;&amp; t1==t2)</td></tr>
+<tr id="L2280" class="s1"><td class="ln"><a href="#L2280">2280</a></td><td class="code">                cvn = <span class="nu">0</span>;</td></tr>
+<tr id="L2281" class="s1"><td class="ln"><a href="#L2281">2281</a></td><td class="code">        <span class="kw">else</span> <span class="kw">if</span> (dope&amp;RELAT) {</td></tr>
+<tr id="L2282" class="s1"><td class="ln"><a href="#L2282">2282</a></td><td class="code">                <span class="kw">if</span> (op&gt;=LESSEQ &amp;&amp; (t1&gt;=PTR || t2&gt;=PTR))</td></tr>
+<tr id="L2283" class="s1"><td class="ln"><a href="#L2283">2283</a></td><td class="code">                        op =+ LESSEQP-LESSEQ;</td></tr>
+<tr id="L2284" class="s1"><td class="ln"><a href="#L2284">2284</a></td><td class="code">                <span class="kw">if</span> (cvn==PTI)</td></tr>
+<tr id="L2285" class="s1"><td class="ln"><a href="#L2285">2285</a></td><td class="code">                        cvn = <span class="nu">0</span>;</td></tr>
+<tr id="L2286" class="s1"><td class="ln"><a href="#L2286">2286</a></td><td class="code">        }</td></tr>
+<tr id="L2287" class="s1"><td class="ln"><a href="#L2287">2287</a></td><td class="code">        <span class="kw">if</span> (cvn==PTI) {</td></tr>
+<tr id="L2288" class="s1"><td class="ln"><a href="#L2288">2288</a></td><td class="code">                cvn = <span class="nu">0</span>;</td></tr>
+<tr id="L2289" class="s1"><td class="ln"><a href="#L2289">2289</a></td><td class="code">                <span class="kw">if</span> (op==MINUS) {</td></tr>
+<tr id="L2290" class="s1"><td class="ln"><a href="#L2290">2290</a></td><td class="code">                        t = INT;</td></tr>
+<tr id="L2291" class="s1"><td class="ln"><a href="#L2291">2291</a></td><td class="code">                        pcvn++;</td></tr>
+<tr id="L2292" class="s1"><td class="ln"><a href="#L2292">2292</a></td><td class="code">                } <span class="kw">else</span> {</td></tr>
+<tr id="L2293" class="s1"><td class="ln"><a href="#L2293">2293</a></td><td class="code">                        <span class="kw">if</span> (t1!=t2 || t1!=(PTR+CHAR))</td></tr>
+<tr id="L2294" class="s1"><td class="ln"><a href="#L2294">2294</a></td><td class="code">                                cvn = XX;</td></tr>
+<tr id="L2295" class="s1"><td class="ln"><a href="#L2295">2295</a></td><td class="code">                }</td></tr>
+<tr id="L2296" class="s1"><td class="ln"><a href="#L2296">2296</a></td><td class="code">        }</td></tr>
+<tr id="L2297" class="s1"><td class="ln"><a href="#L2297">2297</a></td><td class="code">        <span class="kw">if</span> (cvn) {</td></tr>
+<tr id="L2298" class="s1"><td class="ln"><a href="#L2298">2298</a></td><td class="code">                t1 = <a class="id" href="../source/c04.c.html#L3920">plength</a>(p1);</td></tr>
+<tr id="L2299" class="s1"><td class="ln"><a href="#L2299">2299</a></td><td class="code">                t2 = <a class="id" href="../source/c04.c.html#L3920">plength</a>(p2);</td></tr>
+<tr id="L2300" class="s0"><td class="ln"><a href="#L2300">2300</a></td><td class="code">                <span class="kw">if</span> (cvn==XX || (cvn==PTI&amp;&amp;t1!=t2))</td></tr>
+<tr id="L2301" class="s0"><td class="ln"><a href="#L2301">2301</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Illegal conversion"</span>);</td></tr>
+<tr id="L2302" class="s0"><td class="ln"><a href="#L2302">2302</a></td><td class="code">                <span class="kw">else</span> <span class="kw">if</span> (leftc)</td></tr>
+<tr id="L2303" class="s0"><td class="ln"><a href="#L2303">2303</a></td><td class="code">                        p1 = <a class="id" href="../source/c01.c.html#L2322">convert</a>(p1, t, cvn, t2);</td></tr>
+<tr id="L2304" class="s0"><td class="ln"><a href="#L2304">2304</a></td><td class="code">                <span class="kw">else</span></td></tr>
+<tr id="L2305" class="s0"><td class="ln"><a href="#L2305">2305</a></td><td class="code">                        p2 = <a class="id" href="../source/c01.c.html#L2322">convert</a>(p2, t, cvn, t1);</td></tr>
+<tr id="L2306" class="s0"><td class="ln"><a href="#L2306">2306</a></td><td class="code">        }</td></tr>
+<tr id="L2307" class="s0"><td class="ln"><a href="#L2307">2307</a></td><td class="code">        <span class="kw">if</span> (dope&amp;RELAT)</td></tr>
+<tr id="L2308" class="s0"><td class="ln"><a href="#L2308">2308</a></td><td class="code">                t = INT;</td></tr>
+<tr id="L2309" class="s0"><td class="ln"><a href="#L2309">2309</a></td><td class="code">        <span class="kw">if</span> (<a class="id" href="../source/c01.c.html#L2537">fold</a>(op, p1, p2)==<span class="nu">0</span>)</td></tr>
+<tr id="L2310" class="s0"><td class="ln"><a href="#L2310">2310</a></td><td class="code">                *cp++ = <a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">2</span>,op,t,(p1-&gt;dimp==<span class="nu">0</span>? p2:p1)-&gt;dimp,p1,p2);</td></tr>
+<tr id="L2311" class="s0"><td class="ln"><a href="#L2311">2311</a></td><td class="code">        <span class="kw">if</span> (pcvn &amp;&amp; t1!=(PTR+CHAR)) {</td></tr>
+<tr id="L2312" class="s0"><td class="ln"><a href="#L2312">2312</a></td><td class="code">                p1 = *--cp;</td></tr>
+<tr id="L2313" class="s0"><td class="ln"><a href="#L2313">2313</a></td><td class="code">                *cp++ = <a class="id" href="../source/c01.c.html#L2322">convert</a>(p1, <span class="nu">0</span>, PTI, <a class="id" href="../source/c04.c.html#L3920">plength</a>(p1-&gt;tr1));</td></tr>
+<tr id="L2314" class="s0"><td class="ln"><a href="#L2314">2314</a></td><td class="code">        }</td></tr>
+<tr id="L2315" class="s0"><td class="ln"><a href="#L2315">2315</a></td><td class="code">}</td></tr>
+<tr id="L2316" class="s0"><td class="ln"><a href="#L2316">2316</a></td><td class="code"> </td></tr>
+<tr id="L2317" class="s0"><td class="ln"><a href="#L2317">2317</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2318" class="s0"><td class="ln"><a href="#L2318">2318</a></td><td class="code"><span class="cm"> * Generate the appropirate conversion operator.</span></td></tr>
+<tr id="L2319" class="s0"><td class="ln"><a href="#L2319">2319</a></td><td class="code"><span class="cm"> * For pointer &lt;=&gt; integer this is a multiplication</span></td></tr>
+<tr id="L2320" class="s0"><td class="ln"><a href="#L2320">2320</a></td><td class="code"><span class="cm"> * or division, otherwise a special operator.</span></td></tr>
+<tr id="L2321" class="s0"><td class="ln"><a href="#L2321">2321</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2322" class="s0"><td class="ln"><a href="#L2322">2322</a></td><td class="code"><span class="def">convert</span>(p, t, cvn, len)</td></tr>
+<tr id="L2323" class="s0"><td class="ln"><a href="#L2323">2323</a></td><td class="code"><span class="kw">struct</span> tnode *p;</td></tr>
+<tr id="L2324" class="s0"><td class="ln"><a href="#L2324">2324</a></td><td class="code">{</td></tr>
+<tr id="L2325" class="s0"><td class="ln"><a href="#L2325">2325</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> n;</td></tr>
+<tr id="L2326" class="s0"><td class="ln"><a href="#L2326">2326</a></td><td class="code"> </td></tr>
+<tr id="L2327" class="s0"><td class="ln"><a href="#L2327">2327</a></td><td class="code">        <span class="kw">switch</span>(cvn) {</td></tr>
+<tr id="L2328" class="s0"><td class="ln"><a href="#L2328">2328</a></td><td class="code"> </td></tr>
+<tr id="L2329" class="s0"><td class="ln"><a href="#L2329">2329</a></td><td class="code">        <span class="kw">case</span> PTI:</td></tr>
+<tr id="L2330" class="s0"><td class="ln"><a href="#L2330">2330</a></td><td class="code">        <span class="kw">case</span> ITP:</td></tr>
+<tr id="L2331" class="s0"><td class="ln"><a href="#L2331">2331</a></td><td class="code">                <span class="kw">if</span> (len==<span class="nu">1</span>)</td></tr>
+<tr id="L2332" class="s0"><td class="ln"><a href="#L2332">2332</a></td><td class="code">                        <span class="kw">return</span>(p);</td></tr>
+<tr id="L2333" class="s0"><td class="ln"><a href="#L2333">2333</a></td><td class="code">                <span class="kw">return</span>(<a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">2</span>, (cvn==PTI?DIVIDE:TIMES), t, <span class="nu">0</span>, p,</td></tr>
+<tr id="L2334" class="s0"><td class="ln"><a href="#L2334">2334</a></td><td class="code">                        <a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">1</span>, CON, <span class="nu">0</span>, <span class="nu">0</span>, len)));</td></tr>
+<tr id="L2335" class="s0"><td class="ln"><a href="#L2335">2335</a></td><td class="code"> </td></tr>
+<tr id="L2336" class="s0"><td class="ln"><a href="#L2336">2336</a></td><td class="code">        <span class="kw">case</span> ITF:</td></tr>
+<tr id="L2337" class="s0"><td class="ln"><a href="#L2337">2337</a></td><td class="code">                n = ITOF;</td></tr>
+<tr id="L2338" class="s0"><td class="ln"><a href="#L2338">2338</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2339" class="s0"><td class="ln"><a href="#L2339">2339</a></td><td class="code">        <span class="kw">case</span> FTI:</td></tr>
+<tr id="L2340" class="s0"><td class="ln"><a href="#L2340">2340</a></td><td class="code">                n = FTOI;</td></tr>
+<tr id="L2341" class="s0"><td class="ln"><a href="#L2341">2341</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2342" class="s0"><td class="ln"><a href="#L2342">2342</a></td><td class="code">        <span class="kw">case</span> ITL:</td></tr>
+<tr id="L2343" class="s0"><td class="ln"><a href="#L2343">2343</a></td><td class="code">                n = ITOL;</td></tr>
+<tr id="L2344" class="s0"><td class="ln"><a href="#L2344">2344</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2345" class="s0"><td class="ln"><a href="#L2345">2345</a></td><td class="code">        <span class="kw">case</span> LTI:</td></tr>
+<tr id="L2346" class="s0"><td class="ln"><a href="#L2346">2346</a></td><td class="code">                n = LTOI;</td></tr>
+<tr id="L2347" class="s0"><td class="ln"><a href="#L2347">2347</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2348" class="s0"><td class="ln"><a href="#L2348">2348</a></td><td class="code">        <span class="kw">case</span> FTL:</td></tr>
+<tr id="L2349" class="s0"><td class="ln"><a href="#L2349">2349</a></td><td class="code">                n = FTOL;</td></tr>
+<tr id="L2350" class="s1"><td class="ln"><a href="#L2350">2350</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2351" class="s1"><td class="ln"><a href="#L2351">2351</a></td><td class="code">        <span class="kw">case</span> LTF:</td></tr>
+<tr id="L2352" class="s1"><td class="ln"><a href="#L2352">2352</a></td><td class="code">                n = LTOF;</td></tr>
+<tr id="L2353" class="s1"><td class="ln"><a href="#L2353">2353</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2354" class="s1"><td class="ln"><a href="#L2354">2354</a></td><td class="code">        }</td></tr>
+<tr id="L2355" class="s1"><td class="ln"><a href="#L2355">2355</a></td><td class="code">        <span class="kw">return</span>(<a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">1</span>, n, t, <span class="nu">0</span>, p));</td></tr>
+<tr id="L2356" class="s1"><td class="ln"><a href="#L2356">2356</a></td><td class="code">}</td></tr>
+<tr id="L2357" class="s1"><td class="ln"><a href="#L2357">2357</a></td><td class="code"> </td></tr>
+<tr id="L2358" class="s1"><td class="ln"><a href="#L2358">2358</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2359" class="s1"><td class="ln"><a href="#L2359">2359</a></td><td class="code"><span class="cm"> * Traverse an expression tree, adjust things</span></td></tr>
+<tr id="L2360" class="s1"><td class="ln"><a href="#L2360">2360</a></td><td class="code"><span class="cm"> * so the types of things in it are consistent</span></td></tr>
+<tr id="L2361" class="s1"><td class="ln"><a href="#L2361">2361</a></td><td class="code"><span class="cm"> * with the view that its top node has</span></td></tr>
+<tr id="L2362" class="s1"><td class="ln"><a href="#L2362">2362</a></td><td class="code"><span class="cm"> * type at.</span></td></tr>
+<tr id="L2363" class="s1"><td class="ln"><a href="#L2363">2363</a></td><td class="code"><span class="cm"> * Used with structure references.</span></td></tr>
+<tr id="L2364" class="s1"><td class="ln"><a href="#L2364">2364</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2365" class="s1"><td class="ln"><a href="#L2365">2365</a></td><td class="code"><span class="def">setype</span>(ap, at, adimptr)</td></tr>
+<tr id="L2366" class="s1"><td class="ln"><a href="#L2366">2366</a></td><td class="code"><span class="kw">struct</span> tnode *ap;</td></tr>
+<tr id="L2367" class="s1"><td class="ln"><a href="#L2367">2367</a></td><td class="code">{</td></tr>
+<tr id="L2368" class="s1"><td class="ln"><a href="#L2368">2368</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p;</td></tr>
+<tr id="L2369" class="s1"><td class="ln"><a href="#L2369">2369</a></td><td class="code">        <span class="kw">register</span> t, dimptr;</td></tr>
+<tr id="L2370" class="s1"><td class="ln"><a href="#L2370">2370</a></td><td class="code"> </td></tr>
+<tr id="L2371" class="s1"><td class="ln"><a href="#L2371">2371</a></td><td class="code">        p = ap;</td></tr>
+<tr id="L2372" class="s1"><td class="ln"><a href="#L2372">2372</a></td><td class="code">        t = at;</td></tr>
+<tr id="L2373" class="s1"><td class="ln"><a href="#L2373">2373</a></td><td class="code">        dimptr = adimptr;</td></tr>
+<tr id="L2374" class="s1"><td class="ln"><a href="#L2374">2374</a></td><td class="code">        p-&gt;type = t;</td></tr>
+<tr id="L2375" class="s1"><td class="ln"><a href="#L2375">2375</a></td><td class="code">        <span class="kw">if</span> (dimptr != -<span class="nu">1</span>)</td></tr>
+<tr id="L2376" class="s1"><td class="ln"><a href="#L2376">2376</a></td><td class="code">                p-&gt;dimp = dimptr;</td></tr>
+<tr id="L2377" class="s1"><td class="ln"><a href="#L2377">2377</a></td><td class="code">        <span class="kw">switch</span>(p-&gt;op) {</td></tr>
+<tr id="L2378" class="s1"><td class="ln"><a href="#L2378">2378</a></td><td class="code"> </td></tr>
+<tr id="L2379" class="s1"><td class="ln"><a href="#L2379">2379</a></td><td class="code">        <span class="kw">case</span> AMPER:</td></tr>
+<tr id="L2380" class="s1"><td class="ln"><a href="#L2380">2380</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2365">setype</a>(p-&gt;tr1, <a class="id" href="../source/c04.c.html#L3813">decref</a>(t), dimptr);</td></tr>
+<tr id="L2381" class="s1"><td class="ln"><a href="#L2381">2381</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L2382" class="s1"><td class="ln"><a href="#L2382">2382</a></td><td class="code"> </td></tr>
+<tr id="L2383" class="s1"><td class="ln"><a href="#L2383">2383</a></td><td class="code">        <span class="kw">case</span> STAR:</td></tr>
+<tr id="L2384" class="s1"><td class="ln"><a href="#L2384">2384</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2365">setype</a>(p-&gt;tr1, <a class="id" href="../source/c04.c.html#L3829">incref</a>(t), dimptr);</td></tr>
+<tr id="L2385" class="s1"><td class="ln"><a href="#L2385">2385</a></td><td class="code">                <span class="kw">return</span>;</td></tr>
+<tr id="L2386" class="s1"><td class="ln"><a href="#L2386">2386</a></td><td class="code"> </td></tr>
+<tr id="L2387" class="s1"><td class="ln"><a href="#L2387">2387</a></td><td class="code">        <span class="kw">case</span> PLUS:</td></tr>
+<tr id="L2388" class="s1"><td class="ln"><a href="#L2388">2388</a></td><td class="code">        <span class="kw">case</span> MINUS:</td></tr>
+<tr id="L2389" class="s1"><td class="ln"><a href="#L2389">2389</a></td><td class="code">                <a class="id" href="../source/c01.c.html#L2365">setype</a>(p-&gt;tr1, t, dimptr);</td></tr>
+<tr id="L2390" class="s1"><td class="ln"><a href="#L2390">2390</a></td><td class="code">        }</td></tr>
+<tr id="L2391" class="s1"><td class="ln"><a href="#L2391">2391</a></td><td class="code">}</td></tr>
+<tr id="L2392" class="s1"><td class="ln"><a href="#L2392">2392</a></td><td class="code"> </td></tr>
+<tr id="L2393" class="s1"><td class="ln"><a href="#L2393">2393</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2394" class="s1"><td class="ln"><a href="#L2394">2394</a></td><td class="code"><span class="cm"> * A mention of a function name is turned into</span></td></tr>
+<tr id="L2395" class="s1"><td class="ln"><a href="#L2395">2395</a></td><td class="code"><span class="cm"> * a pointer to that function.</span></td></tr>
+<tr id="L2396" class="s1"><td class="ln"><a href="#L2396">2396</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2397" class="s1"><td class="ln"><a href="#L2397">2397</a></td><td class="code"><span class="def">chkfun</span>(ap)</td></tr>
+<tr id="L2398" class="s1"><td class="ln"><a href="#L2398">2398</a></td><td class="code"><span class="kw">struct</span> tnode *ap;</td></tr>
+<tr id="L2399" class="s1"><td class="ln"><a href="#L2399">2399</a></td><td class="code">{</td></tr>
+<tr id="L2400" class="s0"><td class="ln"><a href="#L2400">2400</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p;</td></tr>
+<tr id="L2401" class="s0"><td class="ln"><a href="#L2401">2401</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> t;</td></tr>
+<tr id="L2402" class="s0"><td class="ln"><a href="#L2402">2402</a></td><td class="code"> </td></tr>
+<tr id="L2403" class="s0"><td class="ln"><a href="#L2403">2403</a></td><td class="code">        p = ap;</td></tr>
+<tr id="L2404" class="s0"><td class="ln"><a href="#L2404">2404</a></td><td class="code">        <span class="kw">if</span> (((t = p-&gt;type)&amp;XTYPE)==FUNC)</td></tr>
+<tr id="L2405" class="s0"><td class="ln"><a href="#L2405">2405</a></td><td class="code">                <span class="kw">return</span>(<a class="id" href="../source/c01.c.html#L2486">block</a>(<span class="nu">1</span>,AMPER,<a class="id" href="../source/c04.c.html#L3829">incref</a>(t),p-&gt;dimp,p));</td></tr>
+<tr id="L2406" class="s0"><td class="ln"><a href="#L2406">2406</a></td><td class="code">        <span class="kw">return</span>(p);</td></tr>
+<tr id="L2407" class="s0"><td class="ln"><a href="#L2407">2407</a></td><td class="code">}</td></tr>
+<tr id="L2408" class="s0"><td class="ln"><a href="#L2408">2408</a></td><td class="code"> </td></tr>
+<tr id="L2409" class="s0"><td class="ln"><a href="#L2409">2409</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2410" class="s0"><td class="ln"><a href="#L2410">2410</a></td><td class="code"><span class="cm"> * A mention of an array is turned into</span></td></tr>
+<tr id="L2411" class="s0"><td class="ln"><a href="#L2411">2411</a></td><td class="code"><span class="cm"> * a pointer to the base of the array.</span></td></tr>
+<tr id="L2412" class="s0"><td class="ln"><a href="#L2412">2412</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2413" class="s0"><td class="ln"><a href="#L2413">2413</a></td><td class="code"><span class="kw">struct</span> tnode *<span class="def">disarray</span>(ap)</td></tr>
+<tr id="L2414" class="s0"><td class="ln"><a href="#L2414">2414</a></td><td class="code"><span class="kw">struct</span> tnode *ap;</td></tr>
+<tr id="L2415" class="s0"><td class="ln"><a href="#L2415">2415</a></td><td class="code">{</td></tr>
+<tr id="L2416" class="s0"><td class="ln"><a href="#L2416">2416</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> t;</td></tr>
+<tr id="L2417" class="s0"><td class="ln"><a href="#L2417">2417</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p;</td></tr>
+<tr id="L2418" class="s0"><td class="ln"><a href="#L2418">2418</a></td><td class="code"> </td></tr>
+<tr id="L2419" class="s0"><td class="ln"><a href="#L2419">2419</a></td><td class="code">        p = ap;</td></tr>
+<tr id="L2420" class="s0"><td class="ln"><a href="#L2420">2420</a></td><td class="code">        <span class="cm">/* check array &amp; not MOS */</span></td></tr>
+<tr id="L2421" class="s0"><td class="ln"><a href="#L2421">2421</a></td><td class="code">        <span class="kw">if</span> (((t = p-&gt;type)&amp;XTYPE)!=ARRAY || p-&gt;op==NAME&amp;&amp;p-&gt;class==MOS)</td></tr>
+<tr id="L2422" class="s0"><td class="ln"><a href="#L2422">2422</a></td><td class="code">                <span class="kw">return</span>(p);</td></tr>
+<tr id="L2423" class="s0"><td class="ln"><a href="#L2423">2423</a></td><td class="code">        p-&gt;ssp++;</td></tr>
+<tr id="L2424" class="s0"><td class="ln"><a href="#L2424">2424</a></td><td class="code">        *cp++ = p;</td></tr>
+<tr id="L2425" class="s0"><td class="ln"><a href="#L2425">2425</a></td><td class="code">        <a class="id" href="../source/c01.c.html#L2365">setype</a>(p, <a class="id" href="../source/c04.c.html#L3813">decref</a>(t), -<span class="nu">1</span>);</td></tr>
+<tr id="L2426" class="s0"><td class="ln"><a href="#L2426">2426</a></td><td class="code">        <a class="id" href="../source/c01.c.html#L2116">build</a>(AMPER);</td></tr>
+<tr id="L2427" class="s0"><td class="ln"><a href="#L2427">2427</a></td><td class="code">        <span class="kw">return</span>(*--cp);</td></tr>
+<tr id="L2428" class="s0"><td class="ln"><a href="#L2428">2428</a></td><td class="code">}</td></tr>
+<tr id="L2429" class="s0"><td class="ln"><a href="#L2429">2429</a></td><td class="code"> </td></tr>
+<tr id="L2430" class="s0"><td class="ln"><a href="#L2430">2430</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2431" class="s0"><td class="ln"><a href="#L2431">2431</a></td><td class="code"><span class="cm"> * make sure that p is a ptr to a node</span></td></tr>
+<tr id="L2432" class="s0"><td class="ln"><a href="#L2432">2432</a></td><td class="code"><span class="cm"> * with type int or char or 'okt.'</span></td></tr>
+<tr id="L2433" class="s0"><td class="ln"><a href="#L2433">2433</a></td><td class="code"><span class="cm"> * okt might be nonexistent or 'long'</span></td></tr>
+<tr id="L2434" class="s0"><td class="ln"><a href="#L2434">2434</a></td><td class="code"><span class="cm"> * (e.g. for &lt;&lt;).</span></td></tr>
+<tr id="L2435" class="s0"><td class="ln"><a href="#L2435">2435</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2436" class="s0"><td class="ln"><a href="#L2436">2436</a></td><td class="code"><span class="def">chkw</span>(p, okt)</td></tr>
+<tr id="L2437" class="s0"><td class="ln"><a href="#L2437">2437</a></td><td class="code"><span class="kw">struct</span> tnode *p;</td></tr>
+<tr id="L2438" class="s0"><td class="ln"><a href="#L2438">2438</a></td><td class="code">{</td></tr>
+<tr id="L2439" class="s0"><td class="ln"><a href="#L2439">2439</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> t;</td></tr>
+<tr id="L2440" class="s0"><td class="ln"><a href="#L2440">2440</a></td><td class="code"> </td></tr>
+<tr id="L2441" class="s0"><td class="ln"><a href="#L2441">2441</a></td><td class="code">        <span class="kw">if</span> ((t=p-&gt;type)&gt;CHAR &amp;&amp; t&lt;PTR &amp;&amp; t!=okt)</td></tr>
+<tr id="L2442" class="s0"><td class="ln"><a href="#L2442">2442</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Integer operand required"</span>);</td></tr>
+<tr id="L2443" class="s0"><td class="ln"><a href="#L2443">2443</a></td><td class="code">        <span class="kw">return</span>;</td></tr>
+<tr id="L2444" class="s0"><td class="ln"><a href="#L2444">2444</a></td><td class="code">}</td></tr>
+<tr id="L2445" class="s0"><td class="ln"><a href="#L2445">2445</a></td><td class="code"> </td></tr>
+<tr id="L2446" class="s0"><td class="ln"><a href="#L2446">2446</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2447" class="s0"><td class="ln"><a href="#L2447">2447</a></td><td class="code"><span class="cm"> *'linearize' a type for looking up in the</span></td></tr>
+<tr id="L2448" class="s0"><td class="ln"><a href="#L2448">2448</a></td><td class="code"><span class="cm"> * conversion table</span></td></tr>
+<tr id="L2449" class="s0"><td class="ln"><a href="#L2449">2449</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2450" class="s1"><td class="ln"><a href="#L2450">2450</a></td><td class="code"><span class="def">lintyp</span>(t)</td></tr>
+<tr id="L2451" class="s1"><td class="ln"><a href="#L2451">2451</a></td><td class="code">{</td></tr>
+<tr id="L2452" class="s1"><td class="ln"><a href="#L2452">2452</a></td><td class="code">        <span class="kw">switch</span>(t) {</td></tr>
+<tr id="L2453" class="s1"><td class="ln"><a href="#L2453">2453</a></td><td class="code"> </td></tr>
+<tr id="L2454" class="s1"><td class="ln"><a href="#L2454">2454</a></td><td class="code">        <span class="kw">case</span> INT:</td></tr>
+<tr id="L2455" class="s1"><td class="ln"><a href="#L2455">2455</a></td><td class="code">        <span class="kw">case</span> CHAR:</td></tr>
+<tr id="L2456" class="s1"><td class="ln"><a href="#L2456">2456</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L2457" class="s1"><td class="ln"><a href="#L2457">2457</a></td><td class="code"> </td></tr>
+<tr id="L2458" class="s1"><td class="ln"><a href="#L2458">2458</a></td><td class="code">        <span class="kw">case</span> FLOAT:</td></tr>
+<tr id="L2459" class="s1"><td class="ln"><a href="#L2459">2459</a></td><td class="code">        <span class="kw">case</span> DOUBLE:</td></tr>
+<tr id="L2460" class="s1"><td class="ln"><a href="#L2460">2460</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L2461" class="s1"><td class="ln"><a href="#L2461">2461</a></td><td class="code"> </td></tr>
+<tr id="L2462" class="s1"><td class="ln"><a href="#L2462">2462</a></td><td class="code">        <span class="kw">case</span> LONG:</td></tr>
+<tr id="L2463" class="s1"><td class="ln"><a href="#L2463">2463</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">2</span>);</td></tr>
+<tr id="L2464" class="s1"><td class="ln"><a href="#L2464">2464</a></td><td class="code"> </td></tr>
+<tr id="L2465" class="s1"><td class="ln"><a href="#L2465">2465</a></td><td class="code">        <span class="kw">default</span>:</td></tr>
+<tr id="L2466" class="s1"><td class="ln"><a href="#L2466">2466</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">3</span>);</td></tr>
+<tr id="L2467" class="s1"><td class="ln"><a href="#L2467">2467</a></td><td class="code">        }</td></tr>
+<tr id="L2468" class="s1"><td class="ln"><a href="#L2468">2468</a></td><td class="code">}</td></tr>
+<tr id="L2469" class="s1"><td class="ln"><a href="#L2469">2469</a></td><td class="code"> </td></tr>
+<tr id="L2470" class="s1"><td class="ln"><a href="#L2470">2470</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2471" class="s1"><td class="ln"><a href="#L2471">2471</a></td><td class="code"><span class="cm"> * Report an error.</span></td></tr>
+<tr id="L2472" class="s1"><td class="ln"><a href="#L2472">2472</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2473" class="s1"><td class="ln"><a href="#L2473">2473</a></td><td class="code"><a class="id" href="../source/cc.c.html#L510">error</a>(s, p1, p2, p3, p4, p5, p6)</td></tr>
+<tr id="L2474" class="s1"><td class="ln"><a href="#L2474">2474</a></td><td class="code">{</td></tr>
+<tr id="L2475" class="s1"><td class="ln"><a href="#L2475">2475</a></td><td class="code">        nerror++;</td></tr>
+<tr id="L2476" class="s1"><td class="ln"><a href="#L2476">2476</a></td><td class="code">        printf(<span class="st">"%d: "</span>, line);</td></tr>
+<tr id="L2477" class="s1"><td class="ln"><a href="#L2477">2477</a></td><td class="code">        printf(s, p1, p2, p3, p4, p5, p6);</td></tr>
+<tr id="L2478" class="s1"><td class="ln"><a href="#L2478">2478</a></td><td class="code">        printf(<span class="st">"\n"</span>);</td></tr>
+<tr id="L2479" class="s1"><td class="ln"><a href="#L2479">2479</a></td><td class="code">}</td></tr>
+<tr id="L2480" class="s1"><td class="ln"><a href="#L2480">2480</a></td><td class="code"> </td></tr>
+<tr id="L2481" class="s1"><td class="ln"><a href="#L2481">2481</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2482" class="s1"><td class="ln"><a href="#L2482">2482</a></td><td class="code"><span class="cm"> * Generate a node in an expression tree,</span></td></tr>
+<tr id="L2483" class="s1"><td class="ln"><a href="#L2483">2483</a></td><td class="code"><span class="cm"> * setting the operator, type, degree (unused in this pass)</span></td></tr>
+<tr id="L2484" class="s1"><td class="ln"><a href="#L2484">2484</a></td><td class="code"><span class="cm"> * and the operands.</span></td></tr>
+<tr id="L2485" class="s1"><td class="ln"><a href="#L2485">2485</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2486" class="s1"><td class="ln"><a href="#L2486">2486</a></td><td class="code"><span class="def">block</span>(an, op, t, d, p1,p2,p3)</td></tr>
+<tr id="L2487" class="s1"><td class="ln"><a href="#L2487">2487</a></td><td class="code"><span class="kw">int</span> *p1, *p2, *p3;</td></tr>
+<tr id="L2488" class="s1"><td class="ln"><a href="#L2488">2488</a></td><td class="code">{</td></tr>
+<tr id="L2489" class="s1"><td class="ln"><a href="#L2489">2489</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> *ap, *p, n;</td></tr>
+<tr id="L2490" class="s1"><td class="ln"><a href="#L2490">2490</a></td><td class="code">        <span class="kw">int</span> *oldp;</td></tr>
+<tr id="L2491" class="s1"><td class="ln"><a href="#L2491">2491</a></td><td class="code"> </td></tr>
+<tr id="L2492" class="s1"><td class="ln"><a href="#L2492">2492</a></td><td class="code">        n = an+<span class="nu">3</span>;</td></tr>
+<tr id="L2493" class="s1"><td class="ln"><a href="#L2493">2493</a></td><td class="code">        p = <a class="id" href="../source/c01.c.html#L2506">gblock</a>(n);</td></tr>
+<tr id="L2494" class="s1"><td class="ln"><a href="#L2494">2494</a></td><td class="code">        oldp = p;</td></tr>
+<tr id="L2495" class="s1"><td class="ln"><a href="#L2495">2495</a></td><td class="code">        ap = &amp;op;</td></tr>
+<tr id="L2496" class="s1"><td class="ln"><a href="#L2496">2496</a></td><td class="code">        <span class="kw">do</span> {</td></tr>
+<tr id="L2497" class="s1"><td class="ln"><a href="#L2497">2497</a></td><td class="code">                *p++ = *ap++;</td></tr>
+<tr id="L2498" class="s1"><td class="ln"><a href="#L2498">2498</a></td><td class="code">        } <span class="kw">while</span> (--n);</td></tr>
+<tr id="L2499" class="s1"><td class="ln"><a href="#L2499">2499</a></td><td class="code">        <span class="kw">return</span>(oldp);</td></tr>
+<tr id="L2500" class="s0"><td class="ln"><a href="#L2500">2500</a></td><td class="code">}</td></tr>
+<tr id="L2501" class="s0"><td class="ln"><a href="#L2501">2501</a></td><td class="code"> </td></tr>
+<tr id="L2502" class="s0"><td class="ln"><a href="#L2502">2502</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2503" class="s0"><td class="ln"><a href="#L2503">2503</a></td><td class="code"><span class="cm"> * Assign an unitialized block for use in the</span></td></tr>
+<tr id="L2504" class="s0"><td class="ln"><a href="#L2504">2504</a></td><td class="code"><span class="cm"> * expression tree.</span></td></tr>
+<tr id="L2505" class="s0"><td class="ln"><a href="#L2505">2505</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2506" class="s0"><td class="ln"><a href="#L2506">2506</a></td><td class="code"><span class="def">gblock</span>(n)</td></tr>
+<tr id="L2507" class="s0"><td class="ln"><a href="#L2507">2507</a></td><td class="code">{</td></tr>
+<tr id="L2508" class="s0"><td class="ln"><a href="#L2508">2508</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> *p;</td></tr>
+<tr id="L2509" class="s0"><td class="ln"><a href="#L2509">2509</a></td><td class="code"> </td></tr>
+<tr id="L2510" class="s0"><td class="ln"><a href="#L2510">2510</a></td><td class="code">        p = space;</td></tr>
+<tr id="L2511" class="s0"><td class="ln"><a href="#L2511">2511</a></td><td class="code">        <span class="kw">if</span> ((space =+ n) &gt;= &amp;osspace[OSSIZ]) {</td></tr>
+<tr id="L2512" class="s0"><td class="ln"><a href="#L2512">2512</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Expression overflow"</span>);</td></tr>
+<tr id="L2513" class="s0"><td class="ln"><a href="#L2513">2513</a></td><td class="code">                exit(<span class="nu">1</span>);</td></tr>
+<tr id="L2514" class="s0"><td class="ln"><a href="#L2514">2514</a></td><td class="code">        }</td></tr>
+<tr id="L2515" class="s0"><td class="ln"><a href="#L2515">2515</a></td><td class="code">        <span class="kw">return</span>(p);</td></tr>
+<tr id="L2516" class="s0"><td class="ln"><a href="#L2516">2516</a></td><td class="code">}</td></tr>
+<tr id="L2517" class="s0"><td class="ln"><a href="#L2517">2517</a></td><td class="code"> </td></tr>
+<tr id="L2518" class="s0"><td class="ln"><a href="#L2518">2518</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2519" class="s0"><td class="ln"><a href="#L2519">2519</a></td><td class="code"><span class="cm"> * Check that a tree can be used as an lvalue.</span></td></tr>
+<tr id="L2520" class="s0"><td class="ln"><a href="#L2520">2520</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2521" class="s0"><td class="ln"><a href="#L2521">2521</a></td><td class="code"><span class="def">chklval</span>(ap)</td></tr>
+<tr id="L2522" class="s0"><td class="ln"><a href="#L2522">2522</a></td><td class="code"><span class="kw">struct</span> tnode *ap;</td></tr>
+<tr id="L2523" class="s0"><td class="ln"><a href="#L2523">2523</a></td><td class="code">{</td></tr>
+<tr id="L2524" class="s0"><td class="ln"><a href="#L2524">2524</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p;</td></tr>
+<tr id="L2525" class="s0"><td class="ln"><a href="#L2525">2525</a></td><td class="code"> </td></tr>
+<tr id="L2526" class="s0"><td class="ln"><a href="#L2526">2526</a></td><td class="code">        p = ap;</td></tr>
+<tr id="L2527" class="s0"><td class="ln"><a href="#L2527">2527</a></td><td class="code">        <span class="kw">if</span> (p-&gt;op!=NAME &amp;&amp; p-&gt;op!=STAR)</td></tr>
+<tr id="L2528" class="s0"><td class="ln"><a href="#L2528">2528</a></td><td class="code">                <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Lvalue required"</span>);</td></tr>
+<tr id="L2529" class="s0"><td class="ln"><a href="#L2529">2529</a></td><td class="code">}</td></tr>
+<tr id="L2530" class="s0"><td class="ln"><a href="#L2530">2530</a></td><td class="code"> </td></tr>
+<tr id="L2531" class="s0"><td class="ln"><a href="#L2531">2531</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2532" class="s0"><td class="ln"><a href="#L2532">2532</a></td><td class="code"><span class="cm"> * reduce some forms of `constant op constant'</span></td></tr>
+<tr id="L2533" class="s0"><td class="ln"><a href="#L2533">2533</a></td><td class="code"><span class="cm"> * to a constant.  More of this is done in the next pass</span></td></tr>
+<tr id="L2534" class="s0"><td class="ln"><a href="#L2534">2534</a></td><td class="code"><span class="cm"> * but this is used to allow constant expressions</span></td></tr>
+<tr id="L2535" class="s0"><td class="ln"><a href="#L2535">2535</a></td><td class="code"><span class="cm"> * to be used in switches and array bounds.</span></td></tr>
+<tr id="L2536" class="s0"><td class="ln"><a href="#L2536">2536</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2537" class="s0"><td class="ln"><a href="#L2537">2537</a></td><td class="code"><span class="def">fold</span>(op, ap1, ap2)</td></tr>
+<tr id="L2538" class="s0"><td class="ln"><a href="#L2538">2538</a></td><td class="code"><span class="kw">struct</span> tnode *ap1, *ap2;</td></tr>
+<tr id="L2539" class="s0"><td class="ln"><a href="#L2539">2539</a></td><td class="code">{</td></tr>
+<tr id="L2540" class="s0"><td class="ln"><a href="#L2540">2540</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *p1;</td></tr>
+<tr id="L2541" class="s0"><td class="ln"><a href="#L2541">2541</a></td><td class="code">        <span class="kw">register</span> <span class="kw">int</span> v1, v2;</td></tr>
+<tr id="L2542" class="s0"><td class="ln"><a href="#L2542">2542</a></td><td class="code"> </td></tr>
+<tr id="L2543" class="s0"><td class="ln"><a href="#L2543">2543</a></td><td class="code">        p1 = ap1;</td></tr>
+<tr id="L2544" class="s0"><td class="ln"><a href="#L2544">2544</a></td><td class="code">        <span class="kw">if</span> (p1-&gt;op!=CON || (ap2!=<span class="nu">0</span> &amp;&amp; ap2-&gt;op!=CON))</td></tr>
+<tr id="L2545" class="s0"><td class="ln"><a href="#L2545">2545</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L2546" class="s0"><td class="ln"><a href="#L2546">2546</a></td><td class="code">        v1 = p1-&gt;value;</td></tr>
+<tr id="L2547" class="s0"><td class="ln"><a href="#L2547">2547</a></td><td class="code">        v2 = ap2-&gt;value;</td></tr>
+<tr id="L2548" class="s0"><td class="ln"><a href="#L2548">2548</a></td><td class="code">        <span class="kw">switch</span> (op) {</td></tr>
+<tr id="L2549" class="s0"><td class="ln"><a href="#L2549">2549</a></td><td class="code"> </td></tr>
+<tr id="L2550" class="s1"><td class="ln"><a href="#L2550">2550</a></td><td class="code">        <span class="kw">case</span> PLUS:</td></tr>
+<tr id="L2551" class="s1"><td class="ln"><a href="#L2551">2551</a></td><td class="code">                v1 =+ v2;</td></tr>
+<tr id="L2552" class="s1"><td class="ln"><a href="#L2552">2552</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2553" class="s1"><td class="ln"><a href="#L2553">2553</a></td><td class="code"> </td></tr>
+<tr id="L2554" class="s1"><td class="ln"><a href="#L2554">2554</a></td><td class="code">        <span class="kw">case</span> MINUS:</td></tr>
+<tr id="L2555" class="s1"><td class="ln"><a href="#L2555">2555</a></td><td class="code">                v1 =- v2;</td></tr>
+<tr id="L2556" class="s1"><td class="ln"><a href="#L2556">2556</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2557" class="s1"><td class="ln"><a href="#L2557">2557</a></td><td class="code"> </td></tr>
+<tr id="L2558" class="s1"><td class="ln"><a href="#L2558">2558</a></td><td class="code">        <span class="kw">case</span> TIMES:</td></tr>
+<tr id="L2559" class="s1"><td class="ln"><a href="#L2559">2559</a></td><td class="code">                v1 =* v2;</td></tr>
+<tr id="L2560" class="s1"><td class="ln"><a href="#L2560">2560</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2561" class="s1"><td class="ln"><a href="#L2561">2561</a></td><td class="code"> </td></tr>
+<tr id="L2562" class="s1"><td class="ln"><a href="#L2562">2562</a></td><td class="code">        <span class="kw">case</span> DIVIDE:</td></tr>
+<tr id="L2563" class="s1"><td class="ln"><a href="#L2563">2563</a></td><td class="code">                v1 =/ v2;</td></tr>
+<tr id="L2564" class="s1"><td class="ln"><a href="#L2564">2564</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2565" class="s1"><td class="ln"><a href="#L2565">2565</a></td><td class="code"> </td></tr>
+<tr id="L2566" class="s1"><td class="ln"><a href="#L2566">2566</a></td><td class="code">        <span class="kw">case</span> MOD:</td></tr>
+<tr id="L2567" class="s1"><td class="ln"><a href="#L2567">2567</a></td><td class="code">                v1 =% v2;</td></tr>
+<tr id="L2568" class="s1"><td class="ln"><a href="#L2568">2568</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2569" class="s1"><td class="ln"><a href="#L2569">2569</a></td><td class="code"> </td></tr>
+<tr id="L2570" class="s1"><td class="ln"><a href="#L2570">2570</a></td><td class="code">        <span class="kw">case</span> AND:</td></tr>
+<tr id="L2571" class="s1"><td class="ln"><a href="#L2571">2571</a></td><td class="code">                v1 =&amp; v2;</td></tr>
+<tr id="L2572" class="s1"><td class="ln"><a href="#L2572">2572</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2573" class="s1"><td class="ln"><a href="#L2573">2573</a></td><td class="code"> </td></tr>
+<tr id="L2574" class="s1"><td class="ln"><a href="#L2574">2574</a></td><td class="code">        <span class="kw">case</span> OR:</td></tr>
+<tr id="L2575" class="s1"><td class="ln"><a href="#L2575">2575</a></td><td class="code">                v1 =| v2;</td></tr>
+<tr id="L2576" class="s1"><td class="ln"><a href="#L2576">2576</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2577" class="s1"><td class="ln"><a href="#L2577">2577</a></td><td class="code"> </td></tr>
+<tr id="L2578" class="s1"><td class="ln"><a href="#L2578">2578</a></td><td class="code">        <span class="kw">case</span> EXOR:</td></tr>
+<tr id="L2579" class="s1"><td class="ln"><a href="#L2579">2579</a></td><td class="code">                v1 =^ v2;</td></tr>
+<tr id="L2580" class="s1"><td class="ln"><a href="#L2580">2580</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2581" class="s1"><td class="ln"><a href="#L2581">2581</a></td><td class="code"> </td></tr>
+<tr id="L2582" class="s1"><td class="ln"><a href="#L2582">2582</a></td><td class="code">        <span class="kw">case</span> NEG:</td></tr>
+<tr id="L2583" class="s1"><td class="ln"><a href="#L2583">2583</a></td><td class="code">                v1 = - v1;</td></tr>
+<tr id="L2584" class="s1"><td class="ln"><a href="#L2584">2584</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2585" class="s1"><td class="ln"><a href="#L2585">2585</a></td><td class="code"> </td></tr>
+<tr id="L2586" class="s1"><td class="ln"><a href="#L2586">2586</a></td><td class="code">        <span class="kw">case</span> COMPL:</td></tr>
+<tr id="L2587" class="s1"><td class="ln"><a href="#L2587">2587</a></td><td class="code">                v1 = ~ v1;</td></tr>
+<tr id="L2588" class="s1"><td class="ln"><a href="#L2588">2588</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2589" class="s1"><td class="ln"><a href="#L2589">2589</a></td><td class="code"> </td></tr>
+<tr id="L2590" class="s1"><td class="ln"><a href="#L2590">2590</a></td><td class="code">        <span class="kw">case</span> LSHIFT:</td></tr>
+<tr id="L2591" class="s1"><td class="ln"><a href="#L2591">2591</a></td><td class="code">                v1 =&lt;&lt; v2;</td></tr>
+<tr id="L2592" class="s1"><td class="ln"><a href="#L2592">2592</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2593" class="s1"><td class="ln"><a href="#L2593">2593</a></td><td class="code"> </td></tr>
+<tr id="L2594" class="s1"><td class="ln"><a href="#L2594">2594</a></td><td class="code">        <span class="kw">case</span> RSHIFT:</td></tr>
+<tr id="L2595" class="s1"><td class="ln"><a href="#L2595">2595</a></td><td class="code">                v1 =&gt;&gt; v2;</td></tr>
+<tr id="L2596" class="s1"><td class="ln"><a href="#L2596">2596</a></td><td class="code">                <span class="kw">break</span>;</td></tr>
+<tr id="L2597" class="s1"><td class="ln"><a href="#L2597">2597</a></td><td class="code"> </td></tr>
+<tr id="L2598" class="s1"><td class="ln"><a href="#L2598">2598</a></td><td class="code">        <span class="kw">default</span>:</td></tr>
+<tr id="L2599" class="s1"><td class="ln"><a href="#L2599">2599</a></td><td class="code">                <span class="kw">return</span>(<span class="nu">0</span>);</td></tr>
+<tr id="L2600" class="s0"><td class="ln"><a href="#L2600">2600</a></td><td class="code">        }</td></tr>
+<tr id="L2601" class="s0"><td class="ln"><a href="#L2601">2601</a></td><td class="code">        p1-&gt;value = v1;</td></tr>
+<tr id="L2602" class="s0"><td class="ln"><a href="#L2602">2602</a></td><td class="code">        *cp++ = p1;</td></tr>
+<tr id="L2603" class="s0"><td class="ln"><a href="#L2603">2603</a></td><td class="code">        <span class="kw">return</span>(<span class="nu">1</span>);</td></tr>
+<tr id="L2604" class="s0"><td class="ln"><a href="#L2604">2604</a></td><td class="code">}</td></tr>
+<tr id="L2605" class="s0"><td class="ln"><a href="#L2605">2605</a></td><td class="code"> </td></tr>
+<tr id="L2606" class="s0"><td class="ln"><a href="#L2606">2606</a></td><td class="code"><span class="cm">/*</span></td></tr>
+<tr id="L2607" class="s0"><td class="ln"><a href="#L2607">2607</a></td><td class="code"><span class="cm"> * Compile an expression expected to have constant value,</span></td></tr>
+<tr id="L2608" class="s0"><td class="ln"><a href="#L2608">2608</a></td><td class="code"><span class="cm"> * for example an array bound or a case value.</span></td></tr>
+<tr id="L2609" class="s0"><td class="ln"><a href="#L2609">2609</a></td><td class="code"><span class="cm"> */</span></td></tr>
+<tr id="L2610" class="s0"><td class="ln"><a href="#L2610">2610</a></td><td class="code"><span class="def">conexp</span>()</td></tr>
+<tr id="L2611" class="s0"><td class="ln"><a href="#L2611">2611</a></td><td class="code">{</td></tr>
+<tr id="L2612" class="s0"><td class="ln"><a href="#L2612">2612</a></td><td class="code">        <span class="kw">register</span> <span class="kw">struct</span> tnode *t;</td></tr>
+<tr id="L2613" class="s0"><td class="ln"><a href="#L2613">2613</a></td><td class="code"> </td></tr>
+<tr id="L2614" class="s0"><td class="ln"><a href="#L2614">2614</a></td><td class="code">        initflg++;</td></tr>
+<tr id="L2615" class="s0"><td class="ln"><a href="#L2615">2615</a></td><td class="code">        <span class="kw">if</span> (t = <a class="id" href="../source/c00.c.html#L1817">tree</a>())</td></tr>
+<tr id="L2616" class="s0"><td class="ln"><a href="#L2616">2616</a></td><td class="code">                <span class="kw">if</span> (t-&gt;op != CON)</td></tr>
+<tr id="L2617" class="s0"><td class="ln"><a href="#L2617">2617</a></td><td class="code">                        <a class="id" href="../source/cc.c.html#L510">error</a>(<span class="st">"Constant required"</span>);</td></tr>
+<tr id="L2618" class="s0"><td class="ln"><a href="#L2618">2618</a></td><td class="code">        initflg--;</td></tr>
+<tr id="L2619" class="s0"><td class="ln"><a href="#L2619">2619</a></td><td class="code">        <span class="kw">return</span>(t-&gt;value);</td></tr>
+<tr id="L2620" class="s0"><td class="ln"><a href="#L2620">2620</a></td><td class="code">}</td></tr></table></div>
+<nav class="pager"><a href="c00.c.html">&larr; c00.c</a><a href="c02.c.html">c02.c &rarr;</a></nav>
+</main>
+<script src="../assets/book.js"></script>
+
+</body>
+</html>
