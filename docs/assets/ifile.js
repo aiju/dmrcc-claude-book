@@ -74,7 +74,8 @@
       case 212: d = 'profiling counter L' + w(); break;
       case 112: d = 'L' + w() + ':'; break;
       case 111: d = 'jump to L' + w(); break;
-      case 105: var rv = w(); d = 'register variables stop at r' + rv + '; r0–r' + (rv - 1) + ' are free'; break;
+      case 105: var rv = w(); d = rv > 4 ? 'no register variables; r0–r4 are free for expressions'
+        : 'register variables in r4 down to r' + rv + '; r0–r' + (rv - 1) + ' are free for expressions'; break;
       case 214: d = 'end of expression, line ' + w() + ': compile it'; stack = []; break;
       case 200: case 201:
         var vals = [];
