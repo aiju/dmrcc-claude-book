@@ -1,0 +1,3 @@
+tools/v6/*.dsk
+tools/v6/v6.tap*
+__pycache__/
