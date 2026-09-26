@@ -1,0 +1,18 @@
+4 iterations
+0 jumps to jumps
+1 inst. after jumps
+0 jumps to .+2
+3 redundant labels
+1 cross-jumps
+0 code motions
+0 branches reversed
+0 redundant moves
+1 simplified addresses
+1 loops inverted
+0 redundant jumps
+0 common seqs before jmp's
+0 skips over jumps
+0 sob's added
+1 redundant tst's
+1 literals eliminated
+14K core

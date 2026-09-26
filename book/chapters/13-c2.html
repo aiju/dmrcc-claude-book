@@ -1,0 +1,188 @@
+<!-- title: The Object Code Improver -->
+<!-- number: 13 -->
+<!-- short: c2 -->
+<!-- scripts: c2view.js -->
+<!-- blurb: c2 reads the assembly language back in and rewrites it: jumps to jumps, dead code, merged tails, inverted loops, registers remembered, and a trick borrowed from BLISS-11. -->
+
+<p>The third pass runs only with <code>cc -O</code>. Its comments call it the object code improver,
+which is more modest and more accurate than &ldquo;optimizer&rdquo;: it knows nothing of C and
+nothing of the trees that produced the code. It reads the assembly language that <code>c1</code> wrote,
+as text, and improves it with transformations that are each simple and local, repeated until
+nothing changes. Its source is <a href="source/c20.c.html"><code>c20.c</code></a> and
+<a href="source/c21.c.html"><code>c21.c</code></a>, about thirteen hundred lines.</p>
+
+<p><code>c2</code> is the kind of pass now called a peephole optimizer, and much of what it does is
+repair. <code>c0</code> and <code>c1</code> generate code one statement at a time without looking back, and they
+leave behind jumps to the next instruction, jumps to jumps, and labels nobody uses. It is simpler
+to let them do that and clean up afterwards than to make every part of the compiler avoid it.</p>
+
+<h2 id="input">Reading code as a list</h2>
+
+<p>Each line of input becomes a <code>struct node</code> ([[c2h.c:65-74]]) in a doubly linked list:</p>
+
+[[src:c2h.c:65-74]]
+
+<p><code>op</code> is the instruction, recognised by <code>oplook</code> ([[c20.c:373-410]]) with a small hash
+table of opcode names, and <code>subop</code> is the condition of a conditional jump, or <code>BYTE</code> for the
+byte form of an instruction. A label that is a number, <code>L</code> followed by digits, is stored as that
+number, so labels can be compared with integers; jumps to such labels have the number in
+<code>labno</code>, and after <code>refcount</code> has run, a pointer to the label's node in <code>ref</code>. Anything
+else, operands included, is kept as a string in <code>code</code>. Lines the table does not know, such as
+the data of a switch table or the debugger's symbols, have <code>op</code> 0 and are carried through
+unchanged.</p>
+
+<p>The input is processed one function at a time. <code>input</code> ([[c20.c:147-202]]) stops at each
+<code>.globl</code>, which <code>c1</code> writes before every function, and <code>main</code> ([[c20.c:65-145]]) then
+improves and prints that piece before reading the next. So memory need only hold one function,
+and memory for nodes is taken from the system with <code>sbrk</code> in 2000-byte chunks
+([[c21.c:246-264]]). When <code>c2</code> finishes it can print how much memory it used; every example in
+this book fitted in 14K.</p>
+
+<p>The main loop is:</p>
+
+[[src:c20.c:101-121]]
+
+<p><code>movedat</code> first moves every <code>.data</code> section to the front of the function, so that the code
+is one uninterrupted list ([[c21.c:447-493]]). Then the inner loops run the transformations below
+until an iteration makes no change.</p>
+
+<h2 id="jumps">Jumps</h2>
+
+<p><code>refcount</code> ([[c20.c:412-449]]) finds each jump's label and counts the references to every
+label. A jump to one of several consecutive labels is redirected to the first. A label with no
+references is deleted, which is where most of the &ldquo;redundant labels&rdquo; in the statistics
+come from.</p>
+
+<p><code>iterate</code> ([[c20.c:451-511]]) then makes a pass over the list:</p>
+
+<ul>
+<li>A jump to an unconditional jump is redirected to the final destination.</li>
+<li>A conditional jump over an unconditional one, <code>jeq L1; jbr L2; L1:</code>, becomes a single
+reversed jump, <code>jne L2</code>, using the table <code>revbr</code> ([[c20.c:62]]).</li>
+<li>After an unconditional jump, everything up to the next label is unreachable and is deleted.</li>
+<li>A jump to the label immediately following it is deleted. Since every <code>return</code> jumps to the
+function's single exit, this removes the <code>jbr L1; L1:</code> at the end of most functions.</li>
+<li><code>xjump</code> ([[c20.c:513-536]]) looks at the instructions before a jump and before its
+target. If they are identical, the jump can be moved back one instruction, and the duplicate
+deleted. Repeated, this merges the identical tails of two paths. This is called cross-jumping.</li>
+<li><code>codemove</code> ([[c20.c:566-637]]) moves blocks of code. If a jump goes to a block that is
+itself only reachable by jumping, the block is moved to the jump, saving the jump. Its second part,
+at <code>ivloop</code>, inverts loops: a loop with its test at the top and a jump back at the bottom, as
+<code>c0</code> lays out <code>while</code> and <code>for</code>, is rearranged to jump to the test once, on entry, and
+test at the bottom. Each iteration of the loop then executes one conditional jump instead of a
+conditional and an unconditional one.</li>
+</ul>
+
+<p><code>comjump</code> ([[c20.c:639-673]]) does another kind of merging: when two unconditional jumps
+go to the same place and are preceded by the same instructions, the instructions are kept in one
+place and the other jump is redirected to them.</p>
+
+<p><code>jumpsw</code> ([[c21.c:147-173]]) numbers every node in order, storing the numbers in the
+<code>refc</code> field, which is no longer needed for reference counts at that point. It uses the numbers
+as positions: when a conditional jump is followed by an unconditional one, and the conditional's
+target is further away, the two are swapped and the condition reversed. The assembler can turn a
+conditional jump to a nearby label into a single short branch, but must use two instructions for a
+distant one, so it pays to give the conditional the nearer target.</p>
+
+<p>Finally <code>addsob</code> ([[c21.c:175-193]]) uses the same positions. The PDP-11/40 and later
+models have <code>sob</code>, &ldquo;subtract one and branch if not zero&rdquo;, which does in one
+instruction what <code>dec r; jne L</code> does in two, but can only branch backwards, and not far.
+<code>addsob</code> makes the replacement when the label comes earlier and is less than 50 lines back. In
+<code>loop.c</code>, <code>do *p++ = 0; while (--n);</code> becomes a two-instruction loop:</p>
+
+<pre>L4:clr	(r4)+
+sob	r3,L4</pre>
+
+<h2 id="registers">Remembering registers</h2>
+
+<p><code>rmove</code> ([[c21.c:8-145]]) is the most intricate routine in <code>c2</code>. It walks through the code
+keeping, for each register, a string saying what the register is known to hold: <code>regs[r]</code>
+might be <code>-10(r5)</code> after <code>mov -10(r5),r1</code>, or <code>$0</code> after <code>clr r1</code>. Any label or jump
+clears everything, since control may arrive from elsewhere. Any instruction that writes to a
+location clears the registers that held it, and one that writes through a pointer clears
+everything that might be in memory, since the pointer could point anywhere ([[c21.c:296-317]]).
+With this information it:</p>
+
+<ul>
+<li>deletes a <code>mov</code> into a register that already holds the value;</li>
+<li>replaces an operand with a register known to hold the same value, which gives a shorter
+instruction, or a faster one (<code>repladdr</code>, [[c21.c:405-445]]); this is the
+&ldquo;simplified addresses&rdquo; count, and it is how <code>mul -10(r5),r1</code> in <code>sum.c</code> became
+<code>mul r1,r1</code>;</li>
+<li>deletes a <code>tst</code> of a location whose condition codes were just set by the previous instruction,
+remembered in <code>ccloc</code>;</li>
+<li>and, in <code>redunbr</code>, decides some conditional jumps at compile time.</li>
+</ul>
+
+<p>The last needs a word. <code>setcon</code> remembers one location known to hold a constant, in
+<code>conloc</code> and <code>conval</code>. When an unconditional jump leads to a comparison of that location
+with a constant, followed by a conditional jump, <code>redunbr</code> ([[c21.c:495-525]]) evaluates the
+comparison itself and, if the branch would be taken, sends the first jump straight to its target.
+In <code>sum.c</code>, after loop inversion, the loop starts with <code>i</code> just set to 0 and a jump to the
+test <code>i &lt; 10</code>. <code>c2</code> works out that the test succeeds, and jumps directly into the loop
+body; the jump to the test is then a jump to the next instruction, and disappears. The optimized
+<code>sum</code> has no jump at all on entry to the loop.</p>
+
+<p><code>redunbr</code> has a bug that happens not to matter. Its parameter is <code>ap</code>, but the body uses a
+register variable <code>p</code> that is never assigned:</p>
+
+[[src:c21.c:495-503]]
+
+<p>It works because <code>p</code> is the first register variable in <code>redunbr</code>, so it lives in <code>r4</code>, and
+the caller, <code>rmove</code>, also keeps its <code>p</code> in <code>r4</code> ([[c21.c:10]]). <code>csv</code> saves <code>r4</code> but does
+not clear it, so on entry <code>redunbr</code>'s <code>p</code> still holds the caller's, which is the very node that
+was passed as <code>ap</code>.</p>
+
+<h2 id="literals">A tip of the hat</h2>
+
+<p>The last improvement is made as each instruction is printed. <code>reducelit</code> ([[c20.c:296-323]])
+looks for an immediate operand followed by an indexed one with the same number:</p>
+
+<pre>mov	$6,6(r0)</pre>
+
+<p>An immediate operand is stored in the word after the instruction and addressed as <code>(pc)+</code>. The
+index of the second operand is stored in the word after that. If the two words are equal, the
+first operand can be made to refer to the second word instead, by addressing it as <code>(pc)</code>,
+without the increment, and one word of the instruction disappears:</p>
+
+<pre>mov	(pc),6(r0)</pre>
+
+<p>The comment credits the idea to BLISS-11, the Carnegie-Mellon compiler for the PDP-11 whose
+object code was the standard of the time: &ldquo;Thanx and a tip of the Hatlo hat to
+Bliss-11&rdquo;. (Jimmy Hatlo drew the newspaper cartoon <em>They'll Do It Every Time</em>, which
+ended with a tip of his hat to the reader who sent in the idea.)</p>
+
+<h2 id="before-after">Before and after</h2>
+
+<p>The figure compares <code>c1</code>'s output with <code>c2</code>'s for several examples, with deleted lines
+struck out on the left and new ones marked on the right, and the statistics <code>c2</code> reported when
+run with its <code>-</code> flag. <code>opt.c</code> was written to show as many transformations as possible:
+the literal trick, a <code>tst</code> made redundant by the <code>mov</code> before it, the common tail
+<code>mov $2,_y</code> of an <code>if</code> and its <code>else</code> merged by cross-jumping, and an inverted loop.</p>
+
+<div class="widget" data-widget="c2diff">
+<div class="wbar"><span class="wt">c2 at work</span><span class="row"><label for="c2sel" class="small" style="color:inherit;margin:0">Program</label><select id="c2sel" style="width:auto"></select></span></div>
+<div class="wbody c2body"></div>
+<div class="c2set" data-name="opt" hidden><pre class="before">[[include:examples/out/opt.s]]</pre><pre class="after">[[include:examples/out/opt.O.s]]</pre><pre class="stats">[[include:examples/out/opt.c2]]</pre></div>
+<div class="c2set" data-name="sum" hidden><pre class="before">[[include:examples/out/sum.s]]</pre><pre class="after">[[include:examples/out/sum.O.s]]</pre><pre class="stats">[[include:examples/out/sum.c2]]</pre></div>
+<div class="c2set" data-name="loop" hidden><pre class="before">[[include:examples/out/loop.s]]</pre><pre class="after">[[include:examples/out/loop.O.s]]</pre><pre class="stats">[[include:examples/out/loop.c2]]</pre></div>
+<div class="c2set" data-name="vowels" hidden><pre class="before">[[include:examples/out/vowels.s]]</pre><pre class="after">[[include:examples/out/vowels.O.s]]</pre><pre class="stats">[[include:examples/out/vowels.c2]]</pre></div>
+<div class="c2set" data-name="sw" hidden><pre class="before">[[include:examples/out/sw.s]]</pre><pre class="after">[[include:examples/out/sw.O.s]]</pre><pre class="stats">[[include:examples/out/sw.c2]]</pre></div>
+<div class="c2set" data-name="cond" hidden><pre class="before">[[include:examples/out/cond.s]]</pre><pre class="after">[[include:examples/out/cond.O.s]]</pre><pre class="stats">[[include:examples/out/cond.c2]]</pre></div>
+<div class="c2set" data-name="gen" hidden><pre class="before">[[include:examples/out/gen.s]]</pre><pre class="after">[[include:examples/out/gen.O.s]]</pre><pre class="stats">[[include:examples/out/gen.c2]]</pre></div>
+</div>
+
+<h2 id="goto">What c2 does not know</h2>
+
+<p><code>c2</code> decides which labels are used by looking at jump instructions and the entries of switch
+tables. It does not look at other operands. So a label whose address is taken, as in the computed
+<code>goto</code> of <a href="08-statements.html#labels">chapter 8</a>, looks unused. <code>refcount</code> deletes it,
+and then the code after the <code>jmp</code> that should reach it looks unreachable, and <code>iterate</code> deletes
+that too. With <code>-O</code>, <code>cgoto.c</code> loses everything after its first <code>goto</code>, and the
+reference to the deleted label is left dangling:</p>
+
+<pre>% cc -O cgoto.c; a.out
+[[include:examples/extra/cgoto.O.run]]</pre>
+
+<p>The compiler does not document computed <code>goto</code>, so this can hardly be called a bug in
+<code>c2</code>. It shows the limit of a program that improves code without knowing what it means.</p>

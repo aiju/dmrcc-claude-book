@@ -1,0 +1,1160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Object Code Improver · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="chpage">
+<header class="topbar"><nav><a class="home" href="index.html">The Sixth Edition C Compiler</a><span class="sep">/</span>Chapter 13</nav><div class="tools"><a href="contents.html">Contents</a><a href="source/index.html">Listing</a><a href="xref.html">Index</a></div></header>
+<div class="reader">
+<main class="prose chapter">
+<header class="chead">
+<p class="eyebrow">Chapter 13</p>
+<h1>The Object Code Improver</h1>
+<nav class="local"><ol><li><a href="#input">Reading code as a list</a></li><li><a href="#jumps">Jumps</a></li><li><a href="#registers">Remembering registers</a></li><li><a href="#literals">A tip of the hat</a></li><li><a href="#before-after">Before and after</a></li><li><a href="#goto">What c2 does not know</a></li></ol></nav>
+</header>
+<!-- title: The Object Code Improver -->
+<!-- number: 13 -->
+<!-- short: c2 -->
+<!-- scripts: c2view.js -->
+<!-- blurb: c2 reads the assembly language back in and rewrites it: jumps to jumps, dead code, merged tails, inverted loops, registers remembered, and a trick borrowed from BLISS-11. -->
+
+<p>The third pass runs only with <code>cc -O</code>. Its comments call it the object code improver,
+which is more modest and more accurate than &ldquo;optimizer&rdquo;: it knows nothing of C and
+nothing of the trees that produced the code. It reads the assembly language that <code>c1</code> wrote,
+as text, and improves it with transformations that are each simple and local, repeated until
+nothing changes. Its source is <a href="source/c20.c.html"><code>c20.c</code></a> and
+<a href="source/c21.c.html"><code>c21.c</code></a>, about thirteen hundred lines.</p>
+
+<p><code>c2</code> is the kind of pass now called a peephole optimizer, and much of what it does is
+repair. <code>c0</code> and <code>c1</code> generate code one statement at a time without looking back, and they
+leave behind jumps to the next instruction, jumps to jumps, and labels nobody uses. It is simpler
+to let them do that and clean up afterwards than to make every part of the compiler avoid it.</p>
+
+<h2 id="input">Reading code as a list</h2>
+
+<p>Each line of input becomes a <code>struct node</code> (<a class="lref" data-file="c2h.c" data-line="9414" href="source/c2h.c.html#L9414">9414&ndash;9423</a>) in a doubly linked list:</p>
+
+<pre class="excerpt"><span class="xf">c2h.c</span>
+<span class="xl"><a class="lref" data-file="c2h.c" data-line="9414" href="source/c2h.c.html#L9414"> 9414</a>  <span class="kw">struct</span> node {</span>
+<span class="xl"><a class="lref" data-file="c2h.c" data-line="9415" href="source/c2h.c.html#L9415"> 9415</a>          <span class="kw">char</span>    op;</span>
+<span class="xl"><a class="lref" data-file="c2h.c" data-line="9416" href="source/c2h.c.html#L9416"> 9416</a>          <span class="kw">char</span>    subop;</span>
+<span class="xl"><a class="lref" data-file="c2h.c" data-line="9417" href="source/c2h.c.html#L9417"> 9417</a>          <span class="kw">struct</span>  node    *forw;</span>
+<span class="xl"><a class="lref" data-file="c2h.c" data-line="9418" href="source/c2h.c.html#L9418"> 9418</a>          <span class="kw">struct</span>  node    *back;</span>
+<span class="xl"><a class="lref" data-file="c2h.c" data-line="9419" href="source/c2h.c.html#L9419"> 9419</a>          <span class="kw">struct</span>  node    *ref;</span>
+<span class="xl"><a class="lref" data-file="c2h.c" data-line="9420" href="source/c2h.c.html#L9420"> 9420</a>          <span class="kw">int</span>     labno;</span>
+<span class="xl"><a class="lref" data-file="c2h.c" data-line="9421" href="source/c2h.c.html#L9421"> 9421</a>          <span class="kw">char</span>    *code;</span>
+<span class="xl"><a class="lref" data-file="c2h.c" data-line="9422" href="source/c2h.c.html#L9422"> 9422</a>          <span class="kw">int</span>     refc;</span>
+<span class="xl"><a class="lref" data-file="c2h.c" data-line="9423" href="source/c2h.c.html#L9423"> 9423</a>  };</span></pre>
+
+<p><code>op</code> is the instruction, recognised by <code>oplook</code> (<a class="lref" data-file="c20.c" data-line="9872" href="source/c20.c.html#L9872">9872&ndash;9909</a>) with a small hash
+table of opcode names, and <code>subop</code> is the condition of a conditional jump, or <code>BYTE</code> for the
+byte form of an instruction. A label that is a number, <code>L</code> followed by digits, is stored as that
+number, so labels can be compared with integers; jumps to such labels have the number in
+<code>labno</code>, and after <code>refcount</code> has run, a pointer to the label's node in <code>ref</code>. Anything
+else, operands included, is kept as a string in <code>code</code>. Lines the table does not know, such as
+the data of a switch table or the debugger's symbols, have <code>op</code> 0 and are carried through
+unchanged.</p>
+
+<p>The input is processed one function at a time. <code>input</code> (<a class="lref" data-file="c20.c" data-line="9646" href="source/c20.c.html#L9646">9646&ndash;9701</a>) stops at each
+<code>.globl</code>, which <code>c1</code> writes before every function, and <code>main</code> (<a class="lref" data-file="c20.c" data-line="9564" href="source/c20.c.html#L9564">9564&ndash;9644</a>) then
+improves and prints that piece before reading the next. So memory need only hold one function,
+and memory for nodes is taken from the system with <code>sbrk</code> in 2000-byte chunks
+(<a class="lref" data-file="c21.c" data-line="10445" href="source/c21.c.html#L10445">10445&ndash;10463</a>). When <code>c2</code> finishes it can print how much memory it used; every example in
+this book fitted in 14K.</p>
+
+<p>The main loop is:</p>
+
+<pre class="excerpt"><span class="xf">c20.c</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9600" href="source/c20.c.html#L9600"> 9600</a>          <span class="kw">do</span> {</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9601" href="source/c20.c.html#L9601"> 9601</a>                  isend = <a class="id" href="source/c20.c.html#L9646">input</a>();</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9602" href="source/c20.c.html#L9602"> 9602</a>                  <a class="id" href="source/c21.c.html#L10646">movedat</a>();</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9603" href="source/c20.c.html#L9603"> 9603</a>                  niter = <span class="nu">0</span>;</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9604" href="source/c20.c.html#L9604"> 9604</a>                  <span class="kw">do</span> {</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9605" href="source/c20.c.html#L9605"> 9605</a>                          <a class="id" href="source/c20.c.html#L9911">refcount</a>();</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9606" href="source/c20.c.html#L9606"> 9606</a>                          <span class="kw">do</span> {</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9607" href="source/c20.c.html#L9607"> 9607</a>                                  <a class="id" href="source/c20.c.html#L9950">iterate</a>();</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9608" href="source/c20.c.html#L9608"> 9608</a>                                  <a class="id" href="source/c21.c.html#L10465">clearreg</a>();</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9609" href="source/c20.c.html#L9609"> 9609</a>                                  niter++;</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9610" href="source/c20.c.html#L9610"> 9610</a>                          } <span class="kw">while</span> (nchange);</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9611" href="source/c20.c.html#L9611"> 9611</a>                          <a class="id" href="source/c20.c.html#L10138">comjump</a>();</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9612" href="source/c20.c.html#L9612"> 9612</a>                          <a class="id" href="source/c21.c.html#L10207">rmove</a>();</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9613" href="source/c20.c.html#L9613"> 9613</a>                  } <span class="kw">while</span> (nchange || <a class="id" href="source/c21.c.html#L10346">jumpsw</a>());</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9614" href="source/c20.c.html#L9614"> 9614</a>                  <a class="id" href="source/c21.c.html#L10374">addsob</a>();</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9615" href="source/c20.c.html#L9615"> 9615</a>                  <a class="id" href="source/c20.c.html#L9739">output</a>();</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9616" href="source/c20.c.html#L9616"> 9616</a>                  <span class="kw">if</span> (niter &gt; maxiter)</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9617" href="source/c20.c.html#L9617"> 9617</a>                          maxiter = niter;</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9618" href="source/c20.c.html#L9618"> 9618</a>                  lasta = firstr;</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9619" href="source/c20.c.html#L9619"> 9619</a>          } <span class="kw">while</span> (isend);</span>
+<span class="xl"><a class="lref" data-file="c20.c" data-line="9620" href="source/c20.c.html#L9620"> 9620</a>          flush();</span></pre>
+
+<p><code>movedat</code> first moves every <code>.data</code> section to the front of the function, so that the code
+is one uninterrupted list (<a class="lref" data-file="c21.c" data-line="10646" href="source/c21.c.html#L10646">10646&ndash;10692</a>). Then the inner loops run the transformations below
+until an iteration makes no change.</p>
+
+<h2 id="jumps">Jumps</h2>
+
+<p><code>refcount</code> (<a class="lref" data-file="c20.c" data-line="9911" href="source/c20.c.html#L9911">9911&ndash;9948</a>) finds each jump's label and counts the references to every
+label. A jump to one of several consecutive labels is redirected to the first. A label with no
+references is deleted, which is where most of the &ldquo;redundant labels&rdquo; in the statistics
+come from.</p>
+
+<p><code>iterate</code> (<a class="lref" data-file="c20.c" data-line="9950" href="source/c20.c.html#L9950">9950&ndash;10010</a>) then makes a pass over the list:</p>
+
+<ul>
+<li>A jump to an unconditional jump is redirected to the final destination.</li>
+<li>A conditional jump over an unconditional one, <code>jeq L1; jbr L2; L1:</code>, becomes a single
+reversed jump, <code>jne L2</code>, using the table <code>revbr</code> (<a class="lref" data-file="c20.c" data-line="9561" href="source/c20.c.html#L9561">9561</a>).</li>
+<li>After an unconditional jump, everything up to the next label is unreachable and is deleted.</li>
+<li>A jump to the label immediately following it is deleted. Since every <code>return</code> jumps to the
+function's single exit, this removes the <code>jbr L1; L1:</code> at the end of most functions.</li>
+<li><code>xjump</code> (<a class="lref" data-file="c20.c" data-line="10012" href="source/c20.c.html#L10012">10012&ndash;10035</a>) looks at the instructions before a jump and before its
+target. If they are identical, the jump can be moved back one instruction, and the duplicate
+deleted. Repeated, this merges the identical tails of two paths. This is called cross-jumping.</li>
+<li><code>codemove</code> (<a class="lref" data-file="c20.c" data-line="10065" href="source/c20.c.html#L10065">10065&ndash;10136</a>) moves blocks of code. If a jump goes to a block that is
+itself only reachable by jumping, the block is moved to the jump, saving the jump. Its second part,
+at <code>ivloop</code>, inverts loops: a loop with its test at the top and a jump back at the bottom, as
+<code>c0</code> lays out <code>while</code> and <code>for</code>, is rearranged to jump to the test once, on entry, and
+test at the bottom. Each iteration of the loop then executes one conditional jump instead of a
+conditional and an unconditional one.</li>
+</ul>
+
+<p><code>comjump</code> (<a class="lref" data-file="c20.c" data-line="10138" href="source/c20.c.html#L10138">10138&ndash;10172</a>) does another kind of merging: when two unconditional jumps
+go to the same place and are preceded by the same instructions, the instructions are kept in one
+place and the other jump is redirected to them.</p>
+
+<p><code>jumpsw</code> (<a class="lref" data-file="c21.c" data-line="10346" href="source/c21.c.html#L10346">10346&ndash;10372</a>) numbers every node in order, storing the numbers in the
+<code>refc</code> field, which is no longer needed for reference counts at that point. It uses the numbers
+as positions: when a conditional jump is followed by an unconditional one, and the conditional's
+target is further away, the two are swapped and the condition reversed. The assembler can turn a
+conditional jump to a nearby label into a single short branch, but must use two instructions for a
+distant one, so it pays to give the conditional the nearer target.</p>
+
+<p>Finally <code>addsob</code> (<a class="lref" data-file="c21.c" data-line="10374" href="source/c21.c.html#L10374">10374&ndash;10392</a>) uses the same positions. The PDP-11/40 and later
+models have <code>sob</code>, &ldquo;subtract one and branch if not zero&rdquo;, which does in one
+instruction what <code>dec r; jne L</code> does in two, but can only branch backwards, and not far.
+<code>addsob</code> makes the replacement when the label comes earlier and is less than 50 lines back. In
+<code>loop.c</code>, <code>do *p++ = 0; while (--n);</code> becomes a two-instruction loop:</p>
+
+<pre>L4:clr	(r4)+
+sob	r3,L4</pre>
+
+<h2 id="registers">Remembering registers</h2>
+
+<p><code>rmove</code> (<a class="lref" data-file="c21.c" data-line="10207" href="source/c21.c.html#L10207">10207&ndash;10344</a>) is the most intricate routine in <code>c2</code>. It walks through the code
+keeping, for each register, a string saying what the register is known to hold: <code>regs[r]</code>
+might be <code>-10(r5)</code> after <code>mov -10(r5),r1</code>, or <code>$0</code> after <code>clr r1</code>. Any label or jump
+clears everything, since control may arrive from elsewhere. Any instruction that writes to a
+location clears the registers that held it, and one that writes through a pointer clears
+everything that might be in memory, since the pointer could point anywhere (<a class="lref" data-file="c21.c" data-line="10495" href="source/c21.c.html#L10495">10495&ndash;10516</a>).
+With this information it:</p>
+
+<ul>
+<li>deletes a <code>mov</code> into a register that already holds the value;</li>
+<li>replaces an operand with a register known to hold the same value, which gives a shorter
+instruction, or a faster one (<code>repladdr</code>, <a class="lref" data-file="c21.c" data-line="10604" href="source/c21.c.html#L10604">10604&ndash;10644</a>); this is the
+&ldquo;simplified addresses&rdquo; count, and it is how <code>mul -10(r5),r1</code> in <code>sum.c</code> became
+<code>mul r1,r1</code>;</li>
+<li>deletes a <code>tst</code> of a location whose condition codes were just set by the previous instruction,
+remembered in <code>ccloc</code>;</li>
+<li>and, in <code>redunbr</code>, decides some conditional jumps at compile time.</li>
+</ul>
+
+<p>The last needs a word. <code>setcon</code> remembers one location known to hold a constant, in
+<code>conloc</code> and <code>conval</code>. When an unconditional jump leads to a comparison of that location
+with a constant, followed by a conditional jump, <code>redunbr</code> (<a class="lref" data-file="c21.c" data-line="10694" href="source/c21.c.html#L10694">10694&ndash;10724</a>) evaluates the
+comparison itself and, if the branch would be taken, sends the first jump straight to its target.
+In <code>sum.c</code>, after loop inversion, the loop starts with <code>i</code> just set to 0 and a jump to the
+test <code>i &lt; 10</code>. <code>c2</code> works out that the test succeeds, and jumps directly into the loop
+body; the jump to the test is then a jump to the next instruction, and disappears. The optimized
+<code>sum</code> has no jump at all on entry to the loop.</p>
+
+<p><code>redunbr</code> has a bug that happens not to matter. Its parameter is <code>ap</code>, but the body uses a
+register variable <code>p</code> that is never assigned:</p>
+
+<pre class="excerpt"><span class="xf">c21.c</span>
+<span class="xl"><a class="lref" data-file="c21.c" data-line="10694" href="source/c21.c.html#L10694">10694</a>  <span class="def">redunbr</span>(ap)</span>
+<span class="xl"><a class="lref" data-file="c21.c" data-line="10695" href="source/c21.c.html#L10695">10695</a>  <span class="kw">struct</span> node *ap;</span>
+<span class="xl"><a class="lref" data-file="c21.c" data-line="10696" href="source/c21.c.html#L10696">10696</a>  {</span>
+<span class="xl"><a class="lref" data-file="c21.c" data-line="10697" href="source/c21.c.html#L10697">10697</a>          <span class="kw">register</span> <span class="kw">struct</span> node *p, *p1;</span>
+<span class="xl"><a class="lref" data-file="c21.c" data-line="10698" href="source/c21.c.html#L10698">10698</a>          <span class="kw">register</span> <span class="kw">char</span> *ap1;</span>
+<span class="xl"><a class="lref" data-file="c21.c" data-line="10699" href="source/c21.c.html#L10699">10699</a>          <span class="kw">char</span> *ap2;</span>
+<span class="xl"><a class="lref" data-file="c21.c" data-line="10700" href="source/c21.c.html#L10700">10700</a>  </span>
+<span class="xl"><a class="lref" data-file="c21.c" data-line="10701" href="source/c21.c.html#L10701">10701</a>          <span class="kw">if</span> ((p1 = p-&gt;ref) == <span class="nu">0</span>)</span>
+<span class="xl"><a class="lref" data-file="c21.c" data-line="10702" href="source/c21.c.html#L10702">10702</a>                  <span class="kw">return</span>;</span></pre>
+
+<p>It works because <code>p</code> is the first register variable in <code>redunbr</code>, so it lives in <code>r4</code>, and
+the caller, <code>rmove</code>, also keeps its <code>p</code> in <code>r4</code> (<a class="lref" data-file="c21.c" data-line="10209" href="source/c21.c.html#L10209">10209</a>). <code>csv</code> saves <code>r4</code> but does
+not clear it, so on entry <code>redunbr</code>'s <code>p</code> still holds the caller's, which is the very node that
+was passed as <code>ap</code>.</p>
+
+<h2 id="literals">A tip of the hat</h2>
+
+<p>The last improvement is made as each instruction is printed. <code>reducelit</code> (<a class="lref" data-file="c20.c" data-line="9795" href="source/c20.c.html#L9795">9795&ndash;9822</a>)
+looks for an immediate operand followed by an indexed one with the same number:</p>
+
+<pre>mov	$6,6(r0)</pre>
+
+<p>An immediate operand is stored in the word after the instruction and addressed as <code>(pc)+</code>. The
+index of the second operand is stored in the word after that. If the two words are equal, the
+first operand can be made to refer to the second word instead, by addressing it as <code>(pc)</code>,
+without the increment, and one word of the instruction disappears:</p>
+
+<pre>mov	(pc),6(r0)</pre>
+
+<p>The comment credits the idea to BLISS-11, the Carnegie-Mellon compiler for the PDP-11 whose
+object code was the standard of the time: &ldquo;Thanx and a tip of the Hatlo hat to
+Bliss-11&rdquo;. (Jimmy Hatlo drew the newspaper cartoon <em>They'll Do It Every Time</em>, which
+ended with a tip of his hat to the reader who sent in the idea.)</p>
+
+<h2 id="before-after">Before and after</h2>
+
+<p>The figure compares <code>c1</code>'s output with <code>c2</code>'s for several examples, with deleted lines
+struck out on the left and new ones marked on the right, and the statistics <code>c2</code> reported when
+run with its <code>-</code> flag. <code>opt.c</code> was written to show as many transformations as possible:
+the literal trick, a <code>tst</code> made redundant by the <code>mov</code> before it, the common tail
+<code>mov $2,_y</code> of an <code>if</code> and its <code>else</code> merged by cross-jumping, and an inverted loop.</p>
+
+<div class="widget" data-widget="c2diff">
+<div class="wbar"><span class="wt">c2 at work</span><span class="row"><label for="c2sel" class="small" style="color:inherit;margin:0">Program</label><select id="c2sel" style="width:auto"></select></span></div>
+<div class="wbody c2body"></div>
+<div class="c2set" data-name="opt" hidden><pre class="before">.globl  _p
+.comm   _p,2
+.globl  _x
+.comm   _x,2
+.globl  _y
+.comm   _y,2
+.globl  _z
+.comm   _z,2
+.globl  _f
+.text
+_f:
+~~f:
+jsr     r5,csv
+mov     _p,r0
+mov     $6,6(r0)
+mov     _y,r0
+add     _z,r0
+mov     r0,_x
+tst     _x
+jeq     L2
+mov     $1,_y
+L2:tst  _z
+jeq     L3
+mov     $1,_x
+mov     $2,_y
+jbr     L4
+L3:mov  $3,_x
+mov     $2,_y
+L4:L5:tst       _x
+jeq     L6
+tst     _y
+jne     L7
+dec     _x
+jbr     L5
+L6:L7:clr       _z
+L1:jmp  cret
+.globl
+.data</pre><pre class="after">.globl  _p
+.comm   _p,2
+.globl  _x
+.comm   _x,2
+.globl  _y
+.comm   _y,2
+.globl  _z
+.comm   _z,2
+.globl  _f
+.text
+_f:
+~~f:
+jsr     r5,csv
+mov     _p,r0
+mov     (pc),6(r0)
+mov     _y,r0
+add     _z,r0
+mov     r0,_x
+jeq     L2
+mov     $1,_y
+L2:tst  _z
+jeq     L3
+mov     $1,_x
+jbr     L20000
+L3:mov  $3,_x
+L20000:mov      $2,_y
+jbr     L5
+L20002:tst      _y
+jne     L7
+dec     _x
+L5:tst  _x
+jne     L20002
+L7:clr  _z
+jmp     cret
+.globl
+.data</pre><pre class="stats">4 iterations
+0 jumps to jumps
+1 inst. after jumps
+0 jumps to .+2
+3 redundant labels
+1 cross-jumps
+0 code motions
+0 branches reversed
+0 redundant moves
+1 simplified addresses
+1 loops inverted
+0 redundant jumps
+0 common seqs before jmp's
+0 skips over jumps
+0 sob's added
+1 redundant tst's
+1 literals eliminated
+14K core</pre></div>
+<div class="c2set" data-name="sum" hidden><pre class="before">.globl  _main
+.text
+_main:
+~~main:
+~i=177770
+~s=177766
+jsr     r5,csv
+sub     $4,sp
+clr     -12(r5)
+clr     -10(r5)
+L2:cmp  $12,-10(r5)
+jle     L3
+mov     -10(r5),r1
+mul     -10(r5),r1
+add     r1,-12(r5)
+L4:inc  -10(r5)
+jbr     L2
+L3:mov  -12(r5),(sp)
+mov     $L5,-(sp)
+jsr     pc,*$_printf
+tst     (sp)+
+L1:jmp  cret
+.globl
+.data
+L5:.byte 45,144,12,0</pre><pre class="after">.globl  _main
+.text
+_main:
+~~main:
+~i=177770
+~s=177766
+jsr     r5,csv
+sub     $4,sp
+clr     -12(r5)
+clr     -10(r5)
+L20001:mov      -10(r5),r1
+mul     r1,r1
+add     r1,-12(r5)
+inc     -10(r5)
+cmp     $12,-10(r5)
+jgt     L20001
+mov     -12(r5),(sp)
+mov     $L5,-(sp)
+jsr     pc,*$_printf
+tst     (sp)+
+jmp     cret
+.globl
+.data
+L5:.byte 45,144,12,0</pre><pre class="stats">4 iterations
+0 jumps to jumps
+0 inst. after jumps
+1 jumps to .+2
+4 redundant labels
+0 cross-jumps
+0 code motions
+0 branches reversed
+0 redundant moves
+1 simplified addresses
+1 loops inverted
+1 redundant jumps
+0 common seqs before jmp's
+0 skips over jumps
+0 sob's added
+0 redundant tst's
+0 literals eliminated
+14K core</pre></div>
+<div class="c2set" data-name="loop" hidden><pre class="before">.globl  _v
+.comm   _v,310
+.globl  _clear
+.text
+_clear:
+~~clear:
+~n=r3
+~p=r4
+jsr     r5,csv
+mov     $_v,r4
+mov     $144,r3
+L4:clr  (r4)+
+L2:dec  r3
+jne     L4
+L3:L1:jmp       cret
+.globl  _sum
+.text
+_sum:
+~~sum:
+~p=r4
+~s=r3
+jsr     r5,csv
+clr     r3
+mov     $_v,r4
+L6:cmp  $310+_v,r4
+jlos    L7
+tst     (r4)
+jeq     L9
+add     (r4),r3
+jbr     L10
+L9:dec  r3
+L10:L8:add      $2,r4
+jbr     L6
+L7:mov  r3,r0
+jbr     L5
+L5:jmp  cret
+.globl
+.data</pre><pre class="after">.globl  _v
+.comm   _v,310
+.globl  _clear
+.text
+_clear:
+~~clear:
+~n=r3
+~p=r4
+jsr     r5,csv
+mov     $_v,r4
+mov     $144,r3
+L4:clr  (r4)+
+sob     r3,L4
+jmp     cret
+.globl  _sum
+.text
+_sum:
+~~sum:
+~p=r4
+~s=r3
+jsr     r5,csv
+clr     r3
+mov     $_v,r4
+L20001:tst      (r4)
+jeq     L9
+add     (r4),r3
+jbr     L8
+L9:dec  r3
+L8:add  $2,r4
+cmp     $310+_v,r4
+jhi     L20001
+mov     r3,r0
+jmp     cret
+.globl
+.data</pre><pre class="stats">4 iterations
+0 jumps to jumps
+0 inst. after jumps
+2 jumps to .+2
+7 redundant labels
+0 cross-jumps
+0 code motions
+0 branches reversed
+0 redundant moves
+0 simplified addresses
+1 loops inverted
+1 redundant jumps
+0 common seqs before jmp's
+0 skips over jumps
+1 sob's added
+0 redundant tst's
+0 literals eliminated
+14K core</pre></div>
+<div class="c2set" data-name="vowels" hidden><pre class="before">.globl  _s
+.data
+_s:
+L1
+.globl  _main
+.text
+_main:
+~~main:
+~n=177770
+~p=r4
+jsr     r5,csv
+tst     -(sp)
+clr     -10(r5)
+mov     _s,r4
+L3:tstb (r4)
+jeq     L4
+movb    (r4),r0
+jbr     L7
+L8:L9:L10:L11:L12:inc   -10(r5)
+jbr     L6
+L7:mov  $L10001,r1
+mov     r0,L10002
+L10003:cmp      r0,(r1)+
+jne     L10003
+jmp     *L10002-L10001(r1)
+.data
+L10001:141
+145
+151
+157
+165
+L10002:..
+L8
+L9
+L10
+L11
+L12
+L6
+.text
+L6:L5:inc       r4
+jbr     L3
+L4:mov  -10(r5),(sp)
+mov     $L13,-(sp)
+jsr     pc,*$_printf
+tst     (sp)+
+L2:jmp  cret
+.globl
+.data
+L1:.byte 150,145,154,154,157,54,40,167,157,162,154,144,0
+L13:.byte 45,144,12,0</pre><pre class="after">.globl  _s
+.data
+_s:
+L1
+.globl  _main
+.data
+L10001:141
+145
+151
+157
+165
+L10002:..
+L12
+L12
+L12
+L12
+L12
+L5
+.text
+_main:
+~~main:
+~n=177770
+~p=r4
+jsr     r5,csv
+tst     -(sp)
+clr     -10(r5)
+mov     _s,r4
+jbr     L3
+L20001:movb     (r4),r0
+mov     $L10001,r1
+mov     r0,L10002
+L10003:cmp      r0,(r1)+
+jne     L10003
+jmp     *L10002-L10001(r1)
+L12:inc -10(r5)
+L5:inc  r4
+L3:tstb (r4)
+jne     L20001
+mov     -10(r5),(sp)
+mov     $L13,-(sp)
+jsr     pc,*$_printf
+tst     (sp)+
+jmp     cret
+.globl
+.data
+L1:.byte 150,145,154,154,157,54,40,167,157,162,154,144,0
+L13:.byte 45,144,12,0</pre><pre class="stats">2 iterations
+0 jumps to jumps
+0 inst. after jumps
+1 jumps to .+2
+8 redundant labels
+0 cross-jumps
+1 code motions
+0 branches reversed
+0 redundant moves
+0 simplified addresses
+1 loops inverted
+0 redundant jumps
+0 common seqs before jmp's
+0 skips over jumps
+0 sob's added
+0 redundant tst's
+0 literals eliminated
+14K core</pre></div>
+<div class="c2set" data-name="sw" hidden><pre class="before">.globl  _dense
+.text
+_dense:
+~~dense:
+~n=4
+jsr     r5,csv
+mov     4(r5),r0
+jbr     L3
+L4:mov  $12,r0
+jbr     L1
+L5:mov  $24,r0
+jbr     L1
+L6:mov  $50,r0
+jbr     L1
+jbr     L2
+L3:sub  $1,r0
+cmp     r0,$3
+jhi     L2
+asl     r0
+jmp     *L10001(r0)
+.data
+L10001:L4
+L5
+L2
+L6
+.text
+L2:clr  r0
+jbr     L1
+L1:jmp  cret
+.globl  _few
+.text
+_few:
+~~few:
+~n=4
+jsr     r5,csv
+mov     4(r5),r0
+jbr     L9
+L10:mov $1,r0
+jbr     L7
+L11:mov $2,r0
+jbr     L7
+L12:mov $3,r0
+jbr     L7
+jbr     L8
+L9:mov  $L10003,r1
+mov     r0,L10004
+L10005:cmp      r0,(r1)+
+jne     L10005
+jmp     *L10004-L10003(r1)
+.data
+L10003:1
+144
+1750
+L10004:..
+L10
+L11
+L12
+L8
+.text
+L8:clr  r0
+jbr     L7
+L7:jmp  cret
+.globl  _many
+.text
+_many:
+~~many:
+~n=4
+jsr     r5,csv
+mov     4(r5),r0
+jbr     L15
+L16:mov $1,r0
+jbr     L13
+L17:mov $2,r0
+jbr     L13
+L18:mov $3,r0
+jbr     L13
+L19:mov $4,r0
+jbr     L13
+L20:mov $5,r0
+jbr     L13
+L21:mov $6,r0
+jbr     L13
+L22:mov $7,r0
+jbr     L13
+L23:mov $10,r0
+jbr     L13
+L24:mov $11,r0
+jbr     L13
+L25:mov $12,r0
+jbr     L13
+jbr     L14
+L15:mov r0,r1
+clr     r0
+div     $2,r0
+asl     r1
+add     $L10008,r1
+mov     r0,*(r1)+
+mov     (r1)+,r1
+L10007:cmp      r0,-(r1)
+jne     L10007
+jmp     *L10011-L10009(r1)
+.data
+L10008:L10009
+L10010
+L10011
+L10009:..
+67
+175
+400
+1000
+1750
+2734
+L10010:..
+1
+10
+310
+604
+L10011:L14
+L18
+L19
+L21
+L23
+L24
+L25
+L14
+L16
+L17
+L20
+L22
+.text
+L14:clr r0
+jbr     L13
+L13:jmp cret
+.globl
+.data</pre><pre class="after">.globl  _dense
+.data
+L10001:L4
+L5
+L2
+L6
+.text
+_dense:
+~~dense:
+~n=4
+jsr     r5,csv
+mov     4(r5),r0
+sub     $1,r0
+cmp     r0,$3
+jhi     L2
+asl     r0
+jmp     *L10001(r0)
+L4:mov  $12,r0
+L1:jmp  cret
+L5:mov  $24,r0
+jbr     L1
+L6:mov  $50,r0
+jbr     L1
+L2:clr  r0
+jbr     L1
+.globl  _few
+.data
+L10003:1
+144
+1750
+L10004:..
+L10
+L11
+L12
+L8
+.text
+_few:
+~~few:
+~n=4
+jsr     r5,csv
+mov     4(r5),r0
+mov     $L10003,r1
+mov     r0,L10004
+L10005:cmp      r0,(r1)+
+jne     L10005
+jmp     *L10004-L10003(r1)
+L10:mov $1,r0
+L7:jmp  cret
+L11:mov $2,r0
+jbr     L7
+L12:mov $3,r0
+jbr     L7
+L8:clr  r0
+jbr     L7
+.globl  _many
+.data
+L10008:L10009
+L10010
+L10011
+L10009:..
+67
+175
+400
+1000
+1750
+2734
+L10010:..
+1
+10
+310
+604
+L10011:L14
+L18
+L19
+L21
+L23
+L24
+L25
+L14
+L16
+L17
+L20
+L22
+.text
+_many:
+~~many:
+~n=4
+jsr     r5,csv
+mov     4(r5),r0
+mov     r0,r1
+clr     r0
+div     $2,r0
+asl     r1
+add     $L10008,r1
+mov     r0,*(r1)+
+mov     (r1)+,r1
+L10007:cmp      r0,-(r1)
+jne     L10007
+jmp     *L10011-L10009(r1)
+L16:mov $1,r0
+L13:jmp cret
+L17:mov $2,r0
+jbr     L13
+L18:mov $3,r0
+jbr     L13
+L19:mov $4,r0
+jbr     L13
+L20:mov $5,r0
+jbr     L13
+L21:mov $6,r0
+jbr     L13
+L22:mov $7,r0
+jbr     L13
+L23:mov $10,r0
+jbr     L13
+L24:mov $11,r0
+jbr     L13
+L25:mov $12,r0
+jbr     L13
+L14:clr r0
+jbr     L13
+.globl
+.data</pre><pre class="stats">2 iterations
+0 jumps to jumps
+3 inst. after jumps
+0 jumps to .+2
+3 redundant labels
+0 cross-jumps
+6 code motions
+0 branches reversed
+0 redundant moves
+0 simplified addresses
+0 loops inverted
+0 redundant jumps
+0 common seqs before jmp's
+0 skips over jumps
+0 sob's added
+0 redundant tst's
+0 literals eliminated
+14K core</pre></div>
+<div class="c2set" data-name="cond" hidden><pre class="before">.globl  _a
+.comm   _a,2
+.globl  _b
+.comm   _b,2
+.globl  _c
+.comm   _c,2
+.globl  _f
+.text
+_f:
+~~f:
+jsr     r5,csv
+tst     _a
+jeq     L10001
+tst     _b
+jne     L10000
+L10001:tst      _c
+jne     L2
+L10000:jsr      pc,_g
+L2:L3:cmp       _b,_a
+jle     L4
+inc     _a
+jbr     L3
+L4:cmp  _b,_a
+jlt     L10002
+clr     r0
+jbr     L10003
+L10002:mov      $1,r0
+L10003:mov      r0,_c
+L1:jmp  cret
+.globl
+.data</pre><pre class="after">.globl  _a
+.comm   _a,2
+.globl  _b
+.comm   _b,2
+.globl  _c
+.comm   _c,2
+.globl  _f
+.text
+_f:
+~~f:
+jsr     r5,csv
+tst     _a
+jeq     L10001
+tst     _b
+jne     L10000
+L10001:tst      _c
+jne     L3
+L10000:jsr      pc,_g
+jbr     L3
+L20001:inc      _a
+L3:cmp  _b,_a
+jgt     L20001
+cmp     _b,_a
+jlt     L10002
+clr     r0
+jbr     L10003
+L10002:mov      $1,r0
+L10003:mov      r0,_c
+jmp     cret
+.globl
+.data</pre><pre class="stats">2 iterations
+0 jumps to jumps
+0 inst. after jumps
+0 jumps to .+2
+3 redundant labels
+0 cross-jumps
+0 code motions
+0 branches reversed
+0 redundant moves
+0 simplified addresses
+1 loops inverted
+0 redundant jumps
+0 common seqs before jmp's
+0 skips over jumps
+0 sob's added
+0 redundant tst's
+0 literals eliminated
+14K core</pre></div>
+<div class="c2set" data-name="gen" hidden><pre class="before">.globl  _a
+.comm   _a,2
+.globl  _b
+.comm   _b,2
+.globl  _c
+.comm   _c,2
+.globl  _d
+.comm   _d,2
+.globl  _e
+.comm   _e,2
+.globl  _f
+.comm   _f,2
+.globl  _g
+.comm   _g,2
+.globl  _h
+.comm   _h,2
+.globl  _x
+.comm   _x,2
+.globl  _p
+.comm   _p,2
+.globl  _l
+.comm   _l,4
+.globl  _m
+.comm   _m,4
+.globl  _gen
+.text
+_gen:
+~~gen:
+~i=r3
+~q=r4
+jsr     r5,csv
+mov     _a,r1
+add     _b,r1
+mov     _c,r2
+add     _d,r2
+mul     r2,r1
+mov     r1,r0
+mov     _e,r1
+add     _f,r1
+mov     _g,r2
+add     _h,r2
+mul     r2,r1
+sub     r1,r0
+mov     r0,_x
+mov     _b,(sp)
+jsr     pc,*$_f2
+mov     r0,-(sp)
+mov     _a,-(sp)
+jsr     pc,_f1
+tst     (sp)+
+add     (sp)+,r0
+mov     r0,_x
+tst     _a
+jeq     L10000
+mov     _b,r0
+jbr     L10001
+L10000:mov      _c,r0
+L10001:mov      r0,_x
+cmp     _b,_a
+jgt     L10002
+clr     r0
+jbr     L10003
+L10002:mov      $1,r0
+L10003:mov      r0,_x
+mov     _x,r0
+ash     $3,r0
+mov     r0,_x
+mov     _x,r0
+ash     $-2,r0
+mov     r0,_x
+mov     2+_m,-(sp)
+mov     _m,-(sp)
+mov     2+_l,-(sp)
+mov     _l,-(sp)
+jsr     pc,lmul
+add     $10,sp
+mov     r0,_l
+mov     r1,2+_l
+mov     *_p,(r4)+
+add     $2,_p
+mov     _a,r0
+add     r3,r0
+mov     r0,r3
+mov     _x,r0
+ash     r3,r0
+mov     r0,r3
+bit     $10,_a
+jeq     L2
+inc     _b
+L2:L1:jmp       cret
+.globl
+.data</pre><pre class="after">.globl  _a
+.comm   _a,2
+.globl  _b
+.comm   _b,2
+.globl  _c
+.comm   _c,2
+.globl  _d
+.comm   _d,2
+.globl  _e
+.comm   _e,2
+.globl  _f
+.comm   _f,2
+.globl  _g
+.comm   _g,2
+.globl  _h
+.comm   _h,2
+.globl  _x
+.comm   _x,2
+.globl  _p
+.comm   _p,2
+.globl  _l
+.comm   _l,4
+.globl  _m
+.comm   _m,4
+.globl  _gen
+.text
+_gen:
+~~gen:
+~i=r3
+~q=r4
+jsr     r5,csv
+mov     _a,r1
+add     _b,r1
+mov     _c,r2
+add     _d,r2
+mul     r2,r1
+mov     r1,r0
+mov     _e,r1
+add     _f,r1
+mov     _g,r2
+add     _h,r2
+mul     r2,r1
+sub     r1,r0
+mov     r0,_x
+mov     _b,(sp)
+jsr     pc,*$_f2
+mov     r0,-(sp)
+mov     _a,-(sp)
+jsr     pc,_f1
+tst     (sp)+
+add     (sp)+,r0
+mov     r0,_x
+tst     _a
+jeq     L10000
+mov     _b,r0
+jbr     L10001
+L10000:mov      _c,r0
+L10001:mov      r0,_x
+cmp     _b,_a
+jgt     L10002
+clr     r0
+jbr     L10003
+L10002:mov      $1,r0
+L10003:mov      r0,_x
+ash     $3,r0
+mov     r0,_x
+ash     $-2,r0
+mov     r0,_x
+mov     2+_m,-(sp)
+mov     _m,-(sp)
+mov     2+_l,-(sp)
+mov     _l,-(sp)
+jsr     pc,lmul
+add     $10,sp
+mov     r0,_l
+mov     r1,2+_l
+mov     *_p,(r4)+
+add     $2,_p
+mov     _a,r0
+add     r3,r0
+mov     r0,r3
+mov     _x,r0
+ash     r3,r0
+mov     r0,r3
+bit     $10,_a
+jeq     L1
+inc     _b
+L1:jmp  cret
+.globl
+.data</pre><pre class="stats">1 iterations
+0 jumps to jumps
+0 inst. after jumps
+0 jumps to .+2
+1 redundant labels
+0 cross-jumps
+0 code motions
+0 branches reversed
+2 redundant moves
+0 simplified addresses
+0 loops inverted
+0 redundant jumps
+0 common seqs before jmp's
+0 skips over jumps
+0 sob's added
+0 redundant tst's
+0 literals eliminated
+14K core</pre></div>
+</div>
+
+<h2 id="goto">What c2 does not know</h2>
+
+<p><code>c2</code> decides which labels are used by looking at jump instructions and the entries of switch
+tables. It does not look at other operands. So a label whose address is taken, as in the computed
+<code>goto</code> of <a href="08-statements.html#labels">chapter 8</a>, looks unused. <code>refcount</code> deletes it,
+and then the code after the <code>jmp</code> that should reach it looks unreachable, and <code>iterate</code> deletes
+that too. With <code>-O</code>, <code>cgoto.c</code> loses everything after its first <code>goto</code>, and the
+reference to the deleted label is left dangling:</p>
+
+<pre>% cc -O cgoto.c; a.out
+Undefined:
+L2
+a.out: not found</pre>
+
+<p>The compiler does not document computed <code>goto</code>, so this can hardly be called a bug in
+<code>c2</code>. It shows the limit of a program that improves code without knowing what it means.</p>
+
+<nav class="pager"><a href="12-switch.html">&larr; Switch</a><span></span></nav>
+</main>
+<aside class="panel" id="panel" hidden>
+<div class="panelbar"><span class="pfile"></span><button type="button" class="pclose" aria-label="Close listing">Close</button></div>
+<div class="pbody"></div>
+</aside>
+</div>
+<script src="assets/book.js"></script>
+<script src="assets/listing-data.js"></script><script src="assets/reader.js"></script><script src="assets/c2view.js"></script>
+</body>
+</html>
