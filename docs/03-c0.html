@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The World of c0 · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="chpage">
+<header class="topbar"><nav><a class="home" href="index.html">The Sixth Edition C Compiler</a><span class="sep">/</span>Chapter 3</nav><div class="tools"><a href="contents.html">Contents</a><a href="source/index.html">Listing</a><a href="xref.html">Index</a></div></header>
+<div class="reader">
+<main class="prose chapter">
+<header class="chead">
+<p class="eyebrow">Chapter 3</p>
+<h1>The World of c0</h1>
+<nav class="local"><ol><li><a href="#main">The main program</a></li><li><a href="#limits">Fixed sizes</a></li><li><a href="#symtab">The symbol table</a></li><li><a href="#trees">Tree nodes</a></li><li><a href="#ifile">The intermediate file</a></li><li><a href="#errors">Errors</a></li></ol></nav>
+</header>
+<!-- title: The World of c0 -->
+<!-- number: 3 -->
+<!-- short: c0's data -->
+<!-- scripts: v6.js ifile.js -->
+<!-- blurb: The first pass's main loop, its symbol table, its tree nodes, and the intermediate file it writes for the second pass. -->
+
+<p>This chapter describes the data that the first pass works with: where it keeps names, how it
+builds expression trees, and what it writes out. The routines that parse C are the subject of
+the next five chapters; here we are concerned with what they leave behind.</p>
+
+<h2 id="main">The main program</h2>
+
+<p><code>c0</code> is called by <code>cc</code> with three file names: the source, and two temporaries it must
+create (<a class="lref" data-file="c00.c" data-line="1350" href="source/c00.c.html#L1350">1350&ndash;1361</a>). Its <code>main</code> (<a class="lref" data-file="c00.c" data-line="1405" href="source/c00.c.html#L1405">1405&ndash;1449</a>) opens them, marks the keywords in
+the symbol table (see below), and then does all its work in a two-line loop:</p>
+
+<pre class="excerpt"><span class="xf">c00.c</span>
+<span class="xl"><a class="lref" data-file="c00.c" data-line="1439" href="source/c00.c.html#L1439"> 1439</a>          <span class="kw">while</span>(!eof) {</span>
+<span class="xl"><a class="lref" data-file="c00.c" data-line="1440" href="source/c00.c.html#L1440"> 1440</a>                  <a class="id" href="source/c02.c.html#L2661">extdef</a>();</span>
+<span class="xl"><a class="lref" data-file="c00.c" data-line="1441" href="source/c00.c.html#L1441"> 1441</a>                  <a class="id" href="source/c02.c.html#L3261">blkend</a>();</span>
+<span class="xl"><a class="lref" data-file="c00.c" data-line="1442" href="source/c00.c.html#L1442"> 1442</a>          }</span></pre>
+
+<p>A C file, in this dialect as in modern C, is a sequence of <em>external definitions</em>:
+declarations of global variables, with or without initializers, and function definitions.
+<code>extdef</code> (<a class="lref" data-file="c02.c" data-line="2661" href="source/c02.c.html#L2661">2661&ndash;2706</a>) reads one of them. <code>blkend</code> (<a class="lref" data-file="c02.c" data-line="3261" href="source/c02.c.html#L3261">3261&ndash;3277</a>) then clears
+out everything that was local to it. When the input runs out, <code>main</code> writes an end-of-file
+marker to each of the two output files (<a class="lref" data-file="c00.c" data-line="1443" href="source/c00.c.html#L1443">1443&ndash;1445</a>) and exits with a status that tells
+<code>cc</code> whether there were errors.</p>
+
+<p>There is no parse tree for the program as a whole and no representation of a function.
+<code>c0</code> writes each statement's code to the output as soon as it has read it, and only an
+expression is ever held in memory as a tree. As soon as the expression is complete, it is written
+out and the space it occupied is reused.</p>
+
+<h2 id="limits">Fixed sizes</h2>
+
+<p>Every table in <code>c0</code> is a fixed-size array, and the sizes are set at the top of the header
+(<a class="lref" data-file="c0h.c" data-line="962" href="source/c0h.c.html#L962">962&ndash;971</a>):</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Parameter</th><th>Value</th><th>Limits</th></tr></thead>
+<tbody>
+<tr><td><code>ncps</code></td><td class="num">8</td><td>characters per symbol</td></tr>
+<tr><td><code>hshsiz</code></td><td class="num">200</td><td>names in the symbol table at one time</td></tr>
+<tr><td><code>cmsiz</code></td><td class="num">40</td><td>operands on the parser's stack</td></tr>
+<tr><td><code>swsiz</code></td><td class="num">200</td><td><code>case</code> labels in all the switches being compiled at one time</td></tr>
+<tr><td><code>OSSIZ</code></td><td class="num">500</td><td>words of storage for expression trees</td></tr>
+<tr><td><code>dimsiz</code></td><td class="num">100</td><td>array dimensions and structure sizes in a file</td></tr>
+<tr><td><code>STRSIZ</code></td><td class="num">256</td><td>characters in a string constant</td></tr>
+</tbody></table></div>
+
+<p>Running out of any of them is fatal. The messages are ones every Sixth Edition programmer met
+sooner or later: &ldquo;Symbol table overflow&rdquo;, &ldquo;Expression overflow&rdquo;,
+&ldquo;Dimension/struct table overflow&rdquo;. The limit of 200 symbols is less severe than it
+looks, because the table only holds the names visible at one moment: the file's external names
+plus the locals of the function being compiled.</p>
+
+<h2 id="symtab">The symbol table</h2>
+
+<p>An entry in the symbol table is a <code>struct hshtab</code> (<a class="lref" data-file="c0h.c" data-line="1012" href="source/c0h.c.html#L1012">1012&ndash;1019</a>):</p>
+
+<pre class="excerpt"><span class="xf">c0h.c</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1012" href="source/c0h.c.html#L1012"> 1012</a>  <span class="kw">struct</span> hshtab {</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1013" href="source/c0h.c.html#L1013"> 1013</a>          <span class="kw">char</span>    hclass;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1014" href="source/c0h.c.html#L1014"> 1014</a>          <span class="kw">char</span>    hflag;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1015" href="source/c0h.c.html#L1015"> 1015</a>          <span class="kw">int</span>     htype;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1016" href="source/c0h.c.html#L1016"> 1016</a>          <span class="kw">int</span>     hdimp;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1017" href="source/c0h.c.html#L1017"> 1017</a>          <span class="kw">int</span>     hoffset;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1018" href="source/c0h.c.html#L1018"> 1018</a>          <span class="kw">char</span>    name[ncps];</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1019" href="source/c0h.c.html#L1019"> 1019</a>  };</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1020" href="source/c0h.c.html#L1020"> 1020</a>  </span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1021" href="source/c0h.c.html#L1021"> 1021</a>  <span class="kw">struct</span> {</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1022" href="source/c0h.c.html#L1022"> 1022</a>          <span class="kw">char</span>    hclass;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1023" href="source/c0h.c.html#L1023"> 1023</a>          <span class="kw">char</span>    hflag;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1024" href="source/c0h.c.html#L1024"> 1024</a>          <span class="kw">int</span>     htype;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1025" href="source/c0h.c.html#L1025"> 1025</a>          <span class="kw">char</span>    flen;           <span class="cm">/* Field length */</span></span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1026" href="source/c0h.c.html#L1026"> 1026</a>          <span class="kw">char</span>    bitoffs;        <span class="cm">/* Offset of field */</span></span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1027" href="source/c0h.c.html#L1027"> 1027</a>  };</span></pre>
+
+<p><code>hclass</code> is the storage class: <code>AUTO</code>, <code>EXTERN</code>, <code>STATIC</code>, <code>REG</code>, a
+structure member <code>MOS</code>, a structure tag <code>STRTAG</code>, or an argument, all defined at
+<a class="lref" data-file="c0h.c" data-line="1202" href="source/c0h.c.html#L1202">1202&ndash;1213</a>. <code>htype</code> is the type, encoded in sixteen bits as
+<a href="06-types.html">chapter 6</a> describes. <code>hoffset</code> is where the thing is: the offset from
+<code>r5</code> for an automatic, the register number for a register variable, the label number for a
+static, the byte offset for a member of a structure.</p>
+
+<p><code>hdimp</code> is used in two ways, which is why the header declares a second, anonymous structure
+with the same beginning. For an array it holds, in its low byte, an index into
+<code>dimtab</code>, the table of array dimensions; the field is then called <code>ssp</code>. For a
+structure it holds, in its high byte, the index in <code>dimtab</code> where the structure's size is
+kept; the field is then called <code>lenp</code>. And for a bit-field member the same two bytes are
+called <code>flen</code> and <code>bitoffs</code>, the field's width and its bit position. The anonymous
+structures exist only so that these names can be used with <code>-&gt;</code>. Since structure
+member names in this C are global and apply to any pointer, a declaration like the one at
+<a class="lref" data-file="c0h.c" data-line="1021" href="source/c0h.c.html#L1021">1021&ndash;1027</a> is a way of saying &ldquo;at byte 4 of whatever this points to there is a
+<code>char</code> called <code>flen</code>&rdquo;.</p>
+
+<p><code>hflag</code> holds four flag bits (<a class="lref" data-file="c0h.c" data-line="1294" href="source/c0h.c.html#L1294">1294&ndash;1300</a>). <code>FNDEL</code> marks names that must
+survive the end of a function; <code>FNUND</code> records that an &ldquo;undefined&rdquo; error has
+already been given for the name, so it is not repeated; <code>FFIELD</code> marks bit-fields. The
+fourth, <code>FKEYW</code>, is the interesting one.</p>
+
+<h3>Lookup</h3>
+
+<p><code>lookup</code> (<a class="lref" data-file="c00.c" data-line="1457" href="source/c00.c.html#L1457">1457&ndash;1497</a>) finds the name held in the global buffer
+<code>symbuf</code>. It hashes the eight characters by adding them up, takes the sum modulo 200, and
+probes linearly from there until it finds either the name or an empty slot, in which case it
+enters the name. It returns the token <code>NAME</code> and leaves a pointer to the entry in
+<code>csym</code>.</p>
+
+<p>Keywords are not in the table. Instead, at start-up, <code>main</code> computes the hash of every
+keyword and sets <code>FKEYW</code> in the slot where it would land (<a class="lref" data-file="c00.c" data-line="1433" href="source/c00.c.html#L1433">1433&ndash;1438</a>). When
+<code>lookup</code> finds <code>FKEYW</code> set in the first slot it probes, it searches the keyword table
+before looking any further (<a class="lref" data-file="c00.c" data-line="1470" href="source/c00.c.html#L1470">1470&ndash;1472</a>). Identifiers whose hash does not collide with a
+keyword's, which is most of them, never touch the keyword table. The flag belongs to the slot,
+not to whatever name happens to occupy it, and so <code>blkend</code> is careful to leave it alone
+when it clears a slot (<a class="lref" data-file="c02.c" data-line="3270" href="source/c02.c.html#L3270">3270&ndash;3274</a>).</p>
+
+<p>A name that follows <code>.</code> or <code>-&gt;</code>, or that is being declared as a structure member
+or tag, is read with a <code>.</code> in front of it (<a class="lref" data-file="c00.c" data-line="1639" href="source/c00.c.html#L1639">1639&ndash;1642</a>). The members of structures
+therefore have a name space of their own, <code>.value</code> being a different entry from
+<code>value</code>. But the dot takes one of the eight characters, so a member name is significant only
+to seven. <code>lookup</code> skips the dot when hashing (<a class="lref" data-file="c00.c" data-line="1465" href="source/c00.c.html#L1465">1465&ndash;1466</a>), which puts <code>.int</code>
+in the same slot as <code>int</code>, and <code>findkw</code> skips it when comparing (<a class="lref" data-file="c00.c" data-line="1510" href="source/c00.c.html#L1510">1510&ndash;1512</a>);
+that way a keyword is still recognised where a member name is expected, as in
+<code>struct { int x; }</code>, where <code>int</code> is read while the flag for members is on.</p>
+
+<h3>Deleting names</h3>
+
+<p>At the end of every external definition <code>blkend</code> goes through the whole table
+(<a class="lref" data-file="c02.c" data-line="3261" href="source/c02.c.html#L3261">3261&ndash;3277</a>). Any name that was used but never given a storage class is reported as
+undefined. Any name without <code>FNDEL</code> is deleted by clearing the first byte of its name.
+<code>FNDEL</code> is set on names that are entered while an external definition's declarator is
+being read, through the global <code>xdflg</code>, which <code>lookup</code> copies into every new entry
+(<a class="lref" data-file="c00.c" data-line="1491" href="source/c00.c.html#L1491">1491</a>, <a class="lref" data-file="c02.c" data-line="2672" href="source/c02.c.html#L2672">2672</a>); so external names and the structure tags and members declared
+at the top level survive, and everything declared or mentioned inside a function goes.</p>
+
+<p>Clearing entries out of the middle of a linearly probed hash table is normally a mistake,
+because it can break the chain of probes that leads to a later entry. Here it is safe for a
+reason that is easy to miss: names are deleted in the reverse of the order in which they were
+entered. Everything entered while a function is being compiled is deleted together at its end,
+and the entries that survive were entered before it began, so no surviving entry can lie further
+along a probe chain than a deleted one. The rule could in principle be broken by a declaration
+such as <code>int f(a), g;</code>, where the parameter name <code>a</code> is entered, to be deleted
+later, before the external name <code>g</code>; if <code>g</code> happened to collide with <code>a</code>,
+it would become unreachable. Nobody wrote declarations like that.</p>
+
+<h2 id="trees">Tree nodes</h2>
+
+<p>Expressions are represented as trees whose nodes are all variations on
+<code>struct tnode</code> (<a class="lref" data-file="c0h.c" data-line="973" href="source/c0h.c.html#L973">973&ndash;978</a>):</p>
+
+<pre class="excerpt"><span class="xf">c0h.c</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="973" href="source/c0h.c.html#L973">  973</a>  <span class="kw">struct</span> tnode {</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="974" href="source/c0h.c.html#L974">  974</a>          <span class="kw">int</span>     op;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="975" href="source/c0h.c.html#L975">  975</a>          <span class="kw">int</span>     type;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="976" href="source/c0h.c.html#L976">  976</a>          <span class="kw">int</span>     dimp;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="977" href="source/c0h.c.html#L977">  977</a>          <span class="kw">struct</span>  tnode *tr1, *tr2;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="978" href="source/c0h.c.html#L978">  978</a>  };</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="979" href="source/c0h.c.html#L979">  979</a>  </span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="980" href="source/c0h.c.html#L980">  980</a>  <span class="kw">struct</span> {</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="981" href="source/c0h.c.html#L981">  981</a>          <span class="kw">int</span>     op;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="982" href="source/c0h.c.html#L982">  982</a>          <span class="kw">int</span>     type;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="983" href="source/c0h.c.html#L983">  983</a>          <span class="kw">char</span>    ssp;            <span class="cm">/* subscript list */</span></span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="984" href="source/c0h.c.html#L984">  984</a>          <span class="kw">char</span>    lenp;           <span class="cm">/* structure length */</span></span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="985" href="source/c0h.c.html#L985">  985</a>  };</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="986" href="source/c0h.c.html#L986">  986</a>  </span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="987" href="source/c0h.c.html#L987">  987</a>  <span class="kw">struct</span> tname {</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="988" href="source/c0h.c.html#L988">  988</a>          <span class="kw">int</span>     op;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="989" href="source/c0h.c.html#L989">  989</a>          <span class="kw">int</span>     type;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="990" href="source/c0h.c.html#L990">  990</a>          <span class="kw">int</span>     dimp;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="991" href="source/c0h.c.html#L991">  991</a>          <span class="kw">int</span>     class;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="992" href="source/c0h.c.html#L992">  992</a>          <span class="kw">int</span>     offset;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="993" href="source/c0h.c.html#L993">  993</a>          <span class="kw">int</span>     nloc;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="994" href="source/c0h.c.html#L994">  994</a>  };</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="995" href="source/c0h.c.html#L995">  995</a>  </span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="996" href="source/c0h.c.html#L996">  996</a>  <span class="kw">struct</span> txname {</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="997" href="source/c0h.c.html#L997">  997</a>          <span class="kw">int</span>     op;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="998" href="source/c0h.c.html#L998">  998</a>          <span class="kw">int</span>     type;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="999" href="source/c0h.c.html#L999">  999</a>          <span class="kw">int</span>     dimp;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1000" href="source/c0h.c.html#L1000"> 1000</a>          <span class="kw">int</span>     class;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1001" href="source/c0h.c.html#L1001"> 1001</a>          <span class="kw">int</span>     offset;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1002" href="source/c0h.c.html#L1002"> 1002</a>          <span class="kw">char</span>    nname[ncps];</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1003" href="source/c0h.c.html#L1003"> 1003</a>  };</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1004" href="source/c0h.c.html#L1004"> 1004</a>  </span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1005" href="source/c0h.c.html#L1005"> 1005</a>  <span class="kw">struct</span> tconst {</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1006" href="source/c0h.c.html#L1006"> 1006</a>          <span class="kw">int</span>     op;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1007" href="source/c0h.c.html#L1007"> 1007</a>          <span class="kw">int</span>     type;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1008" href="source/c0h.c.html#L1008"> 1008</a>          <span class="kw">int</span>     dimp;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1009" href="source/c0h.c.html#L1009"> 1009</a>          <span class="kw">int</span>     value;</span>
+<span class="xl"><a class="lref" data-file="c0h.c" data-line="1010" href="source/c0h.c.html#L1010"> 1010</a>  };</span></pre>
+
+<p>Every node begins with an operator and a type. An operator node has one or two operands,
+<code>tr1</code> and <code>tr2</code>. A <code>NAME</code> node is a leaf that carries a copy of everything the
+second pass needs to know about a variable: its class, its offset, and, for an external, its
+name spelled out. The copying is deliberate, since the symbol table will be gone before the tree
+is used (<a class="lref" data-file="c00.c" data-line="2021" href="source/c00.c.html#L2021">2021&ndash;2058</a>). A constant is a leaf holding its value.</p>
+
+<p>The third field of every node is <code>dimp</code>, the index of the array dimension information in
+<code>dimtab</code>, which the second pass calls <code>degree</code> and uses for something else entirely.</p>
+
+<p>Nodes are allocated from the array <code>osspace</code> by <code>gblock</code> (<a class="lref" data-file="c01.c" data-line="2506" href="source/c01.c.html#L2506">2506&ndash;2516</a>), which
+simply advances a pointer, <code>space</code>. There is no freeing. When the parser starts a new
+expression it resets <code>space</code> to the start of the area (<a class="lref" data-file="c00.c" data-line="1826" href="source/c00.c.html#L1826">1826</a>), abandoning the whole
+previous tree at once.</p>
+
+<p>Nodes are built by <code>block</code> (<a class="lref" data-file="c01.c" data-line="2486" href="source/c01.c.html#L2486">2486&ndash;2500</a>), which is worth reading closely:</p>
+
+<pre class="excerpt"><span class="xf">c01.c</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2486" href="source/c01.c.html#L2486"> 2486</a>  <span class="def">block</span>(an, op, t, d, p1,p2,p3)</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2487" href="source/c01.c.html#L2487"> 2487</a>  <span class="kw">int</span> *p1, *p2, *p3;</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2488" href="source/c01.c.html#L2488"> 2488</a>  {</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2489" href="source/c01.c.html#L2489"> 2489</a>          <span class="kw">register</span> <span class="kw">int</span> *ap, *p, n;</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2490" href="source/c01.c.html#L2490"> 2490</a>          <span class="kw">int</span> *oldp;</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2491" href="source/c01.c.html#L2491"> 2491</a>  </span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2492" href="source/c01.c.html#L2492"> 2492</a>          n = an+<span class="nu">3</span>;</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2493" href="source/c01.c.html#L2493"> 2493</a>          p = <a class="id" href="source/c01.c.html#L2506">gblock</a>(n);</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2494" href="source/c01.c.html#L2494"> 2494</a>          oldp = p;</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2495" href="source/c01.c.html#L2495"> 2495</a>          ap = &amp;op;</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2496" href="source/c01.c.html#L2496"> 2496</a>          <span class="kw">do</span> {</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2497" href="source/c01.c.html#L2497"> 2497</a>                  *p++ = *ap++;</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2498" href="source/c01.c.html#L2498"> 2498</a>          } <span class="kw">while</span> (--n);</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2499" href="source/c01.c.html#L2499"> 2499</a>          <span class="kw">return</span>(oldp);</span>
+<span class="xl"><a class="lref" data-file="c01.c" data-line="2500" href="source/c01.c.html#L2500"> 2500</a>  }</span></pre>
+
+<p>It is called with a count of operands followed by the fields of the node in order, for example
+<code>block(2, PLUS, INT, 0, p1, p2)</code>. It takes the address of its second parameter, <code>op</code>,
+and copies <code>an+3</code> words from there into the new node. This works because on the PDP-11 the
+arguments of a call sit in consecutive words on the stack, in order, so the parameter list is
+itself laid out exactly like a node. One routine therefore builds nodes of every size. It
+relies on the calling convention in a way no modern compiler would allow, but it was perfectly
+reliable on the machine it was written for.</p>
+
+<h2 id="ifile">The intermediate file</h2>
+
+<p>Everything <code>c0</code> writes goes through <code>outcode</code> (<a class="lref" data-file="c04.c" data-line="4100" href="source/c04.c.html#L4100">4100&ndash;4142</a>), which works like a
+small <code>printf</code>. Its first argument is a format of single-letter codes, and each code consumes
+one argument:</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Code</th><th>Writes</th></tr></thead>
+<tbody>
+<tr><td><code>B</code></td><td>an operator: a word with the operator number in its low byte and 0376 in its high byte</td></tr>
+<tr><td><code>N</code></td><td>a number: one word</td></tr>
+<tr><td><code>S</code></td><td>a name: up to eight characters and a terminating zero byte</td></tr>
+<tr><td><code>1</code>, <code>0</code></td><td>the constant word 1 or 0, used to separate and end lists of data</td></tr>
+</tbody></table></div>
+
+<p>The 0376 in every operator word is a check. When <code>c1</code> reads a word where it expects an
+operator, it verifies that the high byte is 0376 and stops with &ldquo;Intermediate file
+error&rdquo; if it is not (<a class="lref" data-file="c11.c" data-line="6442" href="source/c11.c.html#L6442">6442&ndash;6446</a>). Since the file has no other structure, a single
+disagreement between the passes about how many words follow some operator would otherwise send
+<code>c1</code> reading garbage.</p>
+
+<p>There are two kinds of record. Some are commands that <code>c1</code> can act on at once: define a
+label, jump to a label, switch to the data segment, start a function. The others are pieces of
+an expression tree, and these come in postfix order. <code>treeout</code> (<a class="lref" data-file="c04.c" data-line="3855" href="source/c04.c.html#L3855">3855&ndash;3899</a>) writes a
+node's operands before the node itself, and <code>rcexpr</code> (<a class="lref" data-file="c04.c" data-line="3847" href="source/c04.c.html#L3847">3847&ndash;3853</a>) follows the whole
+tree with an <code>EXPR</code> record carrying the line number. The second pass rebuilds the tree
+with a stack: a leaf is pushed, an operator pops its operands and pushes itself, and at
+<code>EXPR</code> exactly one tree is left on the stack to be compiled. The postfix order saves any
+need for pointers in the file.</p>
+
+<p>The second temporary file receives the text of string constants. The flag <code>strflg</code>
+redirects <code>outcode</code> to it (<a class="lref" data-file="c04.c" data-line="4108" href="source/c04.c.html#L4108">4108&ndash;4110</a>). Strings could not be written into the main file
+where they occur because they would land in the middle of the function's code, and <code>c1</code>
+copies the second file onto the end of its output instead (<a class="lref" data-file="c10.c" data-line="4904" href="source/c10.c.html#L4904">4904&ndash;4913</a>).</p>
+
+<p>The widget below shows the real intermediate file that <code>c0</code> wrote for the program
+<code>vowels.c</code>, which appears again in <a href="14-walkthrough.html">chapter 14</a>. Step
+through the records to see each one's bytes and meaning, and the stack of partial trees that
+<code>c1</code> builds as it reads them.</p>
+
+<div class="pair">
+<div><p class="lbl">vowels.c</p><pre>/* Count the vowels in a string. */
+
+char *s "hello, world";
+
+main()
+{
+        register char *p;
+        int n;
+
+        n = 0;
+        for (p = s; *p; p++)
+                switch (*p) {
+                case 'a': case 'e': case 'i':
+                case 'o': case 'u':
+                        n++;
+                }
+        printf("%d\n", n);
+}</pre></div>
+<div class="note"><p class="eyebrow">What to look for</p>
+<p>The initializer of <code>s</code>, which is <code>&amp;L1</code>, the address of the string.</p>
+<p><code>p++</code>, which carries an explicit constant 1 as its second operand: the amount to add,
+already scaled for the pointer type.</p>
+<p>The <code>switch</code>: an expression forced into <code>r0</code>, a jump to the end, the cases as plain
+labels, and then a <code>SWIT</code> record listing the values and labels.</p>
+<p>The call to <code>printf</code>, whose arguments form a tree of <code>,</code> operators.</p></div>
+</div>
+
+<div class="widget" data-widget="ifile">
+<div class="wbar"><span class="wt">c0 output for vowels.c</span><span class="row"><button type="button" class="btn prev">&larr; Previous</button><button type="button" class="btn next">Next &rarr;</button></span></div>
+<div class="wbody"><p class="muted">This figure needs JavaScript.</p></div>
+<script type="application/json">[207,254,115,0,203,254,113,254,115,0,20,254,13,0,1,0,1,0,35,254,9,0,104,254,0,0,214,254,3,0,207,254,109,97,105,110,0,202,254,114,254,109,97,105,110,0,217,254,110,0,248,255,216,254,112,0,4,0,105,254,4,0,208,254,8,0,20,254,11,0,0,0,248,255,21,254,0,0,0,0,80,254,0,0,214,254,10,0,20,254,14,0,9,0,4,0,20,254,12,0,9,0,115,0,80,254,9,0,214,254,11,0,112,254,3,0,20,254,14,0,9,0,4,0,36,254,1,0,103,254,4,0,0,0,214,254,11,0,20,254,14,0,9,0,4,0,36,254,1,0,110,254,0,0,214,254,12,0,111,254,7,0,112,254,8,0,112,254,9,0,112,254,10,0,112,254,11,0,112,254,12,0,20,254,11,0,0,0,248,255,21,254,0,0,1,0,32,254,0,0,214,254,15,0,111,254,6,0,112,254,7,0,213,254,6,0,16,0,8,0,97,0,9,0,101,0,10,0,105,0,11,0,111,0,12,0,117,0,0,0,112,254,6,0,112,254,5,0,20,254,14,0,9,0,4,0,21,254,0,0,1,0,32,254,9,0,214,254,11,0,111,254,3,0,112,254,4,0,20,254,12,0,16,0,112,114,105,110,116,102,0,20,254,13,0,1,0,13,0,35,254,9,0,20,254,11,0,0,0,248,255,9,254,0,0,100,254,0,0,214,254,17,0,112,254,2,0,209,254,0,254,0]</script>
+</div>
+
+<p>The symbolic numbers in the file are those of <a class="lref" data-file="c0h.c" data-line="1092" href="source/c0h.c.html#L1092">1092&ndash;1179</a> and <a class="lref" data-file="c0h.c" data-line="1244" href="source/c0h.c.html#L1244">1244&ndash;1264</a>. Types
+appear as numbers too: 9, for instance, is <code>PTR+CHAR</code>, a pointer to <code>char</code>.</p>
+
+<h2 id="errors">Errors</h2>
+
+<p>Errors are reported by <code>error</code> (<a class="lref" data-file="c01.c" data-line="2470" href="source/c01.c.html#L2470">2470&ndash;2479</a>), which prints the line number and a
+message and counts the error. It takes up to six arguments and passes them all to
+<code>printf</code>, whatever the format needs, another habit that only works because arguments are
+simply words on the stack.</p>
+
+<p>After a syntax error the parser calls <code>errflush</code> (<a class="lref" data-file="c02.c" data-line="3314" href="source/c02.c.html#L3314">3314&ndash;3322</a>), which discards
+tokens until it reaches a semicolon or a brace. The token numbers were chosen so that this is a
+single comparison: <code>EOF</code>, <code>SEMI</code>, <code>LBRACE</code> and <code>RBRACE</code> are 0 to 3, and
+<code>errflush</code> skips while the token is greater than <code>RBRACE</code>.</p>
+
+<p>Recovery is crude but effective, and <code>c0</code> carries on to the end of the file, reporting
+further errors as it finds them. Its output is useless once an error has occurred, and <code>cc</code>
+does not run the second pass. Warnings are errors that decrement the error count after printing
+(<a class="lref" data-file="c00.c" data-line="1586" href="source/c00.c.html#L1586">1586&ndash;1587</a>); there is exactly one in the compiler.</p>
+
+<nav class="pager"><a href="02-cc.html">&larr; cc</a><span></span></nav>
+</main>
+<aside class="panel" id="panel" hidden>
+<div class="panelbar"><span class="pfile"></span><button type="button" class="pclose" aria-label="Close listing">Close</button></div>
+<div class="pbody"></div>
+</aside>
+</div>
+<script src="assets/book.js"></script>
+<script src="assets/listing-data.js"></script><script src="assets/reader.js"></script><script src="assets/v6.js"></script><script src="assets/ifile.js"></script>
+</body>
+</html>

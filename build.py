@@ -20,6 +20,7 @@ and may use these shorthands in their text:
     [[fn:symbol]]          `symbol` linked to its definition
     [[include:examples/out/loop.s]]   the file's contents, HTML-escaped
     [[src:c00.c:185-203]]  a quoted excerpt of the listing, with numbers
+    [[bytes:examples/out/x.i]]      an od -b dump as a JSON list of bytes
 """
 import html, json, os, re, shutil, sys
 
@@ -447,6 +448,14 @@ def expand(text, src, prefix=''):
                 f, gn, src.href(f, i, prefix), gn, hl[i - 1]))
         return '<pre class="excerpt"><span class="xf">%s</span>\n%s</pre>' % (f, '\n'.join(rows))
 
+    def odbytes(m):
+        # an "od -b" dump, turned back into a JSON list of byte values
+        out = []
+        for line in open(os.path.join(ROOT, m.group(1))):
+            out += [int(x, 8) for x in line.split()[1:]]
+        return json.dumps(out, separators=(',', ':'))
+
+    text = re.sub(r'\[\[bytes:([^\]]+)\]\]', odbytes, text)
     text = re.sub(r'\[\[include:([^\]]+)\]\]', include, text)
     text = re.sub(r'\[\[src:([\w.]+):(\d+)(?:-(\d+))?\]\]', excerpt, text)
     text = re.sub(r'\[\[([\w.]+\.[cs]|run):(\d+)(?:-(\d+))?\]\]', lineref, text)

@@ -1,0 +1,193 @@
+<!-- title: The Driver and the Preprocessor -->
+<!-- number: 2 -->
+<!-- short: cc -->
+<!-- blurb: How cc runs the passes and cleans up after them, and the small preprocessor hidden inside it. -->
+
+<p>The file <a href="source/cc.c.html"><code>cc.c</code></a> contains two programs that have
+little to do with each other. The first, <code>main</code> and its helpers, is the command that
+runs the compiler passes, the assembler and the loader in turn. The second, starting at
+<code>expand</code>, is the C preprocessor. There is no separate <code>cpp</code> in the Sixth Edition;
+<code>cc</code> preprocesses a file itself, and only if it has to.</p>
+
+<h2 id="main">Running the passes</h2>
+
+<p><code>main</code> ([[cc.c:50-219]]) first walks the argument list. Options are recognised by their
+second character ([[cc.c:58-101]]):</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Option</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><code>-c</code></td><td>compile to <code>.o</code> files but do not link</td></tr>
+<tr><td><code>-S</code></td><td>stop after <code>c1</code> (or <code>c2</code>) and keep the assembly language in a <code>.s</code> file</td></tr>
+<tr><td><code>-O</code></td><td>run the optimizer <code>c2</code></td></tr>
+<tr><td><code>-P</code></td><td>only preprocess, leaving the result in a <code>.i</code> file</td></tr>
+<tr><td><code>-p</code></td><td>compile for profiling: <code>c0</code> is told to count calls, and a different start-up file is linked</td></tr>
+<tr><td><code>-f</code></td><td>use the floating-point versions of the passes and link the floating-point simulator</td></tr>
+<tr><td><code>-2</code></td><td>link with an alternative start-up file and library</td></tr>
+<tr><td><code>-t0</code>, <code>-t1</code>, <code>-t2</code></td><td>take that pass from <code>/usr/c</code> instead of <code>/lib</code>: a way to try a new version of the compiler before installing it</td></tr>
+</tbody></table></div>
+
+<p>Any other option, and every argument not starting with <code>-</code>, is passed on towards the
+loader. An argument whose name ends in <code>.c</code> is also added to the list of files to compile,
+and its <code>.o</code> is what the loader will see ([[cc.c:102-114]]). <code>getsuf</code>
+([[cc.c:584-602]]) finds the suffix, and refuses names whose last component is longer than 14
+characters, the limit on a Sixth Edition directory entry. <code>nodup</code> keeps an object file from
+being given to the loader twice, which would otherwise happen with <code>cc x.c x.o</code>.</p>
+
+<p>Next come the temporary files ([[cc.c:118-135]]). <code>cc</code> starts from the name
+<code>/tmp/ctm0a</code> and increments its last letter until it finds a name that does not exist,
+then creates that file with mode 0400 so that no other <code>cc</code> running at the same time will
+choose it. The other temporaries are derived by replacing the <code>0</code>: <code>ctm1a</code> and
+<code>ctm2a</code> for <code>c0</code>'s output, <code>ctm3a</code> for the assembly language, <code>ctm4a</code> for the
+preprocessed source and <code>ctm5a</code> for <code>c1</code>'s output when <code>c2</code> will follow.</p>
+
+<p>The interrupt signal is caught so that the temporaries can be removed if the user types the
+interrupt character, but only if interrupts were not already being ignored
+([[cc.c:127-128]]). <code>signal</code> returns the previous setting; if its low bit is set the
+previous action was &ldquo;ignore&rdquo;, which is what a command run in the background with
+<code>&amp;</code> inherits. Catching the signal in that case would let an interrupt typed at the
+terminal kill a background compilation, so <code>cc</code> leaves it alone. This idiom appears
+throughout Sixth Edition commands.</p>
+
+<p>Then each <code>.c</code> file is compiled in turn ([[cc.c:136-197]]). The steps are exactly the
+ones in the diagram in <a href="01-overview.html#pipeline">chapter 1</a>: <code>expand</code>, then
+<code>c0</code> with the source and two temporaries, then <code>c1</code>, optionally <code>c2</code>, and then
+<code>as</code>. The assembler is given the flag <code>-</code>, which makes every undefined symbol
+external, so that the compiler never needs to emit <code>.globl</code> for the functions and
+variables a file uses but does not define. The assembler always writes its output to
+<code>a.out</code>, so <code>cc</code> renames that to the <code>.o</code> file by linking and unlinking
+([[cc.c:191-196]]), since there was no <code>rename</code> system call.</p>
+
+<p>If any pass fails, <code>cflag</code> is set so that loading is skipped, and the loop goes on to the
+next file. Finally, if everything compiled, the loader is run with the start-up file first, then
+the objects, then the C library <code>-lc</code> and the assembler library <code>-l</code>
+([[cc.c:199-217]]). When a single source file was compiled and linked, its <code>.o</code> is removed
+again, since the user presumably wanted only <code>a.out</code>.</p>
+
+<p><code>callsys</code> ([[cc.c:617-637]]) runs one program. It is a textbook fork, exec and wait. The
+low byte of the status returned by <code>wait</code> is the number of the signal that killed the child,
+if any. For an interrupt it quietly cleans up; for any other signal it reports a &ldquo;Fatal
+error&rdquo; in that pass, which in practice meant that the compiler had run out of memory or
+had a bug. Otherwise it returns the child's exit status, and each pass exits with a non-zero
+status if it reported any errors ([[c00.c:99]]).</p>
+
+<h2 id="cpp">The preprocessor</h2>
+
+<p>The preprocessor is invoked by <code>expand</code> ([[cc.c:235-290]]). It opens the source file and
+reads its first character. If that is not <code>#</code>, the file needs no preprocessing and
+<code>expand</code> returns the file's own name, so <code>c0</code> reads the original. This is why each
+source file of the compiler starts with a line holding only <code>#</code>: without it, the
+<code>#include</code> lines would reach <code>c0</code>, which would reject them.</p>
+
+<p>If the first character is <code>#</code>, it must be put back. There is no <code>ungetc</code> for the
+buffered I/O of the period, so <code>expand</code> reaches into the buffer itself
+([[cc.c:253-254]]). A buffer is an array of 259 integers: a file descriptor, a count of
+characters left, a pointer to the next character, and the characters. Incrementing the count and
+decrementing the pointer un-reads the character.</p>
+
+<p>Then a symbol table of 200 entries is cleared and the directive names are entered into it
+([[cc.c:261-266]]). Directives are looked up in the same table as macros, which saves a
+separate keyword table: after <code>#</code>, the next word is looked up and the pointer returned is
+compared with the pointers remembered here. The last entry, <code>unix</code>, is not a directive. It
+is a predefined macro whose value is its own name, so that programs can test for Unix with
+<code>#ifdef unix</code>.</p>
+
+<p>The main loop copies the file line by line into the temporary, using <code>getline</code> to read and
+process each line ([[cc.c:276-283]]). Two details in this loop matter to <code>c0</code>.</p>
+
+<p>First, every input line produces exactly one newline in the output, even when the line is a
+directive or is skipped by a conditional. Comments are removed, but the newlines inside them
+are written out too ([[cc.c:466-470]]). So the lines of the preprocessed text correspond one for
+one with the lines of the source, and <code>c0</code>'s line numbers in error messages are right.</p>
+
+<p>Second, lines that come from an included file are preceded by the character with code 1,
+ASCII SOH ([[cc.c:277-278]]). <code>c0</code> treats this character as white space, but it also sets a
+flag, <code>inhdr</code>, that stops the next newline from being counted ([[c00.c:207-219]],
+[[c04.c:229-248]]). The lines of a header therefore do not advance the line count, and errors in
+the main file are reported at their true line numbers. Errors in the header itself are reported
+at the line of the <code>#include</code>, which is as good as one could do without passing file names.
+With <code>-P</code> the markers are left out, since the output is meant for people.</p>
+
+<h3>Reading a line</h3>
+
+<p><code>getline</code> ([[cc.c:292-399]]) is a small state machine. <code>state</code> is 0 in an ordinary
+line and 1 after a <code>#</code> at the start of a line. The word following <code>#</code> moves it to 2 for
+<code>define</code>, 3 for <code>include</code>, 4 for <code>ifndef</code> and 5 for <code>ifdef</code>
+([[cc.c:332-354]]). The line is scanned character by character and copied into a line buffer,
+except that identifiers and quoted strings are recognised as units.</p>
+
+<p>An identifier in an ordinary line is looked up with <code>lookup(namep, 0)</code>. If it names a
+macro, <code>lookup</code> calls <code>subst</code>, which removes the name from the line buffer and pushes
+the macro's value back onto the input, so it will be read again and any macros inside it will be
+expanded in turn ([[cc.c:550-582]]). The pushback is a stack, <code>pushbuff</code>, read by
+<code>getc1</code> before the file. Because it is a stack, <code>subst</code> first copies the replacement into
+<code>revbuff</code> and then pushes it back from the end, so it comes out in the right order. A space is
+added on each side of every replacement, which is why the expanded text below is so airy.
+Rescanning also means a macro could expand forever; <code>subst</code> gives up after a depth of 100,
+and it treats a macro whose value is its own name, like <code>unix</code>, specially, copying the name
+without rescanning it.</p>
+
+<p>After <code>#ifdef</code> or <code>#ifndef</code>, the name is looked up with <code>enterf</code> set to &minus;1,
+which neither enters it nor expands it, and the result is combined with the state in one
+expression ([[cc.c:317]]):</p>
+
+[[src:cc.c:316-320]]
+
+<p>A found name gives <code>!name[0]</code> equal to 0 and a missing one gives 1. So the sum is 5 for
+<code>#ifdef</code> of a defined name (5&nbsp;+&nbsp;0) and for <code>#ifndef</code> of an undefined one
+(4&nbsp;+&nbsp;1), which are exactly the cases where the following lines are wanted. Nesting is
+handled by two counters: <code>trulvl</code> counts conditionals that were true, <code>flslvl</code> those
+that were false or are inside a false one, and a line is copied only when <code>flslvl</code> is zero.
+<code>#endif</code> decrements whichever counter is non-zero, preferring <code>flslvl</code>. There is no
+<code>#else</code> and no <code>#if</code>.</p>
+
+<p>For <code>#define</code>, the name after the directive is entered into the table, and the rest of the
+line is stored as its value in a 2000-byte string area ([[cc.c:355-364]]). For
+<code>#include</code>, the quoted file name is opened on the second buffer, <code>ibuf2</code>, and reading
+continues from it ([[cc.c:378-390]]). With only two buffers there can only be one level of
+inclusion, and a nested <code>#include</code> is an error. When the included file ends, <code>getc1</code>
+closes it and switches back ([[cc.c:491-497]]).</p>
+
+<h3>Macros with arguments</h3>
+
+<p>A <code>#define</code> whose name is followed immediately by <code>(</code> stores a value that begins with
+<code>(</code>: the parameter list and the body together. When <code>subst</code> sees such a value it calls
+<code>expdef</code> ([[cc.c:677-721]]), which splits the parameter names out of the stored text with
+<code>token</code>, reads the actual arguments from the input with <code>coptok</code>, counting parentheses
+and skipping over quoted strings, and then copies the body with each parameter name replaced by
+its argument.</p>
+
+<p>These last routines look different from the rest of the file: they are indented with spaces
+instead of tabs, braces are placed differently, and declarations are written differently. The
+facility was evidently added by another hand. It is a reminder that the Sixth Edition was a
+working system that many people changed, not a finished product.</p>
+
+<h3>An example</h3>
+
+<p>Here is a file that uses most of these features, the header it includes, and the output of
+<code>cc -P</code>, shown with <code>od -c</code> so the newlines are visible.</p>
+
+<div class="pair">
+<div><p class="lbl">pp2.c</p><pre>[[include:examples/extra/pp2.c]]</pre>
+<p class="lbl">defs.h</p><pre>[[include:examples/extra/defs.h]]</pre></div>
+<div><p class="lbl">od -c pp2.i</p><pre>[[include:examples/extra/pp2.od]]</pre></div>
+</div>
+
+<p>The first newline comes from the <code>#include</code> line and the second from the
+<code>#define</code> in the header. Then the header's second line appears with <code>SIZE</code> replaced,
+followed by nine more newlines: the one ending that line, the one <code>getc1</code> writes when the
+header runs out, the two <code>#define</code>s, the two lines of the comment, the <code>#ifndef</code>, the
+skipped declaration and the <code>#endif</code>. <code>SIZE</code> is defined, so <code>int unused;</code> is
+dropped, and the nested macro call <code>max(twice(n), SIZE)</code> is fully expanded.</p>
+
+<p>In this output <code>f</code> is on line 12, three lines later than in the source, because the header's
+lines are included. In the version that <code>cc</code> gives to <code>c0</code>, the first three newlines are
+each preceded by an SOH and are not counted, so <code>c0</code> sees <code>f</code> on line 9, as in the
+source. The last line contains an error, and compiling the file with <code>cc -c</code> reports it on
+line 10, where it really is:</p>
+
+<pre>[[include:examples/extra/pp2.err]]</pre>
+
+<p>That second message, from <code>blkend</code> ([[c02.c:612-628]]), shows that <code>c0</code> treats an
+undefined name used in an expression as a label that was never defined. Chapter
+<a href="05-expressions.html">5</a> explains why.</p>

@@ -1,0 +1,236 @@
+<!-- title: The World of c0 -->
+<!-- number: 3 -->
+<!-- short: c0's data -->
+<!-- scripts: v6.js ifile.js -->
+<!-- blurb: The first pass's main loop, its symbol table, its tree nodes, and the intermediate file it writes for the second pass. -->
+
+<p>This chapter describes the data that the first pass works with: where it keeps names, how it
+builds expression trees, and what it writes out. The routines that parse C are the subject of
+the next five chapters; here we are concerned with what they leave behind.</p>
+
+<h2 id="main">The main program</h2>
+
+<p><code>c0</code> is called by <code>cc</code> with three file names: the source, and two temporaries it must
+create ([[c00.c:1-12]]). Its <code>main</code> ([[c00.c:56-100]]) opens them, marks the keywords in
+the symbol table (see below), and then does all its work in a two-line loop:</p>
+
+[[src:c00.c:90-93]]
+
+<p>A C file, in this dialect as in modern C, is a sequence of <em>external definitions</em>:
+declarations of global variables, with or without initializers, and function definitions.
+<code>extdef</code> ([[c02.c:12-57]]) reads one of them. <code>blkend</code> ([[c02.c:612-628]]) then clears
+out everything that was local to it. When the input runs out, <code>main</code> writes an end-of-file
+marker to each of the two output files ([[c00.c:94-96]]) and exits with a status that tells
+<code>cc</code> whether there were errors.</p>
+
+<p>There is no parse tree for the program as a whole and no representation of a function.
+<code>c0</code> writes each statement's code to the output as soon as it has read it, and only an
+expression is ever held in memory as a tree. As soon as the expression is complete, it is written
+out and the space it occupied is reused.</p>
+
+<h2 id="limits">Fixed sizes</h2>
+
+<p>Every table in <code>c0</code> is a fixed-size array, and the sizes are set at the top of the header
+([[c0h.c:13-22]]):</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Parameter</th><th>Value</th><th>Limits</th></tr></thead>
+<tbody>
+<tr><td><code>ncps</code></td><td class="num">8</td><td>characters per symbol</td></tr>
+<tr><td><code>hshsiz</code></td><td class="num">200</td><td>names in the symbol table at one time</td></tr>
+<tr><td><code>cmsiz</code></td><td class="num">40</td><td>operands on the parser's stack</td></tr>
+<tr><td><code>swsiz</code></td><td class="num">200</td><td><code>case</code> labels in all the switches being compiled at one time</td></tr>
+<tr><td><code>OSSIZ</code></td><td class="num">500</td><td>words of storage for expression trees</td></tr>
+<tr><td><code>dimsiz</code></td><td class="num">100</td><td>array dimensions and structure sizes in a file</td></tr>
+<tr><td><code>STRSIZ</code></td><td class="num">256</td><td>characters in a string constant</td></tr>
+</tbody></table></div>
+
+<p>Running out of any of them is fatal. The messages are ones every Sixth Edition programmer met
+sooner or later: &ldquo;Symbol table overflow&rdquo;, &ldquo;Expression overflow&rdquo;,
+&ldquo;Dimension/struct table overflow&rdquo;. The limit of 200 symbols is less severe than it
+looks, because the table only holds the names visible at one moment: the file's external names
+plus the locals of the function being compiled.</p>
+
+<h2 id="symtab">The symbol table</h2>
+
+<p>An entry in the symbol table is a <code>struct hshtab</code> ([[c0h.c:63-70]]):</p>
+
+[[src:c0h.c:63-78]]
+
+<p><code>hclass</code> is the storage class: <code>AUTO</code>, <code>EXTERN</code>, <code>STATIC</code>, <code>REG</code>, a
+structure member <code>MOS</code>, a structure tag <code>STRTAG</code>, or an argument, all defined at
+[[c0h.c:253-264]]. <code>htype</code> is the type, encoded in sixteen bits as
+<a href="06-types.html">chapter 6</a> describes. <code>hoffset</code> is where the thing is: the offset from
+<code>r5</code> for an automatic, the register number for a register variable, the label number for a
+static, the byte offset for a member of a structure.</p>
+
+<p><code>hdimp</code> is used in two ways, which is why the header declares a second, anonymous structure
+with the same beginning. For an array it holds, in its low byte, an index into
+<code>dimtab</code>, the table of array dimensions; the field is then called <code>ssp</code>. For a
+structure it holds, in its high byte, the index in <code>dimtab</code> where the structure's size is
+kept; the field is then called <code>lenp</code>. And for a bit-field member the same two bytes are
+called <code>flen</code> and <code>bitoffs</code>, the field's width and its bit position. The anonymous
+structures exist only so that these names can be used with <code>-&gt;</code>. Since structure
+member names in this C are global and apply to any pointer, a declaration like the one at
+[[c0h.c:72-78]] is a way of saying &ldquo;at byte 4 of whatever this points to there is a
+<code>char</code> called <code>flen</code>&rdquo;.</p>
+
+<p><code>hflag</code> holds four flag bits ([[c0h.c:345-351]]). <code>FNDEL</code> marks names that must
+survive the end of a function; <code>FNUND</code> records that an &ldquo;undefined&rdquo; error has
+already been given for the name, so it is not repeated; <code>FFIELD</code> marks bit-fields. The
+fourth, <code>FKEYW</code>, is the interesting one.</p>
+
+<h3>Lookup</h3>
+
+<p><code>lookup</code> ([[c00.c:108-148]]) finds the name held in the global buffer
+<code>symbuf</code>. It hashes the eight characters by adding them up, takes the sum modulo 200, and
+probes linearly from there until it finds either the name or an empty slot, in which case it
+enters the name. It returns the token <code>NAME</code> and leaves a pointer to the entry in
+<code>csym</code>.</p>
+
+<p>Keywords are not in the table. Instead, at start-up, <code>main</code> computes the hash of every
+keyword and sets <code>FKEYW</code> in the slot where it would land ([[c00.c:84-89]]). When
+<code>lookup</code> finds <code>FKEYW</code> set in the first slot it probes, it searches the keyword table
+before looking any further ([[c00.c:121-123]]). Identifiers whose hash does not collide with a
+keyword's, which is most of them, never touch the keyword table. The flag belongs to the slot,
+not to whatever name happens to occupy it, and so <code>blkend</code> is careful to leave it alone
+when it clears a slot ([[c02.c:621-625]]).</p>
+
+<p>A name that follows <code>.</code> or <code>-&gt;</code>, or that is being declared as a structure member
+or tag, is read with a <code>.</code> in front of it ([[c00.c:290-293]]). The members of structures
+therefore have a name space of their own, <code>.value</code> being a different entry from
+<code>value</code>. But the dot takes one of the eight characters, so a member name is significant only
+to seven. <code>lookup</code> skips the dot when hashing ([[c00.c:116-117]]), which puts <code>.int</code>
+in the same slot as <code>int</code>, and <code>findkw</code> skips it when comparing ([[c00.c:161-163]]);
+that way a keyword is still recognised where a member name is expected, as in
+<code>struct { int x; }</code>, where <code>int</code> is read while the flag for members is on.</p>
+
+<h3>Deleting names</h3>
+
+<p>At the end of every external definition <code>blkend</code> goes through the whole table
+([[c02.c:612-628]]). Any name that was used but never given a storage class is reported as
+undefined. Any name without <code>FNDEL</code> is deleted by clearing the first byte of its name.
+<code>FNDEL</code> is set on names that are entered while an external definition's declarator is
+being read, through the global <code>xdflg</code>, which <code>lookup</code> copies into every new entry
+([[c00.c:142]], [[c02.c:23]]); so external names and the structure tags and members declared
+at the top level survive, and everything declared or mentioned inside a function goes.</p>
+
+<p>Clearing entries out of the middle of a linearly probed hash table is normally a mistake,
+because it can break the chain of probes that leads to a later entry. Here it is safe for a
+reason that is easy to miss: names are deleted in the reverse of the order in which they were
+entered. Everything entered while a function is being compiled is deleted together at its end,
+and the entries that survive were entered before it began, so no surviving entry can lie further
+along a probe chain than a deleted one. The rule could in principle be broken by a declaration
+such as <code>int f(a), g;</code>, where the parameter name <code>a</code> is entered, to be deleted
+later, before the external name <code>g</code>; if <code>g</code> happened to collide with <code>a</code>,
+it would become unreachable. Nobody wrote declarations like that.</p>
+
+<h2 id="trees">Tree nodes</h2>
+
+<p>Expressions are represented as trees whose nodes are all variations on
+<code>struct tnode</code> ([[c0h.c:24-29]]):</p>
+
+[[src:c0h.c:24-61]]
+
+<p>Every node begins with an operator and a type. An operator node has one or two operands,
+<code>tr1</code> and <code>tr2</code>. A <code>NAME</code> node is a leaf that carries a copy of everything the
+second pass needs to know about a variable: its class, its offset, and, for an external, its
+name spelled out. The copying is deliberate, since the symbol table will be gone before the tree
+is used ([[c00.c:672-709]]). A constant is a leaf holding its value.</p>
+
+<p>The third field of every node is <code>dimp</code>, the index of the array dimension information in
+<code>dimtab</code>, which the second pass calls <code>degree</code> and uses for something else entirely.</p>
+
+<p>Nodes are allocated from the array <code>osspace</code> by <code>gblock</code> ([[c01.c:407-417]]), which
+simply advances a pointer, <code>space</code>. There is no freeing. When the parser starts a new
+expression it resets <code>space</code> to the start of the area ([[c00.c:477]]), abandoning the whole
+previous tree at once.</p>
+
+<p>Nodes are built by <code>block</code> ([[c01.c:387-401]]), which is worth reading closely:</p>
+
+[[src:c01.c:387-401]]
+
+<p>It is called with a count of operands followed by the fields of the node in order, for example
+<code>block(2, PLUS, INT, 0, p1, p2)</code>. It takes the address of its second parameter, <code>op</code>,
+and copies <code>an+3</code> words from there into the new node. This works because on the PDP-11 the
+arguments of a call sit in consecutive words on the stack, in order, so the parameter list is
+itself laid out exactly like a node. One routine therefore builds nodes of every size. It
+relies on the calling convention in a way no modern compiler would allow, but it was perfectly
+reliable on the machine it was written for.</p>
+
+<h2 id="ifile">The intermediate file</h2>
+
+<p>Everything <code>c0</code> writes goes through <code>outcode</code> ([[c04.c:301-343]]), which works like a
+small <code>printf</code>. Its first argument is a format of single-letter codes, and each code consumes
+one argument:</p>
+
+<div class="scroll"><table class="data">
+<thead><tr><th>Code</th><th>Writes</th></tr></thead>
+<tbody>
+<tr><td><code>B</code></td><td>an operator: a word with the operator number in its low byte and 0376 in its high byte</td></tr>
+<tr><td><code>N</code></td><td>a number: one word</td></tr>
+<tr><td><code>S</code></td><td>a name: up to eight characters and a terminating zero byte</td></tr>
+<tr><td><code>1</code>, <code>0</code></td><td>the constant word 1 or 0, used to separate and end lists of data</td></tr>
+</tbody></table></div>
+
+<p>The 0376 in every operator word is a check. When <code>c1</code> reads a word where it expects an
+operator, it verifies that the high byte is 0376 and stops with &ldquo;Intermediate file
+error&rdquo; if it is not ([[c11.c:643-647]]). Since the file has no other structure, a single
+disagreement between the passes about how many words follow some operator would otherwise send
+<code>c1</code> reading garbage.</p>
+
+<p>There are two kinds of record. Some are commands that <code>c1</code> can act on at once: define a
+label, jump to a label, switch to the data segment, start a function. The others are pieces of
+an expression tree, and these come in postfix order. <code>treeout</code> ([[c04.c:56-100]]) writes a
+node's operands before the node itself, and <code>rcexpr</code> ([[c04.c:48-54]]) follows the whole
+tree with an <code>EXPR</code> record carrying the line number. The second pass rebuilds the tree
+with a stack: a leaf is pushed, an operator pops its operands and pushes itself, and at
+<code>EXPR</code> exactly one tree is left on the stack to be compiled. The postfix order saves any
+need for pointers in the file.</p>
+
+<p>The second temporary file receives the text of string constants. The flag <code>strflg</code>
+redirects <code>outcode</code> to it ([[c04.c:309-311]]). Strings could not be written into the main file
+where they occur because they would land in the middle of the function's code, and <code>c1</code>
+copies the second file onto the end of its output instead ([[c10.c:55-64]]).</p>
+
+<p>The widget below shows the real intermediate file that <code>c0</code> wrote for the program
+<code>vowels.c</code>, which appears again in <a href="14-walkthrough.html">chapter 14</a>. Step
+through the records to see each one's bytes and meaning, and the stack of partial trees that
+<code>c1</code> builds as it reads them.</p>
+
+<div class="pair">
+<div><p class="lbl">vowels.c</p><pre>[[include:examples/vowels.c]]</pre></div>
+<div class="note"><p class="eyebrow">What to look for</p>
+<p>The initializer of <code>s</code>, which is <code>&amp;L1</code>, the address of the string.</p>
+<p><code>p++</code>, which carries an explicit constant 1 as its second operand: the amount to add,
+already scaled for the pointer type.</p>
+<p>The <code>switch</code>: an expression forced into <code>r0</code>, a jump to the end, the cases as plain
+labels, and then a <code>SWIT</code> record listing the values and labels.</p>
+<p>The call to <code>printf</code>, whose arguments form a tree of <code>,</code> operators.</p></div>
+</div>
+
+<div class="widget" data-widget="ifile">
+<div class="wbar"><span class="wt">c0 output for vowels.c</span><span class="row"><button type="button" class="btn prev">&larr; Previous</button><button type="button" class="btn next">Next &rarr;</button></span></div>
+<div class="wbody"><p class="muted">This figure needs JavaScript.</p></div>
+<script type="application/json">[[bytes:examples/out/vowels.i]]</script>
+</div>
+
+<p>The symbolic numbers in the file are those of [[c0h.c:143-230]] and [[c0h.c:295-315]]. Types
+appear as numbers too: 9, for instance, is <code>PTR+CHAR</code>, a pointer to <code>char</code>.</p>
+
+<h2 id="errors">Errors</h2>
+
+<p>Errors are reported by <code>error</code> ([[c01.c:371-380]]), which prints the line number and a
+message and counts the error. It takes up to six arguments and passes them all to
+<code>printf</code>, whatever the format needs, another habit that only works because arguments are
+simply words on the stack.</p>
+
+<p>After a syntax error the parser calls <code>errflush</code> ([[c02.c:665-673]]), which discards
+tokens until it reaches a semicolon or a brace. The token numbers were chosen so that this is a
+single comparison: <code>EOF</code>, <code>SEMI</code>, <code>LBRACE</code> and <code>RBRACE</code> are 0 to 3, and
+<code>errflush</code> skips while the token is greater than <code>RBRACE</code>.</p>
+
+<p>Recovery is crude but effective, and <code>c0</code> carries on to the end of the file, reporting
+further errors as it finds them. Its output is useless once an error has occurred, and <code>cc</code>
+does not run the second pass. Warnings are errors that decrement the error count after printing
+([[c00.c:237-238]]); there is exactly one in the compiler.</p>
