@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Generating Code · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="chpage">
+<header class="topbar"><nav><a class="home" href="index.html">The Sixth Edition C Compiler</a><span class="sep">/</span>Chapter 11</nav><div class="tools"><a href="contents.html">Contents</a><a href="source/index.html">Listing</a><a href="xref.html">Index</a></div></header>
+<div class="reader">
+<main class="prose chapter">
+<header class="chead">
+<p class="eyebrow">Chapter 11</p>
+<h1>Generating Code</h1>
+<nav class="local"><ol><li><a href="#registers">Registers</a></li><li><a href="#rcexpr">rcexpr</a></li><li><a href="#cexpr">cexpr</a></li><li><a href="#calls">Function calls</a></li><li><a href="#branches">Branches</a></li><li><a href="#watch">Watch it work</a></li></ol></nav>
+</header>
+<!-- title: Generating Code -->
+<!-- number: 11 -->
+<!-- short: Code generation -->
+<!-- scripts: v6.js c1view.js -->
+<!-- blurb: rcexpr and cexpr: the special cases, the expansion of templates, the choice of registers, function calls, and the compilation of conditions into branches. -->
+
+<p>With the trees prepared and the tables understood, what remains is the driver that connects
+them. It is in <a href="source/c10.c.html"><code>c10.c</code></a> and consists of two mutually recursive
+routines. <code>rcexpr</code> (<a class="lref" data-file="c10.c" data-line="5014" href="source/c10.c.html#L5014">5014&ndash;5200</a>) takes a tree, a table and a register, handles the
+cases that the tables cannot, and tries rearranging the tree; <code>cexpr</code> (<a class="lref" data-file="c10.c" data-line="5211" href="source/c10.c.html#L5211">5211&ndash;5537</a>)
+finds a template with <code>match</code> and expands it. Conditional branches are handled separately, by
+<code>cbranch</code> in <code>c11.c</code>.</p>
+
+<h2 id="registers">Registers</h2>
+
+<p>Every call carries a register number, the register in which the result is wanted. The
+registers from that one up to <code>nreg</code> are free for the computation. <code>nreg</code> is set for each
+function from the <code>SETREG</code> record: with no register variables it is 4, so <code>r0</code> to
+<code>r4</code> are available; each register variable, allocated from <code>r4</code> down, takes one away
+(<a class="lref" data-file="c11.c" data-line="6599" href="source/c11.c.html#L6599">6599&ndash;6601</a>). An expression that needs more than that has to use the stack, which the
+tables arrange by choosing patterns with <code>SS</code> when an operand's degree exceeds the free
+registers. If a template nevertheless asks for a register beyond <code>nreg</code>, the compiler gives
+up with &ldquo;Register overflow: simplify expression&rdquo; (<a class="lref" data-file="c10.c" data-line="5465" href="source/c10.c.html#L5465">5465&ndash;5466</a>).</p>
+
+<p>The result does not always end up where it was asked for, and every routine returns the
+register where it actually is. <code>oddreg</code> moves a multiplication or division to an odd register, as <code>mul</code>
+and <code>div</code> require (<a class="lref" data-file="c11.c" data-line="6062" href="source/c11.c.html#L6062">6062&ndash;6081</a>); a product or a remainder ends up in that register, and a
+quotient in the even register below it.
+And when a template computes a subtree into another register, <code>cexpr</code> may simply adopt that
+register instead of moving the value back, if nothing else needs the original
+(<a class="lref" data-file="c10.c" data-line="5435" href="source/c10.c.html#L5435">5435&ndash;5445</a>).</p>
+
+<h2 id="rcexpr">rcexpr</h2>
+
+<p><code>rcexpr</code> begins by dealing with operators that need more than a template
+(<a class="lref" data-file="c10.c" data-line="5035" href="source/c10.c.html#L5035">5035&ndash;5151</a>):</p>
+
+<ul>
+<li><code>CBRANCH</code>, a conditional jump, goes to <code>cbranch</code> (below).</li>
+<li><code>INIT</code>, an initializer that is an address, just prints the address.</li>
+<li><code>RFORCE</code> computes its operand into a register and moves it to <code>r0</code>, for <code>return</code>
+and <code>switch</code>.</li>
+<li><code>,</code> compiles its left operand for effect and continues with the right.</li>
+<li><code>NAND</code>, when only the condition codes are wanted, becomes <code>TAND</code>, the test operator,
+and its operand is complemented back, so that <code>if (a &amp; 010)</code> becomes <code>bit $10,_a</code>
+rather than a copy and a <code>bic</code>.</li>
+<li>Multiplication and division by powers of two become shifts, through <code>pow2</code>.</li>
+<li>Calls, described below.</li>
+</ul>
+
+<p>Then it tries two transformations that rearrange the order of evaluation, and only after that
+calls <code>cexpr</code>. If <code>cexpr</code> fails with the requested table, <code>rcexpr</code> tries
+<code>regtab</code> and adds the instruction needed to turn a value in a register into what was wanted
+(<a class="lref" data-file="c10.c" data-line="5175" href="source/c10.c.html#L5175">5175&ndash;5194</a>): <code>tst</code> for condition codes, a push for the stack.</p>
+
+<h3>Postponing increments</h3>
+
+<p>C's postfix operators are awkward: <code>x + y++</code> needs the old value of <code>y</code> for the sum and
+the new one stored back. <code>delay</code> (<a class="lref" data-file="c10.c" data-line="5667" href="source/c10.c.html#L5667">5667&ndash;5707</a>) observes that this is the same as
+<code>x + y</code> followed by <code>y++</code>, compiled for effect. It searches the operands for a postfix
+<code>++</code> or <code>--</code> applied to a name, replaces it by the name, compiles the tree, and then
+compiles the increment afterwards with <code>efftab</code>, where it is a single <code>inc</code> or
+<code>add</code>. That is how <code>*p++ = *q++</code> in <code>expr.c</code> became</p>
+
+<pre>mov	*_q,*_p
+add	$2,_p
+add	$2,_q</pre>
+
+<p>with the increments delayed out of the assignment. When the pointer is a register, as in
+<code>gen.c</code>, <code>unoptim</code> had already turned <code>*q++</code> into the autoincrement mode, and the
+result is <code>mov *_p,(r4)+</code> followed by <code>add $2,_p</code>.</p>
+
+<h3>Reordering</h3>
+
+<p><code>reorder</code> and <code>sreorder</code> (<a class="lref" data-file="c10.c" data-line="5544" href="source/c10.c.html#L5544">5544&ndash;5654</a>) handle expressions that involve register
+variables. Their comment explains the two cases. An assignment to a register buried inside a
+larger expression, <code>x + (r = y)</code>, is done first, and replaced in the tree by the register.
+And <code>r = x + y</code> is compiled as <code>r = x; r =+ y</code>, which computes into the register
+variable directly rather than into a temporary that is then copied, unless <code>y</code> is <code>r</code>
+itself, in which case the rewriting would be wrong. <code>gen.c</code> has an example of the exception:
+<code>i = a + i</code> is computed in <code>r0</code> and copied into <code>r3</code>.</p>
+
+<h2 id="cexpr">cexpr</h2>
+
+<p><code>cexpr</code> handles three more cases before it looks at the tables.</p>
+
+<p>If the value of a relational or logical operator is wanted, rather than a branch on it, there
+is no instruction that produces it. So <code>cexpr</code> compiles it as a branch, with 0 and 1 loaded on
+the two paths (<a class="lref" data-file="c10.c" data-line="5232" href="source/c10.c.html#L5232">5232&ndash;5240</a>). This is where the labels numbered from 10000 come from.
+<code>x = a &lt; b</code> in <code>gen.c</code> becomes</p>
+
+<pre>cmp	_b,_a
+jgt	L10002
+clr	r0
+jbr	L10003
+L10002:mov	$1,r0
+L10003:mov	r0,_x</pre>
+
+<p>The conditional operator <code>?:</code> is compiled the same way, with the two operands in the two
+branches (<a class="lref" data-file="c10.c" data-line="5241" href="source/c10.c.html#L5241">5241&ndash;5256</a>).</p>
+
+<p>A leaf, a name or constant whose value is wanted in a register, is compiled by
+<code>chkleaf</code> (<a class="lref" data-file="c10.c" data-line="5732" href="source/c10.c.html#L5732">5732&ndash;5746</a>). It wraps the leaf in a node with the operator <code>LOAD</code>,
+which appears in every table as the case for simply fetching an operand, and compiles that. In the
+traces, every <code>mov</code> of a variable into a register comes from <code>LOAD</code>.</p>
+
+<p>Then <code>match</code> is called. When only the condition codes are wanted, <code>cexpr</code> tries
+<code>efftab</code> first, since code compiled for its effect leaves the condition codes set as a
+by-product, except for postfix increments, which set them for the wrong value
+(<a class="lref" data-file="c10.c" data-line="5280" href="source/c10.c.html#L5280">5280&ndash;5293</a>).</p>
+
+<h3>Expanding a template</h3>
+
+<p>The rest of <code>cexpr</code> is the template interpreter (<a class="lref" data-file="c10.c" data-line="5294" href="source/c10.c.html#L5294">5294&ndash;5537</a>), a loop over the
+characters of the template string as translated by <code>cvopt</code>. Ordinary characters are printed.
+The macro letters, in their translated form, select cases: <code>A</code> and <code>B</code> print the address
+of an operand with <code>pname</code>; <code>M</code> prints the instruction from <code>instab</code>; <code>C</code>, <code>D</code>,
+<code>L</code> and <code>P</code> print the <code>b</code> and <code>f</code> suffixes; <code>I</code> and <code>J</code> print registers.</p>
+
+<p>The subtree macros, <code>G</code>, <code>K</code> and <code>H</code> (<code>F</code>, <code>S</code> and <code>H</code> in the source), are
+the interesting ones (<a class="lref" data-file="c10.c" data-line="5377" href="source/c10.c.html#L5377">5377&ndash;5446</a>). The letter after them selects a table: <code>sptab</code> for
+<code>S</code>, <code>cctab</code> for <code>C</code>, <code>regtab</code> otherwise. It also selects a register, <code>reg1</code> for
+<code>1</code>. With <code>*</code>, the subtree compiled is the pointer beneath the indirection, and if that
+pointer has the form <code>x + constant</code> only <code>x</code> is compiled, since the constant will be printed
+by <code>#1</code> as an offset. Then <code>rcexpr</code> is called on the subtree, recursively.</p>
+
+<p>The first operand of a division is compiled with the table <code>cregtab</code> instead of
+<code>regtab</code>. <code>cregtab</code> is declared (<a class="lref" data-file="c10.c" data-line="4872" href="source/c10.c.html#L4872">4872</a>) but never given a value, so it is a null
+pointer, used only as a marker. <code>cexpr</code> treats it as <code>regtab</code> (<a class="lref" data-file="c10.c" data-line="5278" href="source/c10.c.html#L5278">5278&ndash;5279</a>), but
+<code>rcexpr</code> does not try to postpone increments out of it (<a class="lref" data-file="c10.c" data-line="5156" href="source/c10.c.html#L5156">5156&ndash;5163</a>), which could
+otherwise leave the dividend somewhere other than the register pair <code>div</code> works on.</p>
+
+<h2 id="calls">Function calls</h2>
+
+<p>Calls are compiled in <code>rcexpr</code> (<a class="lref" data-file="c10.c" data-line="5098" href="source/c10.c.html#L5098">5098&ndash;5127</a>), not by a template, because the arguments
+must be compiled exactly once and in a particular order. The arguments are a chain of <code>,</code>
+nodes; <code>rcexpr</code> walks it from the right, so that the last argument is pushed first, and
+compiles each with <code>comarg</code> (<a class="lref" data-file="c10.c" data-line="5755" href="source/c10.c.html#L5755">5755&ndash;5771</a>).</p>
+
+<p><code>comarg</code> uses <code>sptab</code> to push the argument onto the stack, except for the first one
+pushed when nothing else is on the stack. That one goes, through <code>lsptab</code>, into the free word
+at the top of the stack, and needs no popping afterwards. <code>nstack</code> counts the words the code
+generator has pushed, so it knows whether the stack is empty. Then the call itself is compiled
+through the table, as the operator <code>CALL1</code> if the free word was used and <code>CALL2</code>
+otherwise. Their templates are the same, but <code>I</code> prints <code>*$</code> for <code>CALL1</code> and nothing for
+<code>CALL2</code>; the two strings in <code>c1t.s</code> are one string and its terminating null byte
+(<a class="lref" data-file="c1t.s" data-line="7599" href="source/c1t.s.html#L7599">7599&ndash;7600</a>). So <code>printf("%d\n", n)</code> produces <code>jsr pc,*$_printf</code> while a call with
+no arguments produces <code>jsr pc,_g</code>. Both instructions are four bytes long and do the same
+thing; the source does not say why they are distinguished.</p>
+
+<p>Finally <code>popstk</code> (<a class="lref" data-file="c11.c" data-line="6380" href="source/c11.c.html#L6380">6380&ndash;6396</a>) removes the arguments that were pushed, choosing the
+shortest instruction: <code>tst (sp)+</code> for one word, <code>cmp (sp)+,(sp)+</code> for two, and
+<code>add</code> for more. With the free word, a call with up to three one-word arguments needs at
+most a two-byte instruction to clean up.</p>
+
+<p>A call destroys the registers the callee uses, so a call's degree is high, and an expression
+with two calls, <code>f1(a) + f2(b)</code> in <code>gen.c</code>, keeps the first result on the stack while
+it makes the second call:</p>
+
+<pre>mov	_b,(sp)
+jsr	pc,*$_f2
+mov	r0,-(sp)
+mov	_a,-(sp)
+jsr	pc,_f1
+tst	(sp)+
+add	(sp)+,r0</pre>
+
+<p>Note that <code>f2</code> is called first, since the right operand of <code>+</code> is pushed on the stack by
+the template <code>SS</code>, and that <code>f1</code>'s argument is pushed with <code>-(sp)</code> rather than stored in the free word,
+because the stack is no longer empty, so that call is a <code>CALL2</code>.</p>
+
+<h2 id="branches">Branches</h2>
+
+<p>A condition in an <code>if</code> or a loop arrives as a <code>CBRANCH</code> node: a tree, a label, and
+whether to jump when the tree is true or when it is false. <code>cbranch</code> (<a class="lref" data-file="c11.c" data-line="6291" href="source/c11.c.html#L6291">6291&ndash;6362</a>)
+compiles it without ever computing a truth value.</p>
+
+<p><code>&amp;&amp;</code>, <code>||</code> and <code>!</code> are handled by recursion (<a class="lref" data-file="c11.c" data-line="6304" href="source/c11.c.html#L6304">6304&ndash;6328</a>). To jump if
+<code>a &amp;&amp; b</code> is true, jump past the whole thing if <code>a</code> is false, then jump to the target if
+<code>b</code> is true. To jump if it is false, jump to the target if either is false. <code>||</code> is the
+mirror image, and <code>!</code> just flips the sense. The result is the familiar short-circuit code, with
+labels from <code>c1</code>'s own counter:</p>
+
+<div class="pair">
+<div><p class="lbl">cond.c</p><pre>int a, b, c;
+
+f()
+{
+        if (a &amp;&amp; b || !c)
+                g();
+        while (a &lt; b)
+                a++;
+        c = a &gt; b;
+}</pre></div>
+<div><p class="lbl">cond.s (the function)</p><pre>_f:
+~~f:
+jsr	r5,csv
+tst	_a
+jeq	L10001
+tst	_b
+jne	L10000
+L10001:tst	_c
+jne	L2
+L10000:jsr	pc,_g
+L2:L3:cmp	_b,_a
+jle	L4
+inc	_a
+jbr	L3
+L4:cmp	_b,_a
+jlt	L10002
+clr	r0
+jbr	L10003
+L10002:mov	$1,r0
+L10003:mov	r0,_c
+L1:jmp	cret</pre></div>
+</div>
+
+<p>Any other condition is compiled with <code>cctab</code>, which leaves the condition codes set, and
+followed by a conditional jump chosen by <code>branch</code> from <code>branchtab</code> (<a class="lref" data-file="c1t.s" data-line="7612" href="source/c1t.s.html#L7612">7612&ndash;7634</a>). Each
+entry has two instructions: the jump for the condition, and the jump for its opposite, used when
+the branch is to be taken on false.</p>
+
+<p>Which condition to test takes some care (<a class="lref" data-file="c11.c" data-line="6348" href="source/c11.c.html#L6348">6348&ndash;6361</a>). If the tree is not a comparison,
+its value was simply tested, and the jump is on non-zero. If it is a comparison with zero, the
+code was a <code>tst</code> of the left operand, and the operator maps directly onto a jump; this is
+marked by adding 200 to the operator number, which selects a second set of entries in
+<code>branchtab</code>. Otherwise the code was a <code>cmp</code> produced by a template shared with assignment,
+<code>cmp A2,A1</code>, with the operands in the order <em>right, left</em>. Since <code>cmp</code> sets the condition
+codes from its first operand minus its second, the test must be reversed, and <code>maprel</code> does
+that: <code>a &lt; b</code> is tested as <code>b &gt; a</code>. That is why <code>while (a &lt; b)</code> above compares
+<code>_b</code> with <code>_a</code> and leaves the loop with <code>jle</code>.</p>
+
+<p>The second set of entries has a surprise for pointers. Pointers are compared unsigned, and an
+unsigned number is never less than zero. So for <code>p &lt; 0</code> the entry's two jumps are
+<code>/nop</code> and <code>jbr</code> (<a class="lref" data-file="c1t.s" data-line="7631" href="source/c1t.s.html#L7631">7631</a>): never jump, and always jump. <code>/nop</code> is not an
+instruction; <code>/</code> starts a comment in the assembler, so the &ldquo;jump&rdquo; disappears.</p>
+
+<div class="pair">
+<div><p class="lbl">ptrtest.c</p><pre>char *p;
+
+f()
+{
+        if (p &lt; 0)
+                g();
+        if (p &gt;= 0)
+                h();
+        if (p &lt;= 0)
+                k();
+}</pre></div>
+<div><p class="lbl">ptrtest.s (the function)</p><pre>jsr	r5,csv
+tst	_p
+jbr	L2
+jsr	pc,_g
+L2:tst	_p
+/nop	L3
+jsr	pc,_h
+L3:tst	_p
+jne	L4
+jsr	pc,_k
+L4:L1:jmp	cret</pre></div>
+</div>
+
+<p>The <code>tst</code> instructions are left behind, testing a value nobody looks at. <code>c2</code> removes
+the unreachable call to <code>g</code>, but not the tests.</p>
+
+<p>For <code>long</code> comparisons there is no compare instruction, so <code>cbranch</code> subtracts and tests the
+32-bit difference with <code>ashc $0,r0</code>, a shift by zero that sets the condition codes for the
+register pair (<a class="lref" data-file="c11.c" data-line="6336" href="source/c11.c.html#L6336">6336&ndash;6347</a>). Floating comparisons set the floating-point unit's condition
+codes, which must be copied to the processor's with <code>cfcc</code> before the jump.</p>
+
+<h2 id="watch">Watch it work</h2>
+
+<p>The figure shows the full trace for several programs: for each expression, the tree, the
+optimized tree, every code-table entry used in the order they were chosen, with the subtree each
+was applied to, and the code that came out. The entries are nested: an entry whose template
+contains <code>F</code> or <code>S</code> is followed by the entries for its subtrees, and its own instructions
+come out around theirs. Entries marked <em>test</em> are the conditions of <code>if</code> and loop
+statements; they are listed under the line <code>c0</code> had reached when it wrote them out, which
+is often the line after the condition, since it reads one token ahead to look for an
+<code>else</code> or a simple <code>goto</code>.</p>
+
+<div class="widget" data-widget="c1trace" data-mode="codegen">
+<div class="wbar"><span class="wt">c1 at work</span><span class="row"><label for="tvsel2" class="small" style="color:inherit;margin:0">Program</label><select id="tvsel2" class="tvsel" style="width:auto"></select><button type="button" class="btn prev">&larr;</button><button type="button" class="btn next">&rarr;</button></span></div>
+<div class="wbody"><p class="muted">This figure needs JavaScript.</p></div>
+<script type="application/json">{"pre":".globl\t_a\n.comm\t_a,2\n.globl\t_b\n.comm\t_b,2\n.globl\t_c\n.comm\t_c,2\n.globl\t_d\n.comm\t_d,2\n.globl\t_e\n.comm\t_e,2\n.globl\t_f\n.comm\t_f,2\n.globl\t_g\n.comm\t_g,2\n.globl\t_h\n.comm\t_h,2\n.globl\t_x\n.comm\t_x,2\n.globl\t_p\n.comm\t_p,2\n.globl\t_l\n.comm\t_l,4\n.globl\t_m\n.comm\t_m,4\n.globl\t_gen\n.text\n_gen:\n~~gen:\n~i=r3\n~q=r4\njsr\tr5,csv\n","stmts":[{"line":9,"src":"\tx = (a+b)*(c+d) - (e+f)*(g+h);","read":{"op":80,"k":[{"leaf":"_x","t":0},{"op":41,"k":[{"op":42,"k":[{"op":40,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":0},{"op":40,"k":[{"leaf":"_c","t":0},{"leaf":"_d","t":0}],"t":0,"d":0}],"t":0,"d":0},{"op":42,"k":[{"op":40,"k":[{"leaf":"_e","t":0},{"leaf":"_f","t":0}],"t":0,"d":0},{"op":40,"k":[{"leaf":"_g","t":0},{"leaf":"_h","t":0}],"t":0,"d":0}],"t":0,"d":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t_a,r1\nadd\t_b,r1\nmov\t_c,r2\nadd\t_d,r2\nmul\tr2,r1\nmov\tr1,r0\nmov\t_e,r1\nadd\t_f,r1\nmov\t_g,r2\nadd\t_h,r2\nmul\tr2,r1\nsub\tr1,r0\nmov\tr0,_x\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"_x","t":0},{"op":41,"k":[{"op":42,"k":[{"op":40,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1},{"op":40,"k":[{"leaf":"_c","t":0},{"leaf":"_d","t":0}],"t":0,"d":1}],"t":0,"d":2},{"op":42,"k":[{"op":40,"k":[{"leaf":"_e","t":0},{"leaf":"_f","t":0}],"t":0,"d":1},{"op":40,"k":[{"leaf":"_g","t":0},{"leaf":"_h","t":0}],"t":0,"d":1}],"t":0,"d":2}],"t":0,"d":3}],"t":0,"d":3},"at":0},{"table":"regtab","label":"cr40","n":6,"pat":"%n,e","pline":7902,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":null,"tree":{"op":41,"k":[{"op":42,"k":[{"op":40,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1},{"op":40,"k":[{"leaf":"_c","t":0},{"leaf":"_d","t":0}],"t":0,"d":1}],"t":0,"d":2},{"op":42,"k":[{"op":40,"k":[{"leaf":"_e","t":0},{"leaf":"_f","t":0}],"t":0,"d":1},{"op":40,"k":[{"leaf":"_g","t":0},{"leaf":"_h","t":0}],"t":0,"d":1}],"t":0,"d":2}],"t":0,"d":3},"at":0},{"table":"regtab","label":"cr42","n":4,"pat":"%n,e","pline":7974,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":"add3","tree":{"op":42,"k":[{"op":40,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1},{"op":40,"k":[{"leaf":"_c","t":0},{"leaf":"_d","t":0}],"t":0,"d":1}],"t":0,"d":2},"at":0},{"table":"regtab","label":"cr40","n":2,"pat":"%n,aw","pline":7889,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null,"tree":{"op":40,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1},"at":0},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_a","t":0}],"t":0,"d":1},"at":0},{"table":"regtab","label":"cr40","n":2,"pat":"%n,aw","pline":7889,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null,"tree":{"op":40,"k":[{"leaf":"_c","t":0},{"leaf":"_d","t":0}],"t":0,"d":1},"at":20},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_c","t":0}],"t":0,"d":1},"at":20},{"table":"regtab","label":"cr42","n":4,"pat":"%n,e","pline":7974,"tmpl":["        F","        S1","        IBF     R1,R"],"tline":7904,"alias":"add3","tree":{"op":42,"k":[{"op":40,"k":[{"leaf":"_e","t":0},{"leaf":"_f","t":0}],"t":0,"d":1},{"op":40,"k":[{"leaf":"_g","t":0},{"leaf":"_h","t":0}],"t":0,"d":1}],"t":0,"d":2},"at":60},{"table":"regtab","label":"cr40","n":2,"pat":"%n,aw","pline":7889,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null,"tree":{"op":40,"k":[{"leaf":"_e","t":0},{"leaf":"_f","t":0}],"t":0,"d":1},"at":60},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_e","t":0}],"t":0,"d":1},"at":60},{"table":"regtab","label":"cr40","n":2,"pat":"%n,aw","pline":7889,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null,"tree":{"op":40,"k":[{"leaf":"_g","t":0},{"leaf":"_h","t":0}],"t":0,"d":1},"at":80},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_g","t":0}],"t":0,"d":1},"at":80}],"opt":{"op":80,"k":[{"leaf":"_x","t":0},{"op":41,"k":[{"op":42,"k":[{"op":40,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1},{"op":40,"k":[{"leaf":"_c","t":0},{"leaf":"_d","t":0}],"t":0,"d":1}],"t":0,"d":2},{"op":42,"k":[{"op":40,"k":[{"leaf":"_e","t":0},{"leaf":"_f","t":0}],"t":0,"d":1},{"op":40,"k":[{"leaf":"_g","t":0},{"leaf":"_h","t":0}],"t":0,"d":1}],"t":0,"d":2}],"t":0,"d":3}],"t":0,"d":3}},{"line":10,"src":"\tx = f1(a) + f2(b);","read":{"op":80,"k":[{"leaf":"_x","t":0},{"op":40,"k":[{"op":100,"k":[{"leaf":"_f1","t":16},{"leaf":"_a","t":0}],"t":0,"d":0},{"op":100,"k":[{"leaf":"_f2","t":16},{"leaf":"_b","t":0}],"t":0,"d":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t_b,(sp)\njsr\tpc,*$_f2\nmov\tr0,-(sp)\nmov\t_a,-(sp)\njsr\tpc,_f1\ntst\t(sp)+\nadd\t(sp)+,r0\nmov\tr0,_x\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"_x","t":0},{"op":40,"k":[{"op":100,"k":[{"leaf":"_f1","t":16},{"leaf":"_a","t":0}],"t":0,"d":10},{"op":100,"k":[{"leaf":"_f2","t":16},{"leaf":"_b","t":0}],"t":0,"d":10}],"t":0,"d":11}],"t":0,"d":11},"at":0},{"table":"regtab","label":"cr40","n":10,"pat":"%n,n","pline":7916,"tmpl":["        SS","        F","        IBF     (sp)+,R"],"tline":7918,"alias":null,"tree":{"op":40,"k":[{"op":100,"k":[{"leaf":"_f1","t":16},{"leaf":"_a","t":0}],"t":0,"d":10},{"op":100,"k":[{"leaf":"_f2","t":16},{"leaf":"_b","t":0}],"t":0,"d":10}],"t":0,"d":11},"at":0},{"table":"sptab","label":"cs106","n":2,"pat":"%aw,n","pline":8860,"tmpl":["        mov     A1,-(sp)"],"tline":8861,"alias":null,"tree":{"op":106,"k":[{"leaf":"_b","t":0}],"t":0,"d":1},"at":0},{"table":"regtab","label":"cr100","n":0,"pat":"%a,n","pline":7716,"tmpl":["        jsr     pc,IA1"],"tline":7717,"alias":null,"tree":{"op":98,"k":[{"leaf":"_f2","t":16}],"t":0,"d":10},"at":12},{"table":"sptab","label":"cs106","n":2,"pat":"%aw,n","pline":8860,"tmpl":["        mov     A1,-(sp)"],"tline":8861,"alias":null,"tree":{"op":106,"k":[{"leaf":"_a","t":0}],"t":0,"d":1},"at":38},{"table":"regtab","label":"cr100","n":0,"pat":"%a,n","pline":7716,"tmpl":["        jsr     pc,IA1"],"tline":7717,"alias":null,"tree":{"op":99,"k":[{"leaf":"_f1","t":16}],"t":0,"d":10},"at":51}],"opt":{"op":80,"k":[{"leaf":"_x","t":0},{"op":40,"k":[{"op":100,"k":[{"leaf":"_f1","t":16},{"leaf":"_a","t":0}],"t":0,"d":10},{"op":100,"k":[{"leaf":"_f2","t":16},{"leaf":"_b","t":0}],"t":0,"d":10}],"t":0,"d":11}],"t":0,"d":11}},{"line":11,"src":"\tx = a ? b : c;","read":{"op":80,"k":[{"leaf":"_x","t":0},{"op":90,"k":[{"leaf":"_a","t":0},{"op":8,"k":[{"leaf":"_b","t":0},{"leaf":"_c","t":0}],"t":0,"d":0}],"t":0,"d":0}],"t":0,"d":0},"code":"tst\t_a\njeq\tL10000\nmov\t_b,r0\njbr\tL10001\nL10000:mov\t_c,r0\nL10001:mov\tr0,_x\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"_x","t":0},{"op":90,"k":[{"leaf":"_a","t":0},{"op":8,"k":[{"leaf":"_b","t":0},{"leaf":"_c","t":0}],"t":0,"d":1}],"t":0,"d":1}],"t":0,"d":2},"at":0},{"table":"cctab","label":"cc60","n":0,"pat":"%a,z","pline":8755,"tmpl":["        I'B1    A1"],"tline":8383,"alias":"move1","tree":{"op":106,"k":[{"leaf":"_a","t":0}],"t":0,"d":1},"at":0},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_b","t":0}],"t":0,"d":1},"at":18},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_c","t":0}],"t":0,"d":1},"at":46}],"opt":{"op":80,"k":[{"leaf":"_x","t":0},{"op":90,"k":[{"leaf":"_a","t":0},{"op":8,"k":[{"leaf":"_b","t":0},{"leaf":"_c","t":0}],"t":0,"d":1}],"t":0,"d":1}],"t":0,"d":2}},{"line":12,"src":"\tx = a < b;","read":{"op":80,"k":[{"leaf":"_x","t":0},{"op":63,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":0}],"t":0,"d":0},"code":"cmp\t_b,_a\njgt\tL10002\nclr\tr0\njbr\tL10003\nL10002:mov\t$1,r0\nL10003:mov\tr0,_x\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"_x","t":0},{"op":63,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1}],"t":0,"d":2},"at":0},{"table":"cctab","label":"cc60","n":8,"pat":"%aw,aw","pline":8774,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3","tree":{"op":63,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1},"at":0},{"table":"regtab","label":"cr106","n":0,"pat":"%z,n","pline":7729,"tmpl":["        clr     R"],"tline":7730,"alias":null,"tree":{"op":106,"k":[{"leaf":"$0","t":0}],"t":0,"d":1},"at":21},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"$1","t":0}],"t":0,"d":1},"at":46}],"opt":{"op":80,"k":[{"leaf":"_x","t":0},{"op":63,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1}],"t":0,"d":2}},{"line":13,"src":"\tx =* 8;","read":{"op":72,"k":[{"leaf":"_x","t":0},{"leaf":"$8","t":0}],"t":0,"d":0},"code":"mov\t_x,r0\nash\t$3,r0\nmov\tr0,_x\n","matches":[{"table":"regtab","label":"cr72","n":0,"pat":"%a,aw","pline":8119,"tmpl":["        movB1   A1',R","        IBF     A2,R","        movB1   R,A1"],"tline":8033,"alias":"addq1a","tree":{"op":76,"k":[{"leaf":"_x","t":0},{"leaf":"$3","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":72,"k":[{"leaf":"_x","t":0},{"leaf":"$8","t":0}],"t":0,"d":1}},{"line":14,"src":"\tx =/ 4;","read":{"op":73,"k":[{"leaf":"_x","t":0},{"leaf":"$4","t":0}],"t":0,"d":0},"code":"mov\t_x,r0\nash\t$-2,r0\nmov\tr0,_x\n","matches":[{"table":"regtab","label":"cr72","n":0,"pat":"%a,aw","pline":8119,"tmpl":["        movB1   A1',R","        IBF     A2,R","        movB1   R,A1"],"tline":8033,"alias":"addq1a","tree":{"op":76,"k":[{"leaf":"_x","t":0},{"leaf":"$-2","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":73,"k":[{"leaf":"_x","t":0},{"leaf":"$4","t":0}],"t":0,"d":1}},{"line":15,"src":"\tl = l * m;","read":{"op":80,"k":[{"leaf":"_l","t":6},{"op":42,"k":[{"leaf":"_l","t":6},{"leaf":"_m","t":6}],"t":6,"d":0}],"t":6,"d":0},"code":"mov\t2+_m,-(sp)\nmov\t_m,-(sp)\nmov\t2+_l,-(sp)\nmov\t_l,-(sp)\njsr\tpc,lmul\nadd\t$10,sp\nmov\tr0,_l\nmov\tr1,2+_l\n","matches":[{"table":"efftab","label":"ci80","n":30,"pat":"%al,nl","pline":8507,"tmpl":["        S","        I       R,A1","        I       R+,A1+","        V       A1"],"tline":8508,"alias":null,"tree":{"op":80,"k":[{"leaf":"_l","t":6},{"op":82,"k":[{"leaf":"_l","t":6},{"leaf":"_m","t":6}],"t":6,"d":2}],"t":6,"d":4},"at":0},{"table":"regtab","label":"cr82","n":0,"pat":"%nl,nl","pline":8339,"tmpl":["        SS","        FS","        jsr     pc,I","        add     $10,sp"],"tline":8340,"alias":null,"tree":{"op":82,"k":[{"leaf":"_l","t":6},{"leaf":"_m","t":6}],"t":6,"d":2},"at":0},{"table":"sptab","label":"cs106","n":4,"pat":"%al,n","pline":8867,"tmpl":["        mov     A1+,-(sp)","        mov     A1,-(sp)"],"tline":8868,"alias":null,"tree":{"op":106,"k":[{"leaf":"_m","t":6}],"t":6,"d":2},"at":0},{"table":"sptab","label":"cs106","n":4,"pat":"%al,n","pline":8867,"tmpl":["        mov     A1+,-(sp)","        mov     A1,-(sp)"],"tline":8868,"alias":null,"tree":{"op":106,"k":[{"leaf":"_l","t":6}],"t":6,"d":2},"at":28}],"opt":{"op":80,"k":[{"leaf":"_l","t":6},{"op":82,"k":[{"leaf":"_l","t":6},{"leaf":"_m","t":6}],"t":6,"d":2}],"t":6,"d":4}},{"line":16,"src":"\t*q++ = *p++;","read":{"op":80,"k":[{"op":36,"k":[{"op":32,"k":[{"leaf":"r4","t":8},{"op":42,"k":[{"leaf":"$1","t":0},{"leaf":"$2","t":0}],"t":8,"d":0}],"t":8,"d":0}],"t":0,"d":0},{"op":36,"k":[{"op":32,"k":[{"leaf":"_p","t":8},{"op":42,"k":[{"leaf":"$1","t":0},{"leaf":"$2","t":0}],"t":8,"d":0}],"t":8,"d":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t*_p,(r4)+\nadd\t$2,_p\n","matches":[{"table":"efftab","label":"ci80","n":4,"pat":"%a,aw","pline":8392,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":null,"tree":{"op":80,"k":[{"leaf":"(r4)+","t":0},{"op":36,"k":[{"leaf":"_p","t":8}],"t":0,"d":1}],"t":0,"d":2},"at":0},{"table":"efftab","label":"ci70","n":3,"pat":"%aw,aw","pline":8598,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3","tree":{"op":32,"k":[{"leaf":"_p","t":8},{"leaf":"$2","t":8}],"t":8,"d":1},"at":14}],"opt":{"op":80,"k":[{"leaf":"(r4)+","t":0},{"op":36,"k":[{"op":32,"k":[{"leaf":"_p","t":8},{"leaf":"$2","t":8}],"t":8,"d":1}],"t":0,"d":1}],"t":0,"d":2}},{"line":17,"src":"\ti = a + i;","read":{"op":80,"k":[{"leaf":"r3","t":0},{"op":40,"k":[{"leaf":"_a","t":0},{"leaf":"r3","t":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t_a,r0\nadd\tr3,r0\nmov\tr0,r3\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"r3","t":0},{"op":40,"k":[{"leaf":"_a","t":0},{"leaf":"r3","t":0}],"t":0,"d":1}],"t":0,"d":2},"at":0},{"table":"regtab","label":"cr40","n":2,"pat":"%n,aw","pline":7889,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null,"tree":{"op":40,"k":[{"leaf":"_a","t":0},{"leaf":"r3","t":0}],"t":0,"d":1},"at":0},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_a","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"r3","t":0},{"op":40,"k":[{"leaf":"_a","t":0},{"leaf":"r3","t":0}],"t":0,"d":1}],"t":0,"d":2}},{"line":18,"src":"\ti = x << i;","read":{"op":80,"k":[{"leaf":"r3","t":0},{"op":46,"k":[{"leaf":"_x","t":0},{"leaf":"r3","t":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t_x,r0\nash\tr3,r0\nmov\tr0,r3\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"r3","t":0},{"op":46,"k":[{"leaf":"_x","t":0},{"leaf":"r3","t":0}],"t":0,"d":1}],"t":0,"d":2},"at":0},{"table":"regtab","label":"cr40","n":2,"pat":"%n,aw","pline":7889,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null,"tree":{"op":46,"k":[{"leaf":"_x","t":0},{"leaf":"r3","t":0}],"t":0,"d":1},"at":0},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_x","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"r3","t":0},{"op":46,"k":[{"leaf":"_x","t":0},{"leaf":"r3","t":0}],"t":0,"d":1}],"t":0,"d":2}},{"line":20,"src":"\t\tb++;","read":{"op":103,"k":[{"op":47,"k":[{"leaf":"_a","t":0},{"leaf":"$8","t":0}],"t":0,"d":0}],"lbl":"L2","cond":0},"code":"bit\t$10,_a\njeq\tL2\n","matches":[{"table":"cctab","label":"cc81","n":0,"pat":"%a,a","pline":8814,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3","tree":{"op":81,"k":[{"leaf":"_a","t":0},{"leaf":"$8","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":103,"k":[{"op":55,"k":[{"leaf":"_a","t":0},{"leaf":"$-9","t":0}],"t":0,"d":1}],"lbl":"L2","cond":0}},{"line":20,"src":"\t\tb++;","read":{"op":32,"k":[{"leaf":"_b","t":0},{"leaf":"$1","t":0}],"t":0,"d":0},"code":"inc\t_b\nL2:L1:jmp\tcret\n.globl\n.data\n","matches":[{"table":"efftab","label":"ci70","n":2,"pat":"%a,1","pline":8595,"tmpl":["        I'B1    A1"],"tline":8596,"alias":null,"tree":{"op":32,"k":[{"leaf":"_b","t":0},{"leaf":"$1","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":32,"k":[{"leaf":"_b","t":0},{"leaf":"$1","t":0}],"t":0,"d":1}}],"name":"gen","source":["int a, b, c, d, e, f, g, h, x;","int *p;","long l, m;","","gen()","{","\tregister int *q, i;","","\tx = (a+b)*(c+d) - (e+f)*(g+h);","\tx = f1(a) + f2(b);","\tx = a ? b : c;","\tx = a < b;","\tx =* 8;","\tx =/ 4;","\tl = l * m;","\t*q++ = *p++;","\ti = a + i;","\ti = x << i;","\tif (a & 010)","\t\tb++;","}",""]}</script>
+<script type="application/json">{"pre":".globl\t_a\n.comm\t_a,2\n.globl\t_b\n.comm\t_b,2\n.globl\t_c\n.comm\t_c,2\n.globl\t_d\n.comm\t_d,2\n.globl\t_p\n.comm\t_p,2\n.globl\t_q\n.comm\t_q,2\n.globl\t_cp\n.comm\t_cp,2\n.globl\t_l\n.comm\t_l,4\n.globl\t_m\n.comm\t_m,4\n.globl\t_f\n.text\n_f:\n~~f:\njsr\tr5,csv\n","stmts":[{"line":8,"src":"\ta = b + c*d;","read":{"op":80,"k":[{"leaf":"_a","t":0},{"op":40,"k":[{"leaf":"_b","t":0},{"op":42,"k":[{"leaf":"_c","t":0},{"leaf":"_d","t":0}],"t":0,"d":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t_c,r1\nmul\t_d,r1\nadd\t_b,r1\nmov\tr1,_a\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"_a","t":0},{"op":40,"k":[{"op":42,"k":[{"leaf":"_c","t":0},{"leaf":"_d","t":0}],"t":0,"d":2},{"leaf":"_b","t":0}],"t":0,"d":2}],"t":0,"d":2},"at":0},{"table":"regtab","label":"cr40","n":2,"pat":"%n,aw","pline":7889,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null,"tree":{"op":40,"k":[{"op":42,"k":[{"leaf":"_c","t":0},{"leaf":"_d","t":0}],"t":0,"d":2},{"leaf":"_b","t":0}],"t":0,"d":2},"at":0},{"table":"regtab","label":"cr42","n":0,"pat":"%n,aw","pline":7966,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":"add1","tree":{"op":42,"k":[{"leaf":"_c","t":0},{"leaf":"_d","t":0}],"t":0,"d":2},"at":0},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_c","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"_a","t":0},{"op":40,"k":[{"op":42,"k":[{"leaf":"_c","t":0},{"leaf":"_d","t":0}],"t":0,"d":2},{"leaf":"_b","t":0}],"t":0,"d":2}],"t":0,"d":2}},{"line":9,"src":"\t*p++ = *q++;","read":{"op":80,"k":[{"op":36,"k":[{"op":32,"k":[{"leaf":"_p","t":8},{"op":42,"k":[{"leaf":"$1","t":0},{"leaf":"$2","t":0}],"t":8,"d":0}],"t":8,"d":0}],"t":0,"d":0},{"op":36,"k":[{"op":32,"k":[{"leaf":"_q","t":8},{"op":42,"k":[{"leaf":"$1","t":0},{"leaf":"$2","t":0}],"t":8,"d":0}],"t":8,"d":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t*_q,*_p\nadd\t$2,_p\nadd\t$2,_q\n","matches":[{"table":"efftab","label":"ci80","n":4,"pat":"%a,aw","pline":8392,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":null,"tree":{"op":80,"k":[{"op":36,"k":[{"leaf":"_p","t":8}],"t":0,"d":1},{"op":36,"k":[{"leaf":"_q","t":8}],"t":0,"d":1}],"t":0,"d":2},"at":0},{"table":"efftab","label":"ci70","n":3,"pat":"%aw,aw","pline":8598,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3","tree":{"op":32,"k":[{"leaf":"_p","t":8},{"leaf":"$2","t":8}],"t":8,"d":1},"at":12},{"table":"efftab","label":"ci70","n":3,"pat":"%aw,aw","pline":8598,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3","tree":{"op":32,"k":[{"leaf":"_q","t":8},{"leaf":"$2","t":8}],"t":8,"d":1},"at":22}],"opt":{"op":80,"k":[{"op":36,"k":[{"op":32,"k":[{"leaf":"_p","t":8},{"leaf":"$2","t":8}],"t":8,"d":1}],"t":0,"d":1},{"op":36,"k":[{"op":32,"k":[{"leaf":"_q","t":8},{"leaf":"$2","t":8}],"t":8,"d":1}],"t":0,"d":1}],"t":0,"d":2}},{"line":10,"src":"\ta = b << 2;","read":{"op":80,"k":[{"leaf":"_a","t":0},{"op":46,"k":[{"leaf":"_b","t":0},{"leaf":"$2","t":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t_b,r0\nash\t$2,r0\nmov\tr0,_a\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"_a","t":0},{"op":46,"k":[{"leaf":"_b","t":0},{"leaf":"$2","t":0}],"t":0,"d":1}],"t":0,"d":2},"at":0},{"table":"regtab","label":"cr40","n":2,"pat":"%n,aw","pline":7889,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null,"tree":{"op":46,"k":[{"leaf":"_b","t":0},{"leaf":"$2","t":0}],"t":0,"d":1},"at":0},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_b","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"_a","t":0},{"op":46,"k":[{"leaf":"_b","t":0},{"leaf":"$2","t":0}],"t":0,"d":1}],"t":0,"d":2}},{"line":11,"src":"\ta = b / 8;","read":{"op":80,"k":[{"leaf":"_a","t":0},{"op":43,"k":[{"leaf":"_b","t":0},{"leaf":"$8","t":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t_b,r0\nash\t$-3,r0\nmov\tr0,_a\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"_a","t":0},{"op":43,"k":[{"leaf":"_b","t":0},{"leaf":"$8","t":0}],"t":0,"d":1}],"t":0,"d":2},"at":0},{"table":"regtab","label":"cr40","n":2,"pat":"%n,aw","pline":7889,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null,"tree":{"op":46,"k":[{"leaf":"_b","t":0},{"leaf":"$-3","t":0}],"t":0,"d":1},"at":0},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_b","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"_a","t":0},{"op":43,"k":[{"leaf":"_b","t":0},{"leaf":"$8","t":0}],"t":0,"d":1}],"t":0,"d":2}},{"line":12,"src":"\ta = b % 10;","read":{"op":80,"k":[{"leaf":"_a","t":0},{"op":44,"k":[{"leaf":"_b","t":0},{"leaf":"$10","t":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t_b,r1\nsxt\tr0\ndiv\t$12,r0\nmov\tr1,_a\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"_a","t":0},{"op":44,"k":[{"leaf":"_b","t":0},{"leaf":"$10","t":0}],"t":0,"d":3}],"t":0,"d":3},"at":0},{"table":"regtab","label":"cr43","n":0,"pat":"%n,aw","pline":7984,"tmpl":["        F","        T","        sxt     R-","        div     A2,R-"],"tline":7985,"alias":null,"tree":{"op":44,"k":[{"leaf":"_b","t":0},{"leaf":"$10","t":0}],"t":0,"d":3},"at":0},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_b","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"_a","t":0},{"op":44,"k":[{"leaf":"_b","t":0},{"leaf":"$10","t":0}],"t":0,"d":3}],"t":0,"d":3}},{"line":13,"src":"\t*cp = a;","read":{"op":80,"k":[{"op":36,"k":[{"leaf":"_cp","t":9}],"t":1,"d":0},{"leaf":"_a","t":0}],"t":1,"d":0},"code":"movb\t_a,*_cp\n","matches":[{"table":"efftab","label":"ci80","n":4,"pat":"%a,aw","pline":8392,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":null,"tree":{"op":80,"k":[{"op":36,"k":[{"leaf":"_cp","t":9}],"t":1,"d":1},{"leaf":"_a","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"op":36,"k":[{"leaf":"_cp","t":9}],"t":1,"d":1},{"leaf":"_a","t":0}],"t":0,"d":1}},{"line":14,"src":"\tl = l + m;","read":{"op":80,"k":[{"leaf":"_l","t":6},{"op":40,"k":[{"leaf":"_l","t":6},{"leaf":"_m","t":6}],"t":6,"d":0}],"t":6,"d":0},"code":"mov\t2+_l,r1\nmov\t_l,r0\nadd\t_m,r0\nadd\t2+_m,r1\nadc\tr0\nmov\tr0,_l\nmov\tr1,2+_l\n","matches":[{"table":"efftab","label":"ci80","n":30,"pat":"%al,nl","pline":8507,"tmpl":["        S","        I       R,A1","        I       R+,A1+","        V       A1"],"tline":8508,"alias":null,"tree":{"op":80,"k":[{"leaf":"_l","t":6},{"op":40,"k":[{"leaf":"_l","t":6},{"leaf":"_m","t":6}],"t":6,"d":2}],"t":6,"d":4},"at":0},{"table":"regtab","label":"cr40","n":13,"pat":"%nl,al","pline":7927,"tmpl":["        F","        I       A2,R","        I       A2+,R+","        V       R"],"tline":7928,"alias":null,"tree":{"op":40,"k":[{"leaf":"_l","t":6},{"leaf":"_m","t":6}],"t":6,"d":2},"at":0},{"table":"regtab","label":"cr106","n":8,"pat":"%al,n","pline":7751,"tmpl":["        mov     A1+,R+","        mov     A1,R"],"tline":7752,"alias":null,"tree":{"op":106,"k":[{"leaf":"_l","t":6}],"t":6,"d":2},"at":0}],"opt":{"op":80,"k":[{"leaf":"_l","t":6},{"op":40,"k":[{"leaf":"_l","t":6},{"leaf":"_m","t":6}],"t":6,"d":2}],"t":6,"d":4}},{"line":15,"src":"\ta = cp[b];","read":{"op":80,"k":[{"leaf":"_a","t":0},{"op":36,"k":[{"op":40,"k":[{"leaf":"_cp","t":9},{"leaf":"_b","t":0}],"t":9,"d":0}],"t":1,"d":0}],"t":0,"d":0},"code":"mov\t_cp,r0\nadd\t_b,r0\nmovb\t(r0),r0\nmov\tr0,_a\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"_a","t":0},{"op":36,"k":[{"op":40,"k":[{"leaf":"_cp","t":9},{"leaf":"_b","t":0}],"t":9,"d":1}],"t":1,"d":1}],"t":0,"d":2},"at":0},{"table":"regtab","label":"cr106","n":5,"pat":"%n*,n","pline":7742,"tmpl":["        F*","        movB1   #1(R),R"],"tline":7744,"alias":null,"tree":{"op":106,"k":[{"op":36,"k":[{"op":40,"k":[{"leaf":"_cp","t":9},{"leaf":"_b","t":0}],"t":9,"d":1}],"t":1,"d":1}],"t":1,"d":1},"at":0},{"table":"regtab","label":"cr40","n":2,"pat":"%n,aw","pline":7889,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":null,"tree":{"op":40,"k":[{"leaf":"_cp","t":9},{"leaf":"_b","t":0}],"t":9,"d":1},"at":0},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"_cp","t":9}],"t":9,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"_a","t":0},{"op":36,"k":[{"op":40,"k":[{"leaf":"_cp","t":9},{"leaf":"_b","t":0}],"t":9,"d":1}],"t":1,"d":1}],"t":0,"d":2}},{"line":16,"src":"\tg(a, b+1);","read":{"op":100,"k":[{"leaf":"_g","t":16},{"op":9,"k":[{"leaf":"_a","t":0},{"op":40,"k":[{"leaf":"_b","t":0},{"leaf":"$1","t":0}],"t":0,"d":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t_b,(sp)\ninc\t(sp)\nmov\t_a,-(sp)\njsr\tpc,*$_g\ntst\t(sp)+\nL1:jmp\tcret\n.globl\n.data\n","matches":[{"table":"sptab","label":"cs40","n":0,"pat":"%n,1","pline":8873,"tmpl":["        FS","        I'      (sp)"],"tline":8874,"alias":null,"tree":{"op":40,"k":[{"leaf":"_b","t":0},{"leaf":"$1","t":0}],"t":0,"d":1},"at":0},{"table":"sptab","label":"cs106","n":2,"pat":"%aw,n","pline":8860,"tmpl":["        mov     A1,-(sp)"],"tline":8861,"alias":null,"tree":{"op":106,"k":[{"leaf":"_b","t":0}],"t":0,"d":1},"at":0},{"table":"sptab","label":"cs106","n":2,"pat":"%aw,n","pline":8860,"tmpl":["        mov     A1,-(sp)"],"tline":8861,"alias":null,"tree":{"op":106,"k":[{"leaf":"_a","t":0}],"t":0,"d":1},"at":21},{"table":"regtab","label":"cr100","n":0,"pat":"%a,n","pline":7716,"tmpl":["        jsr     pc,IA1"],"tline":7717,"alias":null,"tree":{"op":98,"k":[{"leaf":"_g","t":16}],"t":0,"d":10},"at":34}],"opt":{"op":100,"k":[{"leaf":"_g","t":16},{"op":9,"k":[{"leaf":"_a","t":0},{"op":40,"k":[{"leaf":"_b","t":0},{"leaf":"$1","t":0}],"t":0,"d":1}],"t":0,"d":2}],"t":0,"d":10}}],"name":"expr","source":["int a, b, c, d;","int *p, *q;","char *cp;","long l, m;","","f()","{","\ta = b + c*d;","\t*p++ = *q++;","\ta = b << 2;","\ta = b / 8;","\ta = b % 10;","\t*cp = a;","\tl = l + m;","\ta = cp[b];","\tg(a, b+1);","}",""]}</script>
+<script type="application/json">{"pre":".globl\t_a\n.comm\t_a,2\n.globl\t_b\n.comm\t_b,2\n.globl\t_c\n.comm\t_c,2\n.globl\t_f\n.text\n_f:\n~~f:\njsr\tr5,csv\n","stmts":[{"line":6,"src":"\t\tg();","read":{"op":103,"k":[{"op":54,"k":[{"op":53,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":0},{"op":34,"k":[{"leaf":"_c","t":0}],"t":0,"d":0}],"t":0,"d":0}],"lbl":"L2","cond":0},"code":"tst\t_a\njeq\tL10001\ntst\t_b\njne\tL10000\nL10001:tst\t_c\njne\tL2\nL10000:","matches":[{"table":"cctab","label":"cc60","n":0,"pat":"%a,z","pline":8755,"tmpl":["        I'B1    A1"],"tline":8383,"alias":"move1","tree":{"op":106,"k":[{"leaf":"_a","t":0}],"t":0,"d":1},"at":0},{"table":"cctab","label":"cc60","n":0,"pat":"%a,z","pline":8755,"tmpl":["        I'B1    A1"],"tline":8383,"alias":"move1","tree":{"op":106,"k":[{"leaf":"_b","t":0}],"t":0,"d":1},"at":18},{"table":"cctab","label":"cc60","n":0,"pat":"%a,z","pline":8755,"tmpl":["        I'B1    A1"],"tline":8383,"alias":"move1","tree":{"op":106,"k":[{"leaf":"_c","t":0}],"t":0,"d":1},"at":43}],"opt":{"op":103,"k":[{"op":54,"k":[{"op":53,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1},{"op":34,"k":[{"leaf":"_c","t":0}],"t":0,"d":1}],"t":0,"d":2}],"lbl":"L2","cond":0}},{"line":6,"src":"\t\tg();","read":{"op":100,"k":[{"leaf":"_g","t":16},{"leaf":"(none)","t":0}],"t":0,"d":0},"code":"jsr\tpc,_g\nL2:L3:","matches":[{"table":"regtab","label":"cr100","n":0,"pat":"%a,n","pline":7716,"tmpl":["        jsr     pc,IA1"],"tline":7717,"alias":null,"tree":{"op":99,"k":[{"leaf":"_g","t":16}],"t":0,"d":10},"at":0}],"opt":{"op":100,"k":[{"leaf":"_g","t":16},{"leaf":"(none)","t":0}],"t":0,"d":10}},{"line":7,"src":"\twhile (a < b)","read":{"op":103,"k":[{"op":63,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":0}],"lbl":"L4","cond":0},"code":"cmp\t_b,_a\njle\tL4\n","matches":[{"table":"cctab","label":"cc60","n":8,"pat":"%aw,aw","pline":8774,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3","tree":{"op":63,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":103,"k":[{"op":63,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1}],"lbl":"L4","cond":0}},{"line":8,"src":"\t\ta++;","read":{"op":32,"k":[{"leaf":"_a","t":0},{"leaf":"$1","t":0}],"t":0,"d":0},"code":"inc\t_a\njbr\tL3\nL4:","matches":[{"table":"efftab","label":"ci70","n":2,"pat":"%a,1","pline":8595,"tmpl":["        I'B1    A1"],"tline":8596,"alias":null,"tree":{"op":32,"k":[{"leaf":"_a","t":0},{"leaf":"$1","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":32,"k":[{"leaf":"_a","t":0},{"leaf":"$1","t":0}],"t":0,"d":1}},{"line":9,"src":"\tc = a > b;","read":{"op":80,"k":[{"leaf":"_c","t":0},{"op":65,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":0}],"t":0,"d":0},"code":"cmp\t_b,_a\njlt\tL10002\nclr\tr0\njbr\tL10003\nL10002:mov\t$1,r0\nL10003:mov\tr0,_c\nL1:jmp\tcret\n.globl\n.data\n","matches":[{"table":"efftab","label":"ci80","n":8,"pat":"%a,n","pline":8403,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":null,"tree":{"op":80,"k":[{"leaf":"_c","t":0},{"op":65,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1}],"t":0,"d":2},"at":0},{"table":"cctab","label":"cc60","n":8,"pat":"%aw,aw","pline":8774,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3","tree":{"op":65,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1},"at":0},{"table":"regtab","label":"cr106","n":0,"pat":"%z,n","pline":7729,"tmpl":["        clr     R"],"tline":7730,"alias":null,"tree":{"op":106,"k":[{"leaf":"$0","t":0}],"t":0,"d":1},"at":21},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"$1","t":0}],"t":0,"d":1},"at":46}],"opt":{"op":80,"k":[{"leaf":"_c","t":0},{"op":65,"k":[{"leaf":"_a","t":0},{"leaf":"_b","t":0}],"t":0,"d":1}],"t":0,"d":2}}],"name":"cond","source":["int a, b, c;","","f()","{","\tif (a && b || !c)","\t\tg();","\twhile (a < b)","\t\ta++;","\tc = a > b;","}",""]}</script>
+<script type="application/json">{"pre":".globl\t_v\n.comm\t_v,310\n.globl\t_clear\n.text\n_clear:\n~~clear:\n~n=r3\n~p=r4\njsr\tr5,csv\n","stmts":[{"line":7,"src":"\tp = v;","read":{"op":80,"k":[{"leaf":"r4","t":8},{"op":35,"k":[{"leaf":"_v","t":0}],"t":8,"d":0}],"t":8,"d":0},"code":"mov\t$_v,r4\n","matches":[{"table":"efftab","label":"ci80","n":4,"pat":"%a,aw","pline":8392,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":null,"tree":{"op":80,"k":[{"leaf":"r4","t":8},{"op":35,"k":[{"leaf":"_v","t":0}],"t":8,"d":1}],"t":8,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"r4","t":8},{"op":35,"k":[{"leaf":"_v","t":0}],"t":8,"d":1}],"t":8,"d":1}},{"line":8,"src":"\tn = 100;","read":{"op":80,"k":[{"leaf":"r3","t":0},{"leaf":"$100","t":0}],"t":0,"d":0},"code":"mov\t$144,r3\nL4:","matches":[{"table":"efftab","label":"ci80","n":4,"pat":"%a,aw","pline":8392,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":null,"tree":{"op":80,"k":[{"leaf":"r3","t":0},{"leaf":"$100","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"r3","t":0},{"leaf":"$100","t":0}],"t":0,"d":1}},{"line":10,"src":"\t\t*p++ = 0;","read":{"op":80,"k":[{"op":36,"k":[{"op":32,"k":[{"leaf":"r4","t":8},{"op":42,"k":[{"leaf":"$1","t":0},{"leaf":"$2","t":0}],"t":8,"d":0}],"t":8,"d":0}],"t":0,"d":0},{"leaf":"$0","t":0}],"t":0,"d":0},"code":"clr\t(r4)+\nL2:","matches":[{"table":"efftab","label":"ci80","n":0,"pat":"%a,z","pline":8381,"tmpl":["        I'B1    A1"],"tline":8383,"alias":null,"tree":{"op":80,"k":[{"leaf":"(r4)+","t":0},{"leaf":"$0","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"(r4)+","t":0},{"leaf":"$0","t":0}],"t":0,"d":1}},{"line":11,"src":"\twhile (--n);","read":{"op":103,"k":[{"op":31,"k":[{"leaf":"r3","t":0},{"leaf":"$1","t":0}],"t":0,"d":0}],"lbl":"L4","cond":1},"code":"dec\tr3\njne\tL4\nL3:L1:jmp\tcret\n.globl\t_sum\n.text\n_sum:\n~~sum:\n~p=r4\n~s=r3\njsr\tr5,csv\n","matches":[{"table":"efftab","label":"ci70","n":2,"pat":"%a,1","pline":8595,"tmpl":["        I'B1    A1"],"tline":8596,"alias":null,"tree":{"op":31,"k":[{"leaf":"r3","t":0},{"leaf":"$1","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":103,"k":[{"op":31,"k":[{"leaf":"r3","t":0},{"leaf":"$1","t":0}],"t":0,"d":1}],"lbl":"L4","cond":1}},{"line":18,"src":"\ts = 0;","read":{"op":80,"k":[{"leaf":"r3","t":0},{"leaf":"$0","t":0}],"t":0,"d":0},"code":"clr\tr3\n","matches":[{"table":"efftab","label":"ci80","n":0,"pat":"%a,z","pline":8381,"tmpl":["        I'B1    A1"],"tline":8383,"alias":null,"tree":{"op":80,"k":[{"leaf":"r3","t":0},{"leaf":"$0","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"r3","t":0},{"leaf":"$0","t":0}],"t":0,"d":1}},{"line":19,"src":"\tfor (p = v; p < &v[100]; p++)","read":{"op":80,"k":[{"leaf":"r4","t":8},{"op":35,"k":[{"leaf":"_v","t":0}],"t":8,"d":0}],"t":8,"d":0},"code":"mov\t$_v,r4\nL6:","matches":[{"table":"efftab","label":"ci80","n":4,"pat":"%a,aw","pline":8392,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":null,"tree":{"op":80,"k":[{"leaf":"r4","t":8},{"op":35,"k":[{"leaf":"_v","t":0}],"t":8,"d":1}],"t":8,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"r4","t":8},{"op":35,"k":[{"leaf":"_v","t":0}],"t":8,"d":1}],"t":8,"d":1}},{"line":19,"src":"\tfor (p = v; p < &v[100]; p++)","read":{"op":103,"k":[{"op":67,"k":[{"leaf":"r4","t":8},{"op":40,"k":[{"op":35,"k":[{"leaf":"_v","t":0}],"t":8,"d":0},{"op":42,"k":[{"leaf":"$100","t":0},{"leaf":"$2","t":0}],"t":8,"d":0}],"t":8,"d":0}],"t":0,"d":0}],"lbl":"L7","cond":0},"code":"cmp\t$310+_v,r4\njlos\tL7\n","matches":[{"table":"cctab","label":"cc60","n":8,"pat":"%aw,aw","pline":8774,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3","tree":{"op":67,"k":[{"leaf":"r4","t":8},{"op":35,"k":[{"leaf":"_v+200","t":0}],"t":8,"d":1}],"t":0,"d":1},"at":0}],"opt":{"op":103,"k":[{"op":67,"k":[{"leaf":"r4","t":8},{"op":35,"k":[{"leaf":"_v+200","t":0}],"t":8,"d":1}],"t":0,"d":1}],"lbl":"L7","cond":0}},{"line":21,"src":"\t\t\ts =+ *p;","read":{"op":103,"k":[{"op":61,"k":[{"op":36,"k":[{"leaf":"r4","t":8}],"t":0,"d":0},{"leaf":"$0","t":0}],"t":0,"d":0}],"lbl":"L9","cond":0},"code":"tst\t(r4)\njeq\tL9\n","matches":[{"table":"cctab","label":"cc60","n":0,"pat":"%a,z","pline":8755,"tmpl":["        I'B1    A1"],"tline":8383,"alias":"move1","tree":{"op":61,"k":[{"leaf":"0(r4)","t":0},{"leaf":"$0","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":103,"k":[{"op":61,"k":[{"leaf":"0(r4)","t":0},{"leaf":"$0","t":0}],"t":0,"d":1}],"lbl":"L9","cond":0}},{"line":21,"src":"\t\t\ts =+ *p;","read":{"op":70,"k":[{"leaf":"r3","t":0},{"op":36,"k":[{"leaf":"r4","t":8}],"t":0,"d":0}],"t":0,"d":0},"code":"add\t(r4),r3\njbr\tL10\nL9:","matches":[{"table":"efftab","label":"ci70","n":3,"pat":"%aw,aw","pline":8598,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3","tree":{"op":70,"k":[{"leaf":"r3","t":0},{"leaf":"0(r4)","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":70,"k":[{"leaf":"r3","t":0},{"leaf":"0(r4)","t":0}],"t":0,"d":1}},{"line":23,"src":"\t\t\ts =- 1;","read":{"op":71,"k":[{"leaf":"r3","t":0},{"leaf":"$1","t":0}],"t":0,"d":0},"code":"dec\tr3\nL10:L8:","matches":[{"table":"efftab","label":"ci70","n":2,"pat":"%a,1","pline":8595,"tmpl":["        I'B1    A1"],"tline":8596,"alias":null,"tree":{"op":71,"k":[{"leaf":"r3","t":0},{"leaf":"$1","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":71,"k":[{"leaf":"r3","t":0},{"leaf":"$1","t":0}],"t":0,"d":1}},{"line":19,"src":"\tfor (p = v; p < &v[100]; p++)","read":{"op":32,"k":[{"leaf":"r4","t":8},{"op":42,"k":[{"leaf":"$1","t":0},{"leaf":"$2","t":0}],"t":8,"d":0}],"t":8,"d":0},"code":"add\t$2,r4\njbr\tL6\nL7:","matches":[{"table":"efftab","label":"ci70","n":3,"pat":"%aw,aw","pline":8598,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3","tree":{"op":32,"k":[{"leaf":"r4","t":8},{"leaf":"$2","t":8}],"t":8,"d":1},"at":0}],"opt":{"op":32,"k":[{"leaf":"r4","t":8},{"leaf":"$2","t":8}],"t":8,"d":1}},{"line":24,"src":"\treturn(s);","read":{"op":110,"k":[{"leaf":"r3","t":0}],"t":0,"d":0},"code":"mov\tr3,r0\njbr\tL5\nL5:jmp\tcret\n.globl\n.data\n","matches":[{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"r3","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":110,"k":[{"leaf":"r3","t":0}],"t":0,"d":1}}],"name":"loop","source":["int v[100];","","clear()","{","\tregister int *p, n;","","\tp = v;","\tn = 100;","\tdo","\t\t*p++ = 0;","\twhile (--n);","}","","sum()","{","\tregister int *p, s;","","\ts = 0;","\tfor (p = v; p < &v[100]; p++)","\t\tif (*p != 0)","\t\t\ts =+ *p;","\t\telse","\t\t\ts =- 1;","\treturn(s);","}",""]}</script>
+<script type="application/json">{"pre":".globl\t_s\n.data\n_s:\n","stmts":[{"line":3,"src":"char *s \"hello, world\";","read":{"op":104,"k":[{"op":35,"k":[{"leaf":"L1","t":1}],"t":9,"d":0}],"t":0,"d":0},"code":"L1\n.globl\t_main\n.text\n_main:\n~~main:\n~n=177770\n~p=r4\njsr\tr5,csv\ntst\t-(sp)\n","matches":[],"opt":{"op":104,"k":[{"op":35,"k":[{"leaf":"L1","t":1}],"t":9,"d":1}],"t":0,"d":1}},{"line":10,"src":"\tn = 0;","read":{"op":80,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$0","t":0}],"t":0,"d":0},"code":"clr\t-10(r5)\n","matches":[{"table":"efftab","label":"ci80","n":0,"pat":"%a,z","pline":8381,"tmpl":["        I'B1    A1"],"tline":8383,"alias":null,"tree":{"op":80,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$0","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$0","t":0}],"t":0,"d":1}},{"line":11,"src":"\tfor (p = s; *p; p++)","read":{"op":80,"k":[{"leaf":"r4","t":9},{"leaf":"_s","t":9}],"t":9,"d":0},"code":"mov\t_s,r4\nL3:","matches":[{"table":"efftab","label":"ci80","n":4,"pat":"%a,aw","pline":8392,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":null,"tree":{"op":80,"k":[{"leaf":"r4","t":9},{"leaf":"_s","t":9}],"t":9,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"r4","t":9},{"leaf":"_s","t":9}],"t":9,"d":1}},{"line":11,"src":"\tfor (p = s; *p; p++)","read":{"op":103,"k":[{"op":36,"k":[{"leaf":"r4","t":9}],"t":1,"d":0}],"lbl":"L4","cond":0},"code":"tstb\t(r4)\njeq\tL4\n","matches":[{"table":"cctab","label":"cc60","n":0,"pat":"%a,z","pline":8755,"tmpl":["        I'B1    A1"],"tline":8383,"alias":"move1","tree":{"op":106,"k":[{"leaf":"0(r4)","t":1}],"t":1,"d":1},"at":0}],"opt":{"op":103,"k":[{"leaf":"0(r4)","t":1}],"lbl":"L4","cond":0}},{"line":12,"src":"\t\tswitch (*p) {","read":{"op":110,"k":[{"op":36,"k":[{"leaf":"r4","t":9}],"t":1,"d":0}],"t":0,"d":0},"code":"movb\t(r4),r0\njbr\tL7\nL8:L9:L10:L11:L12:","matches":[{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"0(r4)","t":1}],"t":1,"d":1},"at":0}],"opt":{"op":110,"k":[{"leaf":"0(r4)","t":1}],"t":0,"d":1}},{"line":15,"src":"\t\t\tn++;","read":{"op":32,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$1","t":0}],"t":0,"d":0},"code":"inc\t-10(r5)\njbr\tL6\nL7:mov\t$L10001,r1\nmov\tr0,L10002\nL10003:cmp\tr0,(r1)+\njne\tL10003\njmp\t*L10002-L10001(r1)\n.data\nL10001:141\n145\n151\n157\n165\nL10002:..\nL8\nL9\nL10\nL11\nL12\nL6\n.text\nL6:L5:","matches":[{"table":"efftab","label":"ci70","n":2,"pat":"%a,1","pline":8595,"tmpl":["        I'B1    A1"],"tline":8596,"alias":null,"tree":{"op":32,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$1","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":32,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$1","t":0}],"t":0,"d":1}},{"line":11,"src":"\tfor (p = s; *p; p++)","read":{"op":32,"k":[{"leaf":"r4","t":9},{"leaf":"$1","t":0}],"t":9,"d":0},"code":"inc\tr4\njbr\tL3\nL4:","matches":[{"table":"efftab","label":"ci70","n":2,"pat":"%a,1","pline":8595,"tmpl":["        I'B1    A1"],"tline":8596,"alias":null,"tree":{"op":32,"k":[{"leaf":"r4","t":9},{"leaf":"$1","t":0}],"t":9,"d":1},"at":0}],"opt":{"op":32,"k":[{"leaf":"r4","t":9},{"leaf":"$1","t":0}],"t":9,"d":1}},{"line":17,"src":"\tprintf(\"%d\\n\", n);","read":{"op":100,"k":[{"leaf":"_printf","t":16},{"op":9,"k":[{"op":35,"k":[{"leaf":"L13","t":1}],"t":9,"d":0},{"leaf":"-8(r5)","t":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t-10(r5),(sp)\nmov\t$L13,-(sp)\njsr\tpc,*$_printf\ntst\t(sp)+\nL2:jmp\tcret\n.globl\n.data\nL1:.byte 150,145,154,154,157,54,40,167,157,162,154,144,0\nL13:.byte 45,144,12,0\n","matches":[{"table":"sptab","label":"cs106","n":2,"pat":"%aw,n","pline":8860,"tmpl":["        mov     A1,-(sp)"],"tline":8861,"alias":null,"tree":{"op":106,"k":[{"leaf":"-8(r5)","t":0}],"t":0,"d":1},"at":0},{"table":"sptab","label":"cs106","n":2,"pat":"%aw,n","pline":8860,"tmpl":["        mov     A1,-(sp)"],"tline":8861,"alias":null,"tree":{"op":106,"k":[{"op":35,"k":[{"leaf":"L13","t":1}],"t":9,"d":1}],"t":9,"d":1},"at":17},{"table":"regtab","label":"cr100","n":0,"pat":"%a,n","pline":7716,"tmpl":["        jsr     pc,IA1"],"tline":7717,"alias":null,"tree":{"op":98,"k":[{"leaf":"_printf","t":16}],"t":0,"d":10},"at":32}],"opt":{"op":100,"k":[{"leaf":"_printf","t":16},{"op":9,"k":[{"op":35,"k":[{"leaf":"L13","t":1}],"t":9,"d":1},{"leaf":"-8(r5)","t":0}],"t":0,"d":1}],"t":0,"d":10}}],"name":"vowels","source":["/* Count the vowels in a string. */","","char *s \"hello, world\";","","main()","{","\tregister char *p;","\tint n;","","\tn = 0;","\tfor (p = s; *p; p++)","\t\tswitch (*p) {","\t\tcase 'a': case 'e': case 'i':","\t\tcase 'o': case 'u':","\t\t\tn++;","\t\t}","\tprintf(\"%d\\n\", n);","}",""]}</script>
+<script type="application/json">{"pre":".globl\t_main\n.text\n_main:\n~~main:\n~i=177770\n~s=177766\njsr\tr5,csv\nsub\t$4,sp\n","stmts":[{"line":5,"src":"\ts = 0;","read":{"op":80,"k":[{"leaf":"-10(r5)","t":0},{"leaf":"$0","t":0}],"t":0,"d":0},"code":"clr\t-12(r5)\n","matches":[{"table":"efftab","label":"ci80","n":0,"pat":"%a,z","pline":8381,"tmpl":["        I'B1    A1"],"tline":8383,"alias":null,"tree":{"op":80,"k":[{"leaf":"-10(r5)","t":0},{"leaf":"$0","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"-10(r5)","t":0},{"leaf":"$0","t":0}],"t":0,"d":1}},{"line":6,"src":"\tfor (i=0; i<10; i++)","read":{"op":80,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$0","t":0}],"t":0,"d":0},"code":"clr\t-10(r5)\nL2:","matches":[{"table":"efftab","label":"ci80","n":0,"pat":"%a,z","pline":8381,"tmpl":["        I'B1    A1"],"tline":8383,"alias":null,"tree":{"op":80,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$0","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":80,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$0","t":0}],"t":0,"d":1}},{"line":6,"src":"\tfor (i=0; i<10; i++)","read":{"op":103,"k":[{"op":63,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$10","t":0}],"t":0,"d":0}],"lbl":"L3","cond":0},"code":"cmp\t$12,-10(r5)\njle\tL3\n","matches":[{"table":"cctab","label":"cc60","n":8,"pat":"%aw,aw","pline":8774,"tmpl":["        IBE     A2,A1"],"tline":8394,"alias":"move3","tree":{"op":63,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$10","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":103,"k":[{"op":63,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$10","t":0}],"t":0,"d":1}],"lbl":"L3","cond":0}},{"line":7,"src":"\t\ts =+ i*i;","read":{"op":70,"k":[{"leaf":"-10(r5)","t":0},{"op":42,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"-8(r5)","t":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t-10(r5),r1\nmul\t-10(r5),r1\nadd\tr1,-12(r5)\nL4:","matches":[{"table":"efftab","label":"ci70","n":5,"pat":"%aw,n","pline":8604,"tmpl":["        S","        IB1     R,A1"],"tline":8404,"alias":"move5","tree":{"op":70,"k":[{"leaf":"-10(r5)","t":0},{"op":42,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"-8(r5)","t":0}],"t":0,"d":2}],"t":0,"d":2},"at":0},{"table":"regtab","label":"cr42","n":0,"pat":"%n,aw","pline":7966,"tmpl":["        F","        IB2     A2,R"],"tline":7891,"alias":"add1","tree":{"op":42,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"-8(r5)","t":0}],"t":0,"d":2},"at":0},{"table":"regtab","label":"cr106","n":2,"pat":"%a,n","pline":7735,"tmpl":["        movB1   A1,R"],"tline":7737,"alias":null,"tree":{"op":106,"k":[{"leaf":"-8(r5)","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":70,"k":[{"leaf":"-10(r5)","t":0},{"op":42,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"-8(r5)","t":0}],"t":0,"d":2}],"t":0,"d":2}},{"line":6,"src":"\tfor (i=0; i<10; i++)","read":{"op":32,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$1","t":0}],"t":0,"d":0},"code":"inc\t-10(r5)\njbr\tL2\nL3:","matches":[{"table":"efftab","label":"ci70","n":2,"pat":"%a,1","pline":8595,"tmpl":["        I'B1    A1"],"tline":8596,"alias":null,"tree":{"op":32,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$1","t":0}],"t":0,"d":1},"at":0}],"opt":{"op":32,"k":[{"leaf":"-8(r5)","t":0},{"leaf":"$1","t":0}],"t":0,"d":1}},{"line":8,"src":"\tprintf(\"%d\\n\", s);","read":{"op":100,"k":[{"leaf":"_printf","t":16},{"op":9,"k":[{"op":35,"k":[{"leaf":"L5","t":1}],"t":9,"d":0},{"leaf":"-10(r5)","t":0}],"t":0,"d":0}],"t":0,"d":0},"code":"mov\t-12(r5),(sp)\nmov\t$L5,-(sp)\njsr\tpc,*$_printf\ntst\t(sp)+\nL1:jmp\tcret\n.globl\n.data\nL5:.byte 45,144,12,0\n","matches":[{"table":"sptab","label":"cs106","n":2,"pat":"%aw,n","pline":8860,"tmpl":["        mov     A1,-(sp)"],"tline":8861,"alias":null,"tree":{"op":106,"k":[{"leaf":"-10(r5)","t":0}],"t":0,"d":1},"at":0},{"table":"sptab","label":"cs106","n":2,"pat":"%aw,n","pline":8860,"tmpl":["        mov     A1,-(sp)"],"tline":8861,"alias":null,"tree":{"op":106,"k":[{"op":35,"k":[{"leaf":"L5","t":1}],"t":9,"d":1}],"t":9,"d":1},"at":17},{"table":"regtab","label":"cr100","n":0,"pat":"%a,n","pline":7716,"tmpl":["        jsr     pc,IA1"],"tline":7717,"alias":null,"tree":{"op":98,"k":[{"leaf":"_printf","t":16}],"t":0,"d":10},"at":31}],"opt":{"op":100,"k":[{"leaf":"_printf","t":16},{"op":9,"k":[{"op":35,"k":[{"leaf":"L5","t":1}],"t":9,"d":1},{"leaf":"-10(r5)","t":0}],"t":0,"d":1}],"t":0,"d":10}}],"name":"sum","source":["main()","{","\tint i, s;","","\ts = 0;","\tfor (i=0; i<10; i++)","\t\ts =+ i*i;","\tprintf(\"%d\\n\", s);","}",""]}</script>
+</div>
+
+<div class="pair">
+<div><p class="lbl">gen.c</p><pre>int a, b, c, d, e, f, g, h, x;
+int *p;
+long l, m;
+
+gen()
+{
+        register int *q, i;
+
+        x = (a+b)*(c+d) - (e+f)*(g+h);
+        x = f1(a) + f2(b);
+        x = a ? b : c;
+        x = a &lt; b;
+        x =* 8;
+        x =/ 4;
+        l = l * m;
+        *q++ = *p++;
+        i = a + i;
+        i = x &lt;&lt; i;
+        if (a &amp; 010)
+                b++;
+}</pre></div>
+<div><p class="lbl">gen.s (the function)</p><pre>.globl  _a
+.comm   _a,2
+.globl  _b
+.comm   _b,2
+.globl  _c
+.comm   _c,2
+.globl  _d
+.comm   _d,2
+.globl  _e
+.comm   _e,2
+.globl  _f
+.comm   _f,2
+.globl  _g
+.comm   _g,2
+.globl  _h
+.comm   _h,2
+.globl  _x
+.comm   _x,2
+.globl  _p
+.comm   _p,2
+.globl  _l
+.comm   _l,4
+.globl  _m
+.comm   _m,4
+.globl  _gen
+.text
+_gen:
+~~gen:
+~i=r3
+~q=r4
+jsr     r5,csv
+mov     _a,r1
+add     _b,r1
+mov     _c,r2
+add     _d,r2
+mul     r2,r1
+mov     r1,r0
+mov     _e,r1
+add     _f,r1
+mov     _g,r2
+add     _h,r2
+mul     r2,r1
+sub     r1,r0
+mov     r0,_x
+mov     _b,(sp)
+jsr     pc,*$_f2
+mov     r0,-(sp)
+mov     _a,-(sp)
+jsr     pc,_f1
+tst     (sp)+
+add     (sp)+,r0
+mov     r0,_x
+tst     _a
+jeq     L10000
+mov     _b,r0
+jbr     L10001
+L10000:mov      _c,r0
+L10001:mov      r0,_x
+cmp     _b,_a
+jgt     L10002
+clr     r0
+jbr     L10003
+L10002:mov      $1,r0
+L10003:mov      r0,_x
+mov     _x,r0
+ash     $3,r0
+mov     r0,_x
+mov     _x,r0
+ash     $-2,r0
+mov     r0,_x
+mov     2+_m,-(sp)
+mov     _m,-(sp)
+mov     2+_l,-(sp)
+mov     _l,-(sp)
+jsr     pc,lmul
+add     $10,sp
+mov     r0,_l
+mov     r1,2+_l
+mov     *_p,(r4)+
+add     $2,_p
+mov     _a,r0
+add     r3,r0
+mov     r0,r3
+mov     _x,r0
+ash     r3,r0
+mov     r0,r3
+bit     $10,_a
+jeq     L2
+inc     _b
+L2:L1:jmp       cret
+.globl
+.data</pre></div>
+</div>
+
+<nav class="pager"><a href="10-tables.html">&larr; Tables</a><span></span></nav>
+</main>
+<aside class="panel" id="panel" hidden>
+<div class="panelbar"><span class="pfile"></span><button type="button" class="pclose" aria-label="Close listing">Close</button></div>
+<div class="pbody"></div>
+</aside>
+</div>
+<script src="assets/book.js"></script>
+<script src="assets/listing-data.js"></script><script src="assets/reader.js"></script><script src="assets/v6.js"></script><script src="assets/c1view.js"></script>
+</body>
+</html>

@@ -93,7 +93,8 @@
       list = body.querySelector('.tvlist'); main = body.querySelector('.tvmain');
       stmts.forEach(function (s, k) {
         var li = document.createElement('li');
-        li.innerHTML = '<button type="button"><span class="muted">' + s.line + '</span>&nbsp; <span class="mono">' + esc(s.src.trim() || '(initializer)') + '</span></button>';
+        var what = s.read.op === 103 ? '<span class="chip">test</span> ' : '';
+        li.innerHTML = '<button type="button"><span class="muted">' + s.line + '</span>&nbsp; ' + what + '<span class="mono">' + esc(s.src.trim() || '(initializer)') + '</span></button>';
         li.firstChild.addEventListener('click', function () { show(k); });
         list.appendChild(li);
       });
