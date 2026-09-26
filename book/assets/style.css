@@ -385,3 +385,5 @@ body.panel-open .prose .widget, body.panel-open .prose figure.wide { width: 100%
 .pgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin-top: .8rem; }
 .plog { margin-top: 1rem; }
 .pfinal pre { margin: .4rem 0 0; }
+button.chip { cursor: pointer; color: var(--ink); font-family: var(--f-display); }
+button.chip.on { color: var(--paper); }
