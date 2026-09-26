@@ -377,3 +377,11 @@ pre.tree-txt { margin: 0 0 .6rem; font-size: 13.5px; padding: .5rem .7rem; }
 }
 body.panel-open .prose .widget, body.panel-open .prose figure.wide { width: 100%; left: 0; transform: none; }
 .ifgrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); }
+
+/* expression parser stepper */
+.ptoks { font-family: var(--f-mono); font-size: 15px; margin: .8rem 0 1rem; line-height: 2; }
+.ptok { padding: .1rem .3rem; border-radius: 2px; border: 1px solid transparent; }
+.ptok.cur { background: var(--hl); color: var(--hl-ink); border-color: var(--magenta); }
+.pgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin-top: .8rem; }
+.plog { margin-top: 1rem; }
+.pfinal pre { margin: .4rem 0 0; }
