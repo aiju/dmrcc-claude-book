@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Declarations · V6 C compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="chpage">
+<header class="topbar"><nav><a class="home" href="index.html">The Sixth Edition C Compiler</a><span class="sep">/</span>Chapter 7</nav><div class="tools"><a href="contents.html">Contents</a><a href="source/index.html">Listing</a><a href="xref.html">Index</a></div></header>
+<div class="reader">
+<main class="prose chapter">
+<header class="chead">
+<p class="eyebrow">Chapter 7</p>
+<h1>Declarations</h1>
+<nav class="local"><ol><li><a href="#keywords">The keywords</a></li><li><a href="#declarators">Reading a declarator</a></li><li><a href="#decl1">Allocating storage</a></li><li><a href="#structs">Structures</a></li><li><a href="#fields">Alignment and bit-fields</a></li><li><a href="#externals">External definitions and initializers</a></li></ol></nav>
+</header>
+<!-- title: Declarations -->
+<!-- number: 7 -->
+<!-- short: Declarations -->
+<!-- scripts: lexer.js decl.js -->
+<!-- blurb: Reading declarators inside out, laying out structures and bit-fields, allocating storage, and initializing external data; with three bugs found by running the compiler. -->
+
+<p>Declarations are handled by <a href="source/c03.c.html"><code>c03.c</code></a>, with external data
+and its initializers in <code>c02.c</code>. The work divides into three parts: reading the keywords
+that begin a declaration, reading each declarator to find the name and its type, and then
+allocating storage for the name according to its storage class.</p>
+
+<h2 id="keywords">The keywords</h2>
+
+<p><code>declist</code> (<a class="lref" data-file="c03.c" data-line="3365" href="source/c03.c.html#L3365">3365&ndash;3377</a>) reads a sequence of declarations. It is called at the start
+of every function body with storage class 0, for the parameter declarations with <code>ARG</code>, and
+inside a structure with <code>MOS</code>, &ldquo;member of structure&rdquo;. It returns the total size
+of what it declared, which is only interesting for a structure.</p>
+
+<p>Each declaration begins with keywords, read by <code>getkeywords</code> (<a class="lref" data-file="c03.c" data-line="3382" href="source/c03.c.html#L3382">3382&ndash;3446</a>). A storage
+class keyword replaces the default, and conflicting ones are an error. A type keyword sets the
+type, and a second one is a &ldquo;Type clash&rdquo;. <code>long</code> is not a type but a modifier,
+counted in <code>longf</code>, which turns <code>int</code> into <code>long</code> and <code>float</code> into
+<code>double</code> (<a class="lref" data-file="c03.c" data-line="3432" href="source/c03.c.html#L3432">3432&ndash;3439</a>). So <code>long float</code> is a legal way of writing <code>double</code>.</p>
+
+<p>When a token arrives that is not a keyword, <code>getkeywords</code> decides whether it has seen a
+declaration at all. If no keyword was read, it returns &minus;1 and <code>declist</code> stops: this is
+how the end of the declarations at the head of a function is found, since a statement does not
+start with a keyword that names a type or class. Otherwise missing parts get defaults, <code>int</code>
+for the type and <code>AUTO</code> for the class, so <code>register x;</code> declares an integer and
+<code>int x;</code> inside a function declares an automatic.</p>
+
+<h2 id="declarators">Reading a declarator</h2>
+
+<p>A C declarator reads from the inside out: in <code>char *argv[5]</code>, <code>argv</code> is first an
+array, because <code>[]</code> binds more tightly than <code>*</code>, and then the elements are pointers, and
+the pointers point to <code>char</code>. <code>getype</code> (<a class="lref" data-file="c03.c" data-line="3642" href="source/c03.c.html#L3642">3642&ndash;3699</a>) parses this with a very small
+recursive routine:</p>
+
+<pre class="excerpt"><span class="xf">c03.c</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3642" href="source/c03.c.html#L3642"> 3642</a>  <span class="def">getype</span>()</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3643" href="source/c03.c.html#L3643"> 3643</a>  {</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3644" href="source/c03.c.html#L3644"> 3644</a>          <span class="kw">register</span> <span class="kw">int</span> o, type;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3645" href="source/c03.c.html#L3645"> 3645</a>          <span class="kw">register</span> <span class="kw">struct</span> hshtab *ds;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3646" href="source/c03.c.html#L3646"> 3646</a>  </span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3647" href="source/c03.c.html#L3647"> 3647</a>          <span class="kw">switch</span>(o=<a class="id" href="source/c00.c.html#L1534">symbol</a>()) {</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3648" href="source/c03.c.html#L3648"> 3648</a>  </span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3649" href="source/c03.c.html#L3649"> 3649</a>          <span class="kw">case</span> TIMES:</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3650" href="source/c03.c.html#L3650"> 3650</a>                  <span class="kw">return</span>(<a class="id" href="source/c03.c.html#L3642">getype</a>()&lt;&lt;TYLEN | PTR);</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3651" href="source/c03.c.html#L3651"> 3651</a>  </span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3652" href="source/c03.c.html#L3652"> 3652</a>          <span class="kw">case</span> LPARN:</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3653" href="source/c03.c.html#L3653"> 3653</a>                  type = <a class="id" href="source/c03.c.html#L3642">getype</a>();</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3654" href="source/c03.c.html#L3654"> 3654</a>                  <span class="kw">if</span> ((o=<a class="id" href="source/c00.c.html#L1534">symbol</a>()) != RPARN)</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3655" href="source/c03.c.html#L3655"> 3655</a>                          <span class="kw">goto</span> syntax;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3656" href="source/c03.c.html#L3656"> 3656</a>                  <span class="kw">goto</span> getf;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3657" href="source/c03.c.html#L3657"> 3657</a>  </span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3658" href="source/c03.c.html#L3658"> 3658</a>          <span class="kw">case</span> NAME:</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3659" href="source/c03.c.html#L3659"> 3659</a>                  defsym = ds = csym;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3660" href="source/c03.c.html#L3660"> 3660</a>                  type = <span class="nu">0</span>;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3661" href="source/c03.c.html#L3661"> 3661</a>                  ds-&gt;ssp = dimp;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3662" href="source/c03.c.html#L3662"> 3662</a>          getf:</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3663" href="source/c03.c.html#L3663"> 3663</a>                  <span class="kw">switch</span>(o=<a class="id" href="source/c00.c.html#L1534">symbol</a>()) {</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3664" href="source/c03.c.html#L3664"> 3664</a>  </span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3665" href="source/c03.c.html#L3665"> 3665</a>                  <span class="kw">case</span> LPARN:</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3666" href="source/c03.c.html#L3666"> 3666</a>                          <span class="kw">if</span> (xdflg) {</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3667" href="source/c03.c.html#L3667"> 3667</a>                                  xdflg = <span class="nu">0</span>;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3668" href="source/c03.c.html#L3668"> 3668</a>                                  ds = defsym;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3669" href="source/c03.c.html#L3669"> 3669</a>                                  <a class="id" href="source/c03.c.html#L3522">declare</a>(ARG1, <span class="nu">0</span>, <span class="nu">0</span>, <span class="nu">0</span>);</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3670" href="source/c03.c.html#L3670"> 3670</a>                                  defsym = ds;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3671" href="source/c03.c.html#L3671"> 3671</a>                                  xdflg++;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3672" href="source/c03.c.html#L3672"> 3672</a>                          } <span class="kw">else</span></span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3673" href="source/c03.c.html#L3673"> 3673</a>                                  <span class="kw">if</span> ((o=<a class="id" href="source/c00.c.html#L1534">symbol</a>()) != RPARN)</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3674" href="source/c03.c.html#L3674"> 3674</a>                                          <span class="kw">goto</span> syntax;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3675" href="source/c03.c.html#L3675"> 3675</a>                          type = type&lt;&lt;TYLEN | FUNC;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3676" href="source/c03.c.html#L3676"> 3676</a>                          <span class="kw">goto</span> getf;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3677" href="source/c03.c.html#L3677"> 3677</a>  </span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3678" href="source/c03.c.html#L3678"> 3678</a>                  <span class="kw">case</span> LBRACK:</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3679" href="source/c03.c.html#L3679"> 3679</a>                          <a class="id" href="source/c03.c.html#L3511">chkdim</a>();</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3680" href="source/c03.c.html#L3680"> 3680</a>                          <span class="kw">if</span> ((o=<a class="id" href="source/c00.c.html#L1534">symbol</a>()) != RBRACK) {</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3681" href="source/c03.c.html#L3681"> 3681</a>                                  peeksym = o;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3682" href="source/c03.c.html#L3682"> 3682</a>                                  cval = <a class="id" href="source/c01.c.html#L2610">conexp</a>();</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3683" href="source/c03.c.html#L3683"> 3683</a>                                  <span class="kw">for</span> (o=ds-&gt;ssp&amp;<span class="nu">0377</span>; o&lt;dimp; o++)</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3684" href="source/c03.c.html#L3684"> 3684</a>                                          dimtab[o] =* cval;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3685" href="source/c03.c.html#L3685"> 3685</a>                                  dimtab[dimp++] = cval;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3686" href="source/c03.c.html#L3686"> 3686</a>                                  <span class="kw">if</span> ((o=<a class="id" href="source/c00.c.html#L1534">symbol</a>())!=RBRACK)</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3687" href="source/c03.c.html#L3687"> 3687</a>                                          <span class="kw">goto</span> syntax;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3688" href="source/c03.c.html#L3688"> 3688</a>                          } <span class="kw">else</span></span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3689" href="source/c03.c.html#L3689"> 3689</a>                                  dimtab[dimp++] = <span class="nu">1</span>;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3690" href="source/c03.c.html#L3690"> 3690</a>                          type = type&lt;&lt;TYLEN | ARRAY;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3691" href="source/c03.c.html#L3691"> 3691</a>                          <span class="kw">goto</span> getf;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3692" href="source/c03.c.html#L3692"> 3692</a>                  }</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3693" href="source/c03.c.html#L3693"> 3693</a>                  peeksym = o;</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3694" href="source/c03.c.html#L3694"> 3694</a>                  <span class="kw">return</span>(type);</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3695" href="source/c03.c.html#L3695"> 3695</a>          }</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3696" href="source/c03.c.html#L3696"> 3696</a>  syntax:</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3697" href="source/c03.c.html#L3697"> 3697</a>          <a class="id" href="source/c03.c.html#L3749">decsyn</a>(o);</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3698" href="source/c03.c.html#L3698"> 3698</a>          <span class="kw">return</span>(-<span class="nu">1</span>);</span>
+<span class="xl"><a class="lref" data-file="c03.c" data-line="3699" href="source/c03.c.html#L3699"> 3699</a>  }</span></pre>
+
+<p>A <code>*</code> calls <code>getype</code> recursively for the rest of the declarator, then shifts the result
+left and puts <code>PTR</code> in the lowest field. A <code>(</code> reads a nested declarator. A name records
+itself in <code>defsym</code> and starts from type 0. After the name or the parentheses, each
+<code>()</code> or <code>[]</code> that follows shifts the type left and puts <code>FUNC</code> or <code>ARRAY</code> in the
+lowest field.</p>
+
+<p>The type <code>getype</code> returns has its modifiers in the order they were attached, with the last
+one in the lowest field. For <code>*argv[5]</code> the array is attached first, when the name is read,
+and the pointer last, when the recursion unwinds, so the word has <code>PTR</code> in the lowest field
+and <code>ARRAY</code> above it. That is the wrong way round: the type word wants the outermost
+modifier, the one applied to the name first, at the bottom. So <code>decl1</code> reverses the fields
+before adding the base type (<a class="lref" data-file="c03.c" data-line="3562" href="source/c03.c.html#L3562">3562&ndash;3566</a>):</p>
+
+<pre>type = 0;
+do
+	type = type&lt;&lt;TYLEN | (t1 &amp; XTYPE);
+while (((t1=&gt;&gt;TYLEN) &amp; XTYPE)!=0);
+type =| tkw;</pre>
+
+<p>Array bounds are read with <code>conexp</code> and stored in <code>dimtab</code>. The first bound of an
+array is stored at the index recorded in the name's <code>ssp</code>, and each later bound multiplies
+the ones before it (<a class="lref" data-file="c03.c" data-line="3678" href="source/c03.c.html#L3678">3678&ndash;3691</a>). So <code>int m[3][4]</code> leaves 12 and 4 in
+<code>dimtab</code>: the first entry is the total number of elements, which is what <code>length</code> wants,
+and the second is the number of elements in each row, which is what subscripting <code>m</code> once
+leaves you with. Taking a subscript moves the node's <code>ssp</code> forward by one
+(<a href="06-types.html#build">chapter 6</a>). A missing bound is recorded as 1.</p>
+
+<p>When a function is declared at the outer level, the parentheses may hold its parameter names.
+The global <code>xdflg</code> is set only while an external definition's declarator is being read, and
+in that case <code>getype</code> calls <code>declare</code> to read the names as declarations of class
+<code>ARG1</code> (<a class="lref" data-file="c03.c" data-line="3665" href="source/c03.c.html#L3665">3665&ndash;3672</a>).</p>
+
+<p>Try a few declarators. The model shows each step of <code>getype</code>, the word it produces, the
+word after <code>decl1</code> has reversed it, and what <code>length</code> makes of the result. The sizes it
+reports for the four declarations of <code>dims.c</code> agree with the real compiler, shown below the
+figure.</p>
+
+<div class="widget" data-widget="declarator">
+<div class="wbar"><span class="wt">getype() and decl1()</span>
+<span class="row">
+<button type="button" class="btn" data-decl="char *argv[5]">char *argv[5]</button>
+<button type="button" class="btn" data-decl="int m[3][4]">int m[3][4]</button>
+<button type="button" class="btn" data-decl="int (*q)[4]">int (*q)[4]</button>
+<button type="button" class="btn" data-decl="char *(*fp)()">char *(*fp)()</button>
+</span></div>
+<div class="wbody">
+<label for="dinp">Declaration</label>
+<div class="row"><input type="text" id="dinp" value="char *argv[5]" spellcheck="false" style="flex:1 1 16rem"><button type="button" class="btn primary drun">Read it</button></div>
+<div class="dout" style="margin-top:1rem"></div>
+</div>
+</div>
+
+<div class="pair">
+<div><p class="lbl">dims.c</p><pre>int m[3][4];
+int (*p[3])[4];
+int (*q)[4];
+char *argv[5];
+
+main()
+{
+        printf("%d %d %d %d\n", sizeof m, sizeof p, sizeof q, sizeof argv);
+        printf("%d %d\n", sizeof m[0], sizeof *q);
+}</pre></div>
+<div><p class="lbl">a.out</p><pre>24 6 2 10
+8 8</pre>
+<p class="small muted"><code>p</code> is three pointers, 6 bytes; <code>q</code> is one, 2 bytes, and what it points
+to is 8. After a parenthesised declarator, the loop that multiplies earlier bounds
+uses the local <code>ds</code>, which that invocation of <code>getype</code> never set, so the bound
+<code>[4]</code> is simply recorded. For these declarations that happens to be the right answer.</p></div>
+</div>
+
+<h2 id="decl1">Allocating storage</h2>
+
+<p><code>decl1</code> (<a class="lref" data-file="c03.c" data-line="3539" href="source/c03.c.html#L3539">3539&ndash;3637</a>) handles one declarator. After <code>getype</code> and the reversal, it
+checks that the name is not already declared in a conflicting way, sets its class and type, and
+then allocates it according to its class (<a class="lref" data-file="c03.c" data-line="3617" href="source/c03.c.html#L3617">3617&ndash;3634</a>):</p>
+
+<ul>
+<li>A <strong>function</strong> is always external, even if declared inside another function.</li>
+<li>An <strong>automatic</strong> gets the next slot below the frame pointer. <code>autolen</code> is the
+number of bytes used so far, starting at 6 for the saved registers, and the variable's offset is
+its negation, so the first <code>int</code> is at &minus;8.</li>
+<li>A <strong>static</strong> gets a new label, and its storage is allocated at once: <code>decl1</code> writes
+<code>.bss</code>, the label, space for the object and <code>.text</code> into the middle of the
+function's code. You can see the result in <code>init.s</code> below, where <code>calls</code> becomes
+<code>L4</code> and is allocated right after <code>~~main:</code>.</li>
+<li>A <strong>register</strong> variable gets the next register down from <code>r4</code>. Only
+<code>int</code>, <code>char</code> and pointers are allowed, and only three of them. A fourth is not quietly
+demoted to an automatic, as later compilers did; it is an error, and the message prints the type
+in octal:</li>
+</ul>
+
+<div class="pair">
+<div><p class="lbl">regs.c</p><pre>f()
+{
+        register a, b, c, d;
+
+        a = b = c = d = 0;
+}</pre></div>
+<div><p class="lbl">cc -c regs.c</p><pre>3: Bad register 0</pre></div>
+</div>
+
+<p>Parameters are handled in two stages, because in this C their types come after their names:
+<code>f(a, b) char *b; { ... }</code>. As <code>getype</code> reads the names in the parentheses, <code>decl1</code>
+links them into a list, in order, using the <code>hoffset</code> field of each symbol as the link
+(<a class="lref" data-file="c03.c" data-line="3580" href="source/c03.c.html#L3580">3580&ndash;3586</a>). Then the declarations between <code>)</code> and <code>{</code> are read with class
+<code>ARG</code>, which sets their types. Finally <code>blkhed</code> (<a class="lref" data-file="c02.c" data-line="3214" href="source/c02.c.html#L3214">3214&ndash;3254</a>) walks the list and
+assigns offsets 4, 6, 8 and so on in the order the names appeared. On the way, <code>float</code>
+parameters become <code>double</code>, since that is what callers pass, and array parameters become
+pointers. A parameter that is never declared stays an <code>int</code>, and a declared name that is not
+in the list draws &ldquo;Not an argument&rdquo;.</p>
+
+<h2 id="structs">Structures</h2>
+
+<p><code>struct</code> is read by <code>strdec</code> (<a class="lref" data-file="c03.c" data-line="3452" href="source/c03.c.html#L3452">3452&ndash;3506</a>), called from <code>getkeywords</code>. A tag
+is entered in the symbol table with class <code>STRTAG</code> and given a slot in <code>dimtab</code> for the
+structure's size. If a body in braces follows, its members are read with <code>declist(MOS)</code>,
+which returns the size, and the size is stored in the tag's slot. The members' names are read
+with the <code>.</code> prefix of <a href="03-c0.html#symtab">chapter 3</a>.</p>
+
+<p>Because all members share one name space, a member name can belong to only one offset and one
+type. <code>decl1</code> allows a member to be declared again only if the new declaration agrees in both
+(<a class="lref" data-file="c03.c" data-line="3568" href="source/c03.c.html#L3568">3568&ndash;3576</a>, <a class="lref" data-file="c03.c" data-line="3613" href="source/c03.c.html#L3613">3613&ndash;3614</a>); otherwise it is &ldquo;redeclared&rdquo;. Kernel
+programmers worked around this by giving each structure's members a distinct prefix.</p>
+
+<p>A structure can be mentioned before it is defined, as long as only pointers to it are declared:
+<code>struct node *head;</code> before <code>struct node { ... }</code>. Then the size is not yet known, and
+<code>strdec</code> returns the type <code>RSTRUCT</code> and, in place of a size, a pointer to the tag's symbol
+table entry (<a class="lref" data-file="c03.c" data-line="3484" href="source/c03.c.html#L3484">3484&ndash;3487</a>). <code>decl1</code> stores that pointer in <code>dimtab</code> as though it were
+a size. At the start of the next function, and after each external declaration of a structure,
+<code>blkhed</code> goes through the symbol table, follows
+each such pointer to the tag, and replaces it with the tag's real size slot (<a class="lref" data-file="c02.c" data-line="3239" href="source/c02.c.html#L3239">3239&ndash;3243</a>),
+by which time the structure has usually been defined.</p>
+
+<h2 id="fields">Alignment and bit-fields</h2>
+
+<p><code>align</code> (<a class="lref" data-file="c03.c" data-line="3705" href="source/c03.c.html#L3705">3705&ndash;3744</a>) is called for every member of a structure with the current
+offset and returns how many bytes of padding are needed before the member. Everything except
+<code>char</code> is aligned to an even address. Bit-fields are packed into words: <code>bitoffs</code> is the
+number of bits used in the current word, and a field that does not fit in what is left starts a
+new word.</p>
+
+<p>When an ordinary member follows some bit-fields, <code>align</code> must step past the bytes the
+fields occupy. It does so with this line (<a class="lref" data-file="c03.c" data-line="3714" href="source/c03.c.html#L3714">3714&ndash;3717</a>):</p>
+
+<pre>if (flen==0 &amp;&amp; bitoffs) {
+	a =+ (bitoffs-1) / NBPC;
+	bitoffs = 0;
+}</pre>
+
+<p><code>(bitoffs-1)/NBPC</code> is the index of the byte holding the last bit used, not the number of
+bytes used. For fields totalling more than eight bits it is 1, and the alignment that follows
+rounds the offset up to the next word, which happens to be right. For fields totalling eight bits
+or fewer it is 0, the offset does not move, and the following member is placed on top of the
+fields. The compiler really does this. In <code>decl.c</code> from <a href="06-types.html">chapter 6</a>,
+<code>kind:3</code> and <code>mark:1</code> are followed by <code>int count</code>, and the program reports that
+<code>count</code> is two words from the start, at byte 4, which is where the fields are. The
+structure is two bytes smaller than it should be.</p>
+
+<p>There is a second, smaller slip a few lines further on: for a <code>char</code> field, the check that
+it fits compares with <code>NCPW</code>, the number of characters per word, instead of <code>NBPC</code>, the
+number of bits per character (<a class="lref" data-file="c03.c" data-line="3736" href="source/c03.c.html#L3736">3736</a>). And as <a href="06-types.html#build">chapter 6</a>
+showed, fields cannot be assigned to at all. Bit-fields were evidently new, and not much used.</p>
+
+<h2 id="externals">External definitions and initializers</h2>
+
+<p>At the outer level, <code>extdef</code> (<a class="lref" data-file="c02.c" data-line="2661" href="source/c02.c.html#L2661">2661&ndash;2706</a>) reads the keywords, with <code>EXTERN</code> as the
+default class, and then each declarator. A function whose declarator is followed by <code>{</code> or by
+a keyword is a function definition, handed to <code>cfunc</code> (next chapter). Anything else is data,
+handed to <code>cinit</code> (<a class="lref" data-file="c02.c" data-line="2731" href="source/c02.c.html#L2731">2731&ndash;2804</a>).</p>
+
+<p>Data without an initializer is written out as a common block, <code>.comm _x,size</code>
+(<a class="lref" data-file="c02.c" data-line="2757" href="source/c02.c.html#L2757">2757&ndash;2760</a>), which the loader merges with any other definitions of the same name. This is
+why the Sixth Edition, like most Unix C compilers after it, allowed a global to be defined in
+more than one file.</p>
+
+<p>An initializer has no <code>=</code>. It is either a single expression or a list in braces, each
+item read by <code>cinit1</code> (<a class="lref" data-file="c02.c" data-line="2811" href="source/c02.c.html#L2811">2811&ndash;2879</a>), which checks it against the width of the element:
+a byte, a word, or four or eight bytes of floating point. A word can be initialized with an
+integer constant, written directly, or with an address, which is written as an expression tree
+with the special operator <code>INIT</code> for the second pass to print (<a class="lref" data-file="c02.c" data-line="2846" href="source/c02.c.html#L2846">2846&ndash;2859</a>). That is
+how <code>char *msg "hello"</code> becomes the word <code>L2</code>, the label of the string.</p>
+
+<p>An array without a bound takes its size from the number of initializers; this is done by
+patching the bound in <code>dimtab</code> after the list has been read (<a class="lref" data-file="c02.c" data-line="2790" href="source/c02.c.html#L2790">2790&ndash;2796</a>). A
+structure is initialized, as the comment says, by pretending it is an array of integers
+(<a class="lref" data-file="c02.c" data-line="2749" href="source/c02.c.html#L2749">2749&ndash;2756</a>), which works as long as every member is a word. Here is a file with several
+kinds of initializer and what the compiler made of it:</p>
+
+<div class="pair">
+<div><p class="lbl">init.c</p><pre>int a[] {1, 2, 3};
+char s[10] "hi";
+char *msg "hello";
+int *p &amp;a[1];
+struct { int x; char c; int y; } st {1, 'a', -1};
+struct node *head;
+struct node { int val; struct node *next; } n1 {5, &amp;n1};
+
+main()
+{
+        static int calls;
+
+        printf("%d %d %d\n", sizeof a, sizeof s, *p);
+        printf("%s %d %d\n", msg, st.c, head == 0);
+        calls++;
+}</pre>
+<p class="lbl">a.out</p><pre>6 10 2
+hello 97 1</pre></div>
+<div><p class="lbl">init.s (the data)</p><pre>.globl	_a
+.data
+_a:
+1
+2
+3
+.globl	_s
+.data
+_s:
+.byte 150,151,0
+.globl	_msg
+.data
+_msg:
+L2
+.globl	_p
+.data
+_p:
+2+_a
+.globl	_st
+.data
+_st:
+1
+141
+177777
+.globl	_head
+.comm	_head,2
+.globl	_n1
+.data
+_n1:
+5
+_n1
+<span class="muted">...</span>
+.globl
+.data
+<span class="def">.=.+7</span>
+L2:.byte 150,145,154,154,157,0</pre></div>
+</div>
+
+<p>The structure <code>st</code> shows the kludge at work. Its <code>char</code> member is initialized as a
+whole word, 141, which puts the character in the right byte because the <code>char</code> is followed by
+padding. <code>n1</code> contains its own address, which is legal because the name is entered in the
+symbol table before its initializer is read.</p>
+
+<h3>A string in the wrong place</h3>
+
+<p>Now look at <code>s</code>, declared as <code>char s[10] "hi"</code>. The three bytes of the string are
+written where they belong. The remaining seven bytes of the array should follow them, but the
+<code>.=.+7</code> that reserves them is at the very end of the file, among the string constants. The
+code responsible is in <code>cinit1</code>:</p>
+
+<pre class="excerpt"><span class="xf">c02.c</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2820" href="source/c02.c.html#L2820"> 2820</a>          <span class="kw">if</span> ((peeksym=<a class="id" href="source/c00.c.html#L1534">symbol</a>())==STRING &amp;&amp; type==CHAR) {</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2821" href="source/c02.c.html#L2821"> 2821</a>                  peeksym = -<span class="nu">1</span>;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2822" href="source/c02.c.html#L2822"> 2822</a>                  <span class="kw">if</span> (ninit)</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2823" href="source/c02.c.html#L2823"> 2823</a>                          <a class="id" href="source/c02.c.html#L2881">bxdec</a>();</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2824" href="source/c02.c.html#L2824"> 2824</a>                  <a class="id" href="source/c00.c.html#L1710">putstr</a>(<span class="nu">0</span>);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2825" href="source/c02.c.html#L2825"> 2825</a>                  <span class="kw">if</span> (nel&gt;nchstr) {</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2826" href="source/c02.c.html#L2826"> 2826</a>                          strflg++;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2827" href="source/c02.c.html#L2827"> 2827</a>                          <a class="id" href="source/c04.c.html#L4100">outcode</a>(<span class="st">"BN"</span>, SSPACE, nel-nchstr);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2828" href="source/c02.c.html#L2828"> 2828</a>                          strflg = <span class="nu">0</span>;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2829" href="source/c02.c.html#L2829"> 2829</a>                          nchstr = nel;</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2830" href="source/c02.c.html#L2830"> 2830</a>                  }</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2831" href="source/c02.c.html#L2831"> 2831</a>                  <span class="kw">return</span>(nchstr);</span>
+<span class="xl"><a class="lref" data-file="c02.c" data-line="2832" href="source/c02.c.html#L2832"> 2832</a>          }</span></pre>
+
+<p><code>putstr(0)</code> writes the string into the main output file. Then the padding is written
+with <code>strflg</code> set, which sends it to the <em>string</em> file instead, and that is copied onto
+the end of the output by <code>c1</code>. So the array really occupies three bytes, rounded up to four
+by the assembler, and whatever is declared next begins inside it. The effect is easy to
+demonstrate:</p>
+
+<div class="pair">
+<div><p class="lbl">strinit.c</p><pre>char s[10] "hi";
+char *msg "hello";
+int after 1234;
+
+main()
+{
+        printf("s at %o, msg at %o, after at %o\n", s, &amp;msg, &amp;after);
+        s[4] = 'X';
+        printf("%s %d\n", msg, after);
+}</pre></div>
+<div><p class="lbl">a.out</p><pre>s at 1230, msg at 1234, after at 1236
+@ 1234</pre>
+<p class="small muted"><code>msg</code> begins four bytes after <code>s</code>, and storing into <code>s[4]</code>
+overwrites the low byte of the pointer <code>msg</code>, so <code>printf</code> prints garbage instead of
+&ldquo;hello&rdquo;.</p></div>
+</div>
+
+<p>The fix is simply to leave <code>strflg</code> alone here. Initialized <code>char</code> arrays larger than their initializer were
+evidently rare in 1975.</p>
+
+<h3>Longs</h3>
+
+<p>One more gap: <code>cinit1</code> treats every four-byte object as a <code>float</code> (<a class="lref" data-file="c02.c" data-line="2861" href="source/c02.c.html#L2861">2861&ndash;2864</a>).
+It expects a floating constant, and anything else is &ldquo;Inconsistent external
+initialization&rdquo;. <code>long</code> was the newest type in the language, and there is no way to
+initialize an external <code>long</code>:</p>
+
+<div class="pair">
+<div><pre>long big 5;</pre></div>
+<div><pre>1: Inconsistent external initialization</pre></div>
+</div>
+
+<nav class="pager"><a href="06-types.html">&larr; Types</a><span></span></nav>
+</main>
+<aside class="panel" id="panel" hidden>
+<div class="panelbar"><span class="pfile"></span><button type="button" class="pclose" aria-label="Close listing">Close</button></div>
+<div class="pbody"></div>
+</aside>
+</div>
+<script src="assets/book.js"></script>
+<script src="assets/listing-data.js"></script><script src="assets/reader.js"></script><script src="assets/lexer.js"></script><script src="assets/decl.js"></script>
+</body>
+</html>
